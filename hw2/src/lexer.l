@@ -85,7 +85,15 @@ WHITE_SPACE                [ \t]+
 NEWLINE                    "\n"
 COMMENT                    \/\*([^*]|\*[^/])*\*\/
 
-REGEX_IDENTIFIER           {LETTER}({DIGIT}|{LETTER}|_)*
+REGEX_R_RETURN             "return"
+REGEX_R_TYPEDEF            "typedef"
+REGEX_R_IF                 "if"
+REGEX_R_ELSE               "else"
+REGEX_R_INT                "int"
+REGEX_R_FLOAT              "float"
+REGEX_R_FOR                "for"
+REGEX_R_VOID               "void"
+REGEX_R_WHILE              "while"
 
 /*** constants ***/
 REGEX_C_INT                {DIGIT}+
@@ -122,23 +130,27 @@ REGEX_S_SEMICOLON          ";"
 REGEX_S_COMMA              ","
 REGEX_S_PERIOD             "."
 
+REGEX_IDENTIFIER           {LETTER}({DIGIT}|{LETTER}|_)*
+
 ERROR                      .
 
 %%
 
 {WHITE_SPACE}                {}
 
+{REGEX_R_RETURN}             { RETURN_TOKEN(R_RETURN); }
+{REGEX_R_TYPEDEF}            { RETURN_TOKEN(R_TYPEDEF); } 
+{REGEX_R_IF}                 { RETURN_TOKEN(R_IF); }
+{REGEX_R_ELSE}			     { RETURN_TOKEN(R_ELSE); } 
+{REGEX_R_INT}                { RETURN_TOKEN(R_INT); } 
+{REGEX_R_FLOAT}              { RETURN_TOKEN(R_FLOAT); } 
+{REGEX_R_FOR}                { RETURN_TOKEN(R_FOR); } 
+{REGEX_R_VOID}               { RETURN_TOKEN(R_VOID); } 
+{REGEX_R_WHILE}              { RETURN_TOKEN(R_WHILE); } 
+
 {REGEX_C_INT}                { RETURN_TOKEN(C_INT); }
 {REGEX_C_FLOAT}              { RETURN_TOKEN(C_FLOAT); }
 {REGEX_C_STRING}             { RETURN_TOKEN(C_STRING); }
-
-{REGEX_IDENTIFIER}            {
-      auto it = symtab.insert({std::string(yytext), {linenumber, 0}});
-      it.first->second.counter++;
-#ifdef DEBUG
-      printf("Get identifier: [%s]\n", yytext);
-#endif
-    }
 
 {REGEX_O_ADDITION}           { RETURN_TOKEN(O_ADDITION); }
 {REGEX_O_SUBTRACTION}        { RETURN_TOKEN(O_SUBTRACTION); }
@@ -176,6 +188,15 @@ ERROR                      .
       printf("Get comment: [%s]\n", yytext);
 #endif
     }
+
+{REGEX_IDENTIFIER}            {
+      auto it = symtab.insert({std::string(yytext), {linenumber, 0}});
+      it.first->second.counter++;
+#ifdef DEBUG
+      printf("Get identifier: [%s]\n", yytext);
+#endif
+    }
+
 
 {ERROR}         printf("ERR \n");/* return ERROR; */
 

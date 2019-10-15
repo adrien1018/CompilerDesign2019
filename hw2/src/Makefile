@@ -1,6 +1,6 @@
 TARGET = scanner
 OBJECT = lex.yy.o symboltable.o
-CXXFLAGS = -g -Wall -O2# -DDEBUG
+CXXFLAGS = -g -Wall -O2 -DDEBUG
 LEX = flex
 LEXFLAGS = -+
 LIBS = -lfl
