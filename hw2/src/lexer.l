@@ -139,14 +139,14 @@ ERROR                      .
 {WHITE_SPACE}                {}
 
 {REGEX_R_RETURN}             { RETURN_TOKEN(R_RETURN); }
-{REGEX_R_TYPEDEF}            { RETURN_TOKEN(R_TYPEDEF); } 
+{REGEX_R_TYPEDEF}            { RETURN_TOKEN(R_TYPEDEF); }
 {REGEX_R_IF}                 { RETURN_TOKEN(R_IF); }
-{REGEX_R_ELSE}			     { RETURN_TOKEN(R_ELSE); } 
-{REGEX_R_INT}                { RETURN_TOKEN(R_INT); } 
-{REGEX_R_FLOAT}              { RETURN_TOKEN(R_FLOAT); } 
-{REGEX_R_FOR}                { RETURN_TOKEN(R_FOR); } 
-{REGEX_R_VOID}               { RETURN_TOKEN(R_VOID); } 
-{REGEX_R_WHILE}              { RETURN_TOKEN(R_WHILE); } 
+{REGEX_R_ELSE}               { RETURN_TOKEN(R_ELSE); }
+{REGEX_R_INT}                { RETURN_TOKEN(R_INT); }
+{REGEX_R_FLOAT}              { RETURN_TOKEN(R_FLOAT); }
+{REGEX_R_FOR}                { RETURN_TOKEN(R_FOR); }
+{REGEX_R_VOID}               { RETURN_TOKEN(R_VOID); }
+{REGEX_R_WHILE}              { RETURN_TOKEN(R_WHILE); }
 
 {REGEX_C_INT}                { RETURN_TOKEN(C_INT); }
 {REGEX_C_FLOAT}              { RETURN_TOKEN(C_FLOAT); }
