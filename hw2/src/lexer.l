@@ -67,6 +67,8 @@ enum TokenType {
   S_COMMA,
   S_PERIOD,
 
+  ERROR,
+
   kNumTokenType
 };
 
@@ -198,7 +200,7 @@ ERROR                      .
     }
 
 
-{ERROR}         printf("ERR \n");/* return ERROR; */
+{ERROR}                      { printf("ERR \n"); return ERROR; }
 
 
 %%
