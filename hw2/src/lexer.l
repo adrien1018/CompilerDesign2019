@@ -1,14 +1,11 @@
 %option noyywrap
 %{
-#include <string>
-#include <vector>
 #include <fstream>
 #include <algorithm>
-#include <unordered_map>
 #include "header.h"
 
 int linenumber;
-std::unordered_map<std::string, Symbol> symtab;
+SymTab symtab;
 std::vector<std::string> comments;
 
 enum TokenType {

@@ -2,8 +2,6 @@
 
 #include "header.h"
 
-using SymTab = std::unordered_map<std::string, Symbol>;
-
 void PrintStrings(const std::vector<std::string>& vec) {
   for (const std::string& i : vec) puts(i.c_str());
 }
