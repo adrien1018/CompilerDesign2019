@@ -8,6 +8,12 @@ int linenumber;
 SymTab symtab;
 std::vector<std::string> comments;
 
+const int kReservedStart = 10;
+const int kOperatorStart = 30;
+const int kConstantStart = 50;
+const int kIdentifier = 69;
+const int kSeparatorStart = 70;
+
 enum TokenType {
   // reserved words
   R_RETURN = kReservedStart,
@@ -18,13 +24,13 @@ enum TokenType {
   R_FLOAT,
   R_FOR,
   R_VOID,
-  R_WHILE = kReservedEnd,
+  R_WHILE,
 
   // arithmetic operators
-  O_ADDITION = kOperationStart,
+  O_ADDITION = kOperatorStart,
   O_SUBTRACTION,
   O_DIVISION,
-  O_MULTIPLICATION = kOperationEnd,
+  O_MULTIPLICATION,
 
   // relational operators
   O_LESS_THAN,
@@ -41,14 +47,14 @@ enum TokenType {
 
   // assignment operator
   O_ASSIGN,
-  
+
   // constants
   C_INT = kConstantStart,
   C_FLOAT,
-  C_STRING = kConstantEnd,
+  C_STRING,
 
   // identifiers
-  IDENTIFIER,
+  IDENTIFIER = kIdentifier,
 
   // separators
   S_L_BRACE = kSeparatorStart,
@@ -59,7 +65,7 @@ enum TokenType {
   S_R_PAREN,
   S_SEMICOLON,
   S_COMMA,
-  S_PERIOD = kSeparatorEnd,
+  S_PERIOD,
 
   kNumTokenType
 };
@@ -71,15 +77,14 @@ LETTER                     [A-Za-z]
 DIGIT                      [0-9]
 WHITE_SPACE                [ \t]+
 NEWLINE                    "\n"
-ERROR                      .
-COMMENT                    // TODO
+COMMENT                    \/\*([^*]|\*[^/])*\*\/
 
-REGEX_IDENTIFIER           {LETTER}({LETTER}|{DIGIT}|"_")*
+REGEX_IDENTIFIER           {LETTER}({DIGIT}|{LETTER}|_)*
 
 /*** constants ***/
 REGEX_C_INT                {DIGIT}+
-REGEX_C_FLOAT              {DIGIT}+
-REGEX_C_STRING             {DIGIT}+
+REGEX_C_FLOAT              ({DIGIT}+(\.{DIGIT}*)?|\.{DIGIT}+)([eE][+-]?{DIGIT}+)?
+REGEX_C_STRING             \"([^\\"\n]|\\(.|\n))*\"
 
 /*** operators ***/
 REGEX_O_ADDITION           "+"
@@ -103,13 +108,15 @@ REGEX_O_ASSIGN             "="
 /*** separators ***/
 REGEX_S_L_BRACE            "{"
 REGEX_S_R_BRACE            "}"
-REGEX_S_L_BRACKET          "("
-REGEX_S_R_BRACKET          ")"
+REGEX_S_L_BRACKET          "["
+REGEX_S_R_BRACKET          "]"
 REGEX_S_L_PAREN            "("
 REGEX_S_R_PAREN            ")"
 REGEX_S_SEMICOLON          ";"
 REGEX_S_COMMA              ","
 REGEX_S_PERIOD             "."
+
+ERROR                      .
 
 %%
 
