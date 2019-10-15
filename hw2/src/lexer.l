@@ -70,6 +70,12 @@ enum TokenType {
   kNumTokenType
 };
 
+#ifdef DEBUG
+#define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, yytext); return x
+#else
+#define RETURN_TOKEN(x) return x
+#endif
+
 %}
 
 /*** basic things ***/
@@ -122,47 +128,53 @@ ERROR                      .
 
 {WHITE_SPACE}                {}
 
-{REGEX_C_INT}                { return C_INT; }
-{REGEX_C_FLOAT}              { return C_FLOAT; }
-{REGEX_C_STRING}             { return C_STRING; }
+{REGEX_C_INT}                { RETURN_TOKEN(C_INT); }
+{REGEX_C_FLOAT}              { RETURN_TOKEN(C_FLOAT); }
+{REGEX_C_STRING}             { RETURN_TOKEN(C_STRING); }
 
 {REGEX_IDENTIFIER}            {
       auto it = symtab.insert({std::string(yytext), {linenumber, 0}});
       it.first->second.counter++;
+#ifdef DEBUG
+      printf("Get identifier: [%s]\n", yytext);
+#endif
     }
 
-{REGEX_O_ADDITION}           { return O_ADDITION; }
-{REGEX_O_SUBTRACTION}        { return O_SUBTRACTION; } 
-{REGEX_O_DIVISION}           { return O_DIVISION; } 
-{REGEX_O_MULTIPLICATION}     { return O_MULTIPLICATION; }  
+{REGEX_O_ADDITION}           { RETURN_TOKEN(O_ADDITION); }
+{REGEX_O_SUBTRACTION}        { RETURN_TOKEN(O_SUBTRACTION); }
+{REGEX_O_DIVISION}           { RETURN_TOKEN(O_DIVISION); }
+{REGEX_O_MULTIPLICATION}     { RETURN_TOKEN(O_MULTIPLICATION); }
 
-{REGEX_O_LESS_THAN}          { return O_LESS_THAN; }
-{REGEX_O_GREATER_THAN}       { return O_GREATER_THAN; } 
-{REGEX_O_LESS_THAN_OR_EQ}    { return O_LESS_THAN_OR_EQ; }  
-{REGEX_O_GREATER_THAN_OR_EQ} { return O_GREATER_THAN_OR_EQ; }
-{REGEX_O_NOT_EQ}             { return O_NOT_EQ; } 
-{REGEX_O_EQ}                 { return O_EQ; } 
+{REGEX_O_LESS_THAN}          { RETURN_TOKEN(O_LESS_THAN); }
+{REGEX_O_GREATER_THAN}       { RETURN_TOKEN(O_GREATER_THAN); }
+{REGEX_O_LESS_THAN_OR_EQ}    { RETURN_TOKEN(O_LESS_THAN_OR_EQ); }
+{REGEX_O_GREATER_THAN_OR_EQ} { RETURN_TOKEN(O_GREATER_THAN_OR_EQ); }
+{REGEX_O_NOT_EQ}             { RETURN_TOKEN(O_NOT_EQ); }
+{REGEX_O_EQ}                 { RETURN_TOKEN(O_EQ); }
 
-{REGEX_O_LOGICAL_OR}         { return O_LOGICAL_OR; } 
-{REGEX_O_LOGICAL_AND}        { return O_LOGICAL_AND; } 
-{REGEX_O_LOGICAL_NOT}        { return O_LOGICAL_NOT; } 
+{REGEX_O_LOGICAL_OR}         { RETURN_TOKEN(O_LOGICAL_OR); }
+{REGEX_O_LOGICAL_AND}        { RETURN_TOKEN(O_LOGICAL_AND); }
+{REGEX_O_LOGICAL_NOT}        { RETURN_TOKEN(O_LOGICAL_NOT); }
 
-{REGEX_O_ASSIGN}             { return O_ASSIGN; }
+{REGEX_O_ASSIGN}             { RETURN_TOKEN(O_ASSIGN); }
 
-{REGEX_S_L_BRACE}            { return S_L_BRACE; }
-{REGEX_S_R_BRACE}            { return S_R_BRACE; }
-{REGEX_S_L_BRACKET}          { return S_L_BRACKET; }
-{REGEX_S_R_BRACKET}          { return S_R_BRACKET; }
-{REGEX_S_L_PAREN}            { return S_L_PAREN; } 
-{REGEX_S_R_PAREN}            { return S_R_PAREN; }
-{REGEX_S_SEMICOLON}          { return S_SEMICOLON; }
-{REGEX_S_COMMA}              { return S_COMMA; }
-{REGEX_S_PERIOD}             { return S_PERIOD; }
+{REGEX_S_L_BRACE}            { RETURN_TOKEN(S_L_BRACE); }
+{REGEX_S_R_BRACE}            { RETURN_TOKEN(S_R_BRACE); }
+{REGEX_S_L_BRACKET}          { RETURN_TOKEN(S_L_BRACKET); }
+{REGEX_S_R_BRACKET}          { RETURN_TOKEN(S_R_BRACKET); }
+{REGEX_S_L_PAREN}            { RETURN_TOKEN(S_L_PAREN); }
+{REGEX_S_R_PAREN}            { RETURN_TOKEN(S_R_PAREN); }
+{REGEX_S_SEMICOLON}          { RETURN_TOKEN(S_SEMICOLON); }
+{REGEX_S_COMMA}              { RETURN_TOKEN(S_COMMA); }
+{REGEX_S_PERIOD}             { RETURN_TOKEN(S_PERIOD); }
 
 {NEWLINE}                    { linenumber += 1; }
 {COMMENT}       {
       comments.push_back(yytext);
       linenumber += std::count(comments.back().begin(), comments.back().end(), '\n');
+#ifdef DEBUG
+      printf("Get comment: [%s]\n", yytext);
+#endif
     }
 
 {ERROR}         printf("ERR \n");/* return ERROR; */

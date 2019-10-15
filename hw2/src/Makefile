@@ -1,18 +1,16 @@
 TARGET = scanner
 OBJECT = lex.yy.o symboltable.o
-CC = g++ -g -std=c++14 -O3 -Wno-deprecated-register
+CXXFLAGS = -g -Wall -Wno-deprecated-register -O2# -DDEBUG
 LEX = flex
 LEXFLAGS = -+
 LIBS = -lfl
 
-scanner:	lex.yy.o symboltable.o
-	$(CC) -o scanner lex.yy.o symboltable.o
+all: scanner
+scanner: lex.yy.o symboltable.o
+	$(CXX) -o $@ $^
 
 symboltable.o: symboltable.cc
-	$(CC) -c symboltable.cc
-
 lex.yy.o: lex.yy.cc
-	$(CC) -c lex.yy.cc
 
 lex.yy.cc: lexer.l
 	$(LEX) $(LIB) $(LEXFLAGS) lexer.l
