@@ -12,6 +12,5 @@ void PrintSym(const SymTab::value_type& ent) {
 
 void PrintSymTab(const SymTab& symtab) {
   puts("\nFrequency of identifiers:");
-  int x = 0;
   for (const auto& i : symtab) PrintSym(i);
 }
