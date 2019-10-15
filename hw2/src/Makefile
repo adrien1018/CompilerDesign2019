@@ -1,6 +1,6 @@
 TARGET = scanner
 OBJECT = lex.yy.o symboltable.o
-CC = g++ -g
+CC = g++ -g -std=c++14 -O3 -Wno-deprecated-register
 LEX = flex
 LEXFLAGS = -+
 LIBS = -lfl

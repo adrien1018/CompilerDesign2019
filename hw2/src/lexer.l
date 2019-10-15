@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
   std::ifstream input;
   if (argc > 1) {
     input.open(argv[1]);
-    lexer = new yyFlexLexer(input, std::cout);
+    lexer = new yyFlexLexer(&input, &std::cout);
   } else {
     lexer = new yyFlexLexer();
   }
