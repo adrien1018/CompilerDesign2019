@@ -72,21 +72,17 @@ enum TokenType {
   kNumTokenType
 };
 
-std::map<std::string, TokenType> CreateReservedWords() {
-  std::map<std::string, TokenType> res;
-  res["return"] = R_RETURN;
-  res["typedef"] = R_TYPEDEF;
-  res["if"] = R_IF;
-  res["else"] = R_ELSE;
-  res["int"] = R_INT;
-  res["float"] = R_FLOAT;
-  res["for"] = R_FOR;
-  res["void"] = R_VOID;
-  res["while"] = R_WHILE;
-  return res;
-}
-
-const std::map<std::string, TokenType> kReservedWords = CreateReservedWords();
+const std::map<std::string, TokenType> kReservedWords = {
+  {"return",  R_RETURN},
+  {"typedef", R_TYPEDEF},
+  {"if",      R_IF},
+  {"else",    R_ELSE},
+  {"int",     R_INT},
+  {"float",   R_FLOAT},
+  {"for",     R_FOR},
+  {"void",    R_VOID},
+  {"while",   R_WHILE},
+};
 
 #ifdef DEBUG
 #define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, yytext); return x
@@ -191,7 +187,7 @@ ERROR                      .
 {REGEX_S_PERIOD}             { RETURN_TOKEN(S_PERIOD); }
 
 {NEWLINE}                    { linenumber += 1; }
-{COMMENT}       {
+{COMMENT}                    {
       comments.push_back(yytext);
       linenumber += std::count(comments.back().begin(), comments.back().end(), '\n');
 #ifdef DEBUG
@@ -200,15 +196,17 @@ ERROR                      .
     }
 
 {REGEX_IDENTIFIER}            {
-      auto reserved_it = kReservedWords.find(std::string(yytext));
+      std::string text = yytext;
+      auto reserved_it = kReservedWords.find(text);
       if (reserved_it != kReservedWords.end()) {
         RETURN_RESERVED(reserved_it->second);
       }
-      auto it = symtab.insert({std::string(yytext), {linenumber, 0}});
+      auto it = symtab.insert({text, {linenumber, 0}});
       it.first->second.counter++;
 #ifdef DEBUG
       printf("Get identifier: [%s]\n", yytext);
 #endif
+      return IDENTIFIER;
     }
 
 
