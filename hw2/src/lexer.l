@@ -101,16 +101,6 @@ WHITE_SPACE                [ \t]+
 NEWLINE                    "\n"
 COMMENT                    \/\*([^*]|\*[^/])*\*\/
 
-REGEX_R_RETURN             "return"
-REGEX_R_TYPEDEF            "typedef"
-REGEX_R_IF                 "if"
-REGEX_R_ELSE               "else"
-REGEX_R_INT                "int"
-REGEX_R_FLOAT              "float"
-REGEX_R_FOR                "for"
-REGEX_R_VOID               "void"
-REGEX_R_WHILE              "while"
-
 /*** constants ***/
 REGEX_C_INT                {DIGIT}+
 REGEX_C_FLOAT              ({DIGIT}+(\.{DIGIT}*)?|\.{DIGIT}+)([eE][+-]?{DIGIT}+)?
