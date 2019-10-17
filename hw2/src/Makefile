@@ -9,8 +9,7 @@ all: scanner
 scanner: lex.yy.o symboltable.o
 	$(CXX) -o $@ $^
 
-symboltable.o: symboltable.cc
-lex.yy.o: lex.yy.cc
+$(OBJECT): %.o: %.cc
 
 lex.yy.cc: lexer.l
 	$(LEX) $(LIB) $(LEXFLAGS) lexer.l
