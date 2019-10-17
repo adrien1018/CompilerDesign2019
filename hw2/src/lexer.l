@@ -90,8 +90,10 @@ const std::map<std::string, TokenType> kReservedWords = CreateReservedWords();
 
 #ifdef DEBUG
 #define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, yytext); return x
+#define RETURN_RESERVED(x) printf("Get reserved word: [%s]\n", yytext); return x
 #else
 #define RETURN_TOKEN(x) return x
+#define RETURN_RESERVED(x) return x
 #endif
 
 %}
@@ -156,16 +158,6 @@ ERROR                      .
 
 {WHITE_SPACE}                {}
 
-{REGEX_R_RETURN}             { RETURN_TOKEN(R_RETURN); }
-{REGEX_R_TYPEDEF}            { RETURN_TOKEN(R_TYPEDEF); }
-{REGEX_R_IF}                 { RETURN_TOKEN(R_IF); }
-{REGEX_R_ELSE}               { RETURN_TOKEN(R_ELSE); }
-{REGEX_R_INT}                { RETURN_TOKEN(R_INT); }
-{REGEX_R_FLOAT}              { RETURN_TOKEN(R_FLOAT); }
-{REGEX_R_FOR}                { RETURN_TOKEN(R_FOR); }
-{REGEX_R_VOID}               { RETURN_TOKEN(R_VOID); }
-{REGEX_R_WHILE}              { RETURN_TOKEN(R_WHILE); }
-
 {REGEX_C_INT}                { RETURN_TOKEN(C_INT); }
 {REGEX_C_FLOAT}              { RETURN_TOKEN(C_FLOAT); }
 {REGEX_C_STRING}             { RETURN_TOKEN(C_STRING); }
@@ -210,7 +202,7 @@ ERROR                      .
 {REGEX_IDENTIFIER}            {
       auto reserved_it = kReservedWords.find(std::string(yytext));
       if (reserved_it != kReservedWords.end()) {
-        return reserved_it->second;
+        RETURN_RESERVED(reserved_it->second);
       }
       auto it = symtab.insert({std::string(yytext), {linenumber, 0}});
       it.first->second.counter++;
