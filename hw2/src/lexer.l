@@ -72,6 +72,22 @@ enum TokenType {
   kNumTokenType
 };
 
+std::map<std::string, TokenType> CreateReservedWords() {
+  std::map<std::string, TokenType> res;
+  res["return"] = R_RETURN;
+  res["typedef"] = R_TYPEDEF;
+  res["if"] = R_IF;
+  res["else"] = R_ELSE;
+  res["int"] = R_INT;
+  res["float"] = R_FLOAT;
+  res["for"] = R_FOR;
+  res["void"] = R_VOID;
+  res["while"] = R_WHILE;
+  return res;
+}
+
+const std::map<std::string, TokenType> kReservedWords = CreateReservedWords();
+
 #ifdef DEBUG
 #define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, yytext); return x
 #else
@@ -192,6 +208,10 @@ ERROR                      .
     }
 
 {REGEX_IDENTIFIER}            {
+      auto reserved_it = kReservedWords.find(std::string(yytext));
+      if (reserved_it != kReservedWords.end()) {
+        return reserved_it->second;
+      }
       auto it = symtab.insert({std::string(yytext), {linenumber, 0}});
       it.first->second.counter++;
 #ifdef DEBUG
