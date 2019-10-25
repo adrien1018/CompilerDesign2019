@@ -3,7 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "header.h"
+
+#include "parser.h"
 
 char *AST_TYPE_string[] = {"PROGRAM",
                            "GLOBAL_DECL_LIST",

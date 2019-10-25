@@ -4,10 +4,18 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include "header.h"
+#include "functions.c"
+#include "parser.h"
 
 int linenumber = 1;
 AstNode *prog;
+
+extern int yylex();
+extern int yyparse();
+extern FILE* yyin;
+extern char *yytext;
+
+void yyerror(const char *mesg);
 
 extern int g_anyErrorOccur;
 
@@ -89,9 +97,9 @@ static inline AstNode* MakeExprNode(EXPR_KIND exprKind,
   exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
   exprNode->semantic_value.exprSemanticValue.kind = exprKind;
   if (exprKind == BINARY_OPERATION) {
-    exprNode->semantic_value.exprSemanticValue.op.binaryOp = operationEnumValue;
+    exprNode->semantic_value.exprSemanticValue.op.binaryOp = BINARY_OPERATOR(operationEnumValue);
   } else if (exprKind == UNARY_OPERATION) {
-    exprNode->semantic_value.exprSemanticValue.op.unaryOp = operationEnumValue;
+    exprNode->semantic_value.exprSemanticValue.op.unaryOp = UNARY_OPERATOR(operationEnumValue);
   } else {
     printf(
         "Error in static inline AstNode* MakeExprNode(EXPR_KIND exprKind, int "
@@ -381,7 +389,7 @@ dim_list: dim_list S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
 
 %%
 
-#include "lex.yy.c"
+// #include "lex.yy.c"
 
 int main(int argc, char* argv[]) {
   yyin = fopen(argv[1], "r");
@@ -390,7 +398,7 @@ int main(int argc, char* argv[]) {
   printGV(prog, NULL);
 }
 
-int yyerror(char* mesg) {
+void yyerror(const char* mesg) {
   printf("%s\t%d\t%s\t%s\n", "Error found in Line ", linenumber,
          "next token: ", yytext);
   exit(1);

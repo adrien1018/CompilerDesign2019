@@ -1,5 +1,5 @@
-#ifndef __HEADER_H__
-#define __HEADER_H__
+#ifndef PARSER_H_
+#define PARSER_H_
 
 #define MAX_ARRAY_DIMENSION 7
 
@@ -150,4 +150,4 @@ typedef struct AstNode AstNode;
 AstNode *Allocate(AST_TYPE type);
 void semanticAnalysis(AstNode *root);
 
-#endif
+#endif  // PARSER_H_
