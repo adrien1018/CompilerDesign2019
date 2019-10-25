@@ -7,11 +7,11 @@
 #include "header.h"
 
 int linenumber = 1;
-AST_NODE *prog;
+AstNode *prog;
 
 extern int g_anyErrorOccur;
 
-static inline AST_NODE* makeSibling(AST_NODE * a, AST_NODE * b) {
+static inline AstNode* MakeSibling(AstNode * a, AstNode * b) {
   while (a->rightSibling) {
     a = a->rightSibling;
   }
@@ -31,12 +31,12 @@ static inline AST_NODE* makeSibling(AST_NODE * a, AST_NODE * b) {
   return b;
 }
 
-static inline AST_NODE* makeChild(AST_NODE * parent, AST_NODE * child) {
+static inline AstNode* MakeChild(AstNode * parent, AstNode * child) {
   if (child == NULL) {
     return parent;
   }
   if (parent->child) {
-    makeSibling(parent->child, child);
+    MakeSibling(parent->child, child);
   } else {
     child = child->leftmostSibling;
     parent->child = child;
@@ -48,44 +48,44 @@ static inline AST_NODE* makeChild(AST_NODE * parent, AST_NODE * child) {
   return parent;
 }
 
-static AST_NODE* makeFamily(AST_NODE * parent, int childrenCount, ...) {
+static AstNode* MakeFamily(AstNode * parent, int childrenCount, ...) {
   va_list childrenList;
   va_start(childrenList, childrenCount);
-  AST_NODE* child = va_arg(childrenList, AST_NODE*);
-  makeChild(parent, child);
-  AST_NODE* tmp = child;
+  AstNode* child = va_arg(childrenList, AstNode*);
+  MakeChild(parent, child);
+  AstNode* tmp = child;
   int index = 1;
   for (index = 1; index < childrenCount; ++index) {
-    child = va_arg(childrenList, AST_NODE*);
-    tmp = makeSibling(tmp, child);
+    child = va_arg(childrenList, AstNode*);
+    tmp = MakeSibling(tmp, child);
   }
   va_end(childrenList);
   return parent;
 }
 
-static inline AST_NODE* makeIDNode(char* lexeme, IDENTIFIER_KIND idKind) {
-  AST_NODE* identifier = Allocate(IDENTIFIER_NODE);
+static inline AstNode* MakeIDNode(char* lexeme, IDENTIFIER_KIND idKind) {
+  AstNode* identifier = Allocate(IDENTIFIER_NODE);
   identifier->semantic_value.identifierSemanticValue.identifierName = lexeme;
   identifier->semantic_value.identifierSemanticValue.kind = idKind;
   identifier->semantic_value.identifierSemanticValue.symbolTableEntry = NULL;
   return identifier;
 }
 
-static inline AST_NODE* makeStmtNode(STMT_KIND stmtKind) {
-  AST_NODE* stmtNode = Allocate(STMT_NODE);
+static inline AstNode* MakeStmtNode(STMT_KIND stmtKind) {
+  AstNode* stmtNode = Allocate(STMT_NODE);
   stmtNode->semantic_value.stmtSemanticValue.kind = stmtKind;
   return stmtNode;
 }
 
-static inline AST_NODE* makeDeclNode(DECL_KIND declKind) {
-  AST_NODE* declNode = Allocate(DECLARATION_NODE);
+static inline AstNode* MakeDeclNode(DECL_KIND declKind) {
+  AstNode* declNode = Allocate(DECLARATION_NODE);
   declNode->semantic_value.declSemanticValue.kind = declKind;
   return declNode;
 }
 
-static inline AST_NODE* makeExprNode(EXPR_KIND exprKind,
+static inline AstNode* MakeExprNode(EXPR_KIND exprKind,
                                      int operationEnumValue) {
-  AST_NODE* exprNode = Allocate(EXPR_NODE);
+  AstNode* exprNode = Allocate(EXPR_NODE);
   exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
   exprNode->semantic_value.exprSemanticValue.kind = exprKind;
   if (exprKind == BINARY_OPERATION) {
@@ -94,7 +94,7 @@ static inline AST_NODE* makeExprNode(EXPR_KIND exprKind,
     exprNode->semantic_value.exprSemanticValue.op.unaryOp = operationEnumValue;
   } else {
     printf(
-        "Error in static inline AST_NODE* makeExprNode(EXPR_KIND exprKind, int "
+        "Error in static inline AstNode* MakeExprNode(EXPR_KIND exprKind, int "
         "operationEnumValue)\n");
   }
   return exprNode;
@@ -105,7 +105,7 @@ static inline AST_NODE* makeExprNode(EXPR_KIND exprKind,
 %union {
   char *lexeme;
   CON_Type *const1;
-  AST_NODE *node;
+  AstNode *node;
 };
 
 %token <lexeme> IDENTIFIER
@@ -161,190 +161,223 @@ static inline AST_NODE* makeExprNode(EXPR_KIND exprKind,
 
 %%
 
-program: global_decl_list {}
-       | {}
+program: global_decl_list { $$ = Allocate(PROGRAM_NODE); MakeChild($$, $1); prog = $$; }
+       | { $$ = Allocate(PROGRAM_NODE); prog = $$; }
        ;
 
-global_decl_list: global_decl_list global_decl {}
-                | global_decl {}
+global_decl_list: global_decl_list global_decl { $$ = MakeSibling($1, $2); }
+                | global_decl { $$ = $1; }
                 ;
 
-global_decl: decl_list function_decl {}
-           | function_decl {}
+global_decl: decl_list function_decl { 
+               $$ = MakeSibling(MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1), $2); 
+             }
+           | function_decl { $$ = $1; }
            ;
 
-function_decl: type IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {}
-             | R_VOID IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {}
-             | type IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {}
-             | R_VOID IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {}
+function_decl: type IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
+                 $$ = MakeDeclNode(FUNCTION_DECL);
+                 AstNode *param = Allocate(PARAM_LIST_NODE);
+                 MakeChild(param, $4);
+                 MakeFamily($$, 4, $1, MakeIDNode($2, NORMAL_ID), param, $7);
+               }
+             | R_VOID IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE { /* TODO */ }
+             | type IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
+                 $$ = MakeDeclNode(FUNCTION_DECL);
+                 AstNode *empty_param = Allocate(PARAM_LIST_NODE);
+                 MakeFamily($$, 4, $1, MakeIDNode($2, NORMAL_ID), empty_param, $6);
+               }
+             | R_VOID IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE { /* TODO */ }
              ;
 
-param_list: param_list S_COMMA param {}
-          | param {}
+param_list: param_list S_COMMA param { $$ = MakeSibling($1, $3); }
+          | param { /* TODO */ }
           ;
 
-param: type IDENTIFIER {}
-     | type IDENTIFIER dim_fn {}
+param: type IDENTIFIER {
+         $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
+         MakeFamily($$, 2, $1, MakeIDNode($2, NORMAL_ID));
+       }
+     | type IDENTIFIER dim_fn { /* TODO */ }
      ;
 
-dim_fn: S_L_BRACKET expr_null S_R_BRACKET {}
-      | dim_fn S_L_BRACKET expr S_R_BRACKET {}
+dim_fn: S_L_BRACKET expr_null S_R_BRACKET { $$ = $2; }
+      | dim_fn S_L_BRACKET expr S_R_BRACKET { $$ = MakeSibling($1, $3); }
       ;
 
-expr_null: expr {}
-         | {}
+expr_null: expr { /* TODO */ }
+         | { $$ = Allocate(NULL_NODE); }
          ;
 
-block: decl_list stmt_list {}
-     | stmt_list {}
-     | decl_list {}
+block: decl_list stmt_list { /* TODO */ }
+     | stmt_list {
+         $$ = Allocate(BLOCK_NODE);
+         MakeChild($$, MakeChild(Allocate(STMT_LIST_NODE), $1));
+       }
+     | decl_list {
+         $$ = Allocate(BLOCK_NODE);
+         MakeChild($$, MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1));
+       }
+     | { /* TODO */ }
      ;
 
-decl_list: decl_list decl {}
-         | decl {}
+decl_list: decl_list decl { /* TODO */ }
+         | decl { /* TODO */ }
          ;
 
-decl: type_decl {}
-    | var_decl {}
+decl: type_decl { $$ = $1; }
+    | var_decl { $$ = $1; }
     ;
 
-type_decl: R_TYPEDEF type id_list S_SEMICOLON {}
-         | R_TYPEDEF R_VOID id_list S_SEMICOLON {}
+type_decl: R_TYPEDEF type id_list S_SEMICOLON { /* TODO */ }
+         | R_TYPEDEF R_VOID id_list S_SEMICOLON { /* TODO */ }
          ;
 
-var_decl: type init_id_list S_SEMICOLON {}
-        | IDENTIFIER id_list S_SEMICOLON {}
+var_decl: type init_id_list S_SEMICOLON { /* TODO */ }
+        | IDENTIFIER id_list S_SEMICOLON { /* TODO */ }
         ;
 
-type: R_INT {}
-    | R_FLOAT {}
+type: R_INT { $$ = MakeIDNode("int", NORMAL_ID); }
+    | R_FLOAT { $$ = MakeIDNode("float", NORMAL_ID); }
     ;
 
-id_list: IDENTIFIER {}
-       | id_list S_COMMA IDENTIFIER {}
-       | id_list S_COMMA IDENTIFIER dim_decl {}
-       | IDENTIFIER dim_decl {}
+id_list: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
+       | id_list S_COMMA IDENTIFIER { /* TODO */ }
+       | id_list S_COMMA IDENTIFIER dim_decl { /* TODO */ }
+       | IDENTIFIER dim_decl { /* TODO */ }
        ;
 
-dim_decl: S_L_BRACKET cexpr S_R_BRACKET {}
+dim_decl: S_L_BRACKET cexpr S_R_BRACKET { /* TODO */ }
         /* TODO
         |
         */
         ;
 
-cexpr: cexpr O_ADDITION mcexpr {}
-     | cexpr O_SUBTRACTION mcexpr {}
-     | mcexpr {}
+cexpr: cexpr O_ADDITION mcexpr {
+         $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_ADD);
+         MakeFamily($$, 2, $1, $3);
+       }
+     | cexpr O_SUBTRACTION mcexpr { /* TODO */ }
+     | mcexpr { /* TODO */ }
      ;
 
-mcexpr: mcexpr O_MULTIPLICATION cfactor {}
-      | mcexpr O_DIVISION cfactor {}
-      | cfactor {}
+mcexpr: mcexpr O_MULTIPLICATION cfactor { /* TODO */ }
+      | mcexpr O_DIVISION cfactor { /* TODO */ }
+      | cfactor { /* TODO */ }
       ;
 
-cfactor: CONST {}
-       | S_L_PAREN cexpr S_R_PAREN {}
+cfactor: CONST { /* TODO */ }
+       | S_L_PAREN cexpr S_R_PAREN { /* TODO */ }
        ;
 
-init_id_list: init_id {}
-            | init_id_list S_COMMA init_id {}
+init_id_list: init_id { /* TODO */ }
+            | init_id_list S_COMMA init_id { /* TODO */ }
             ;
 
-init_id: IDENTIFIER {}
-       | IDENTIFIER dim_decl {}
-       | IDENTIFIER O_ASSIGN relop_expr {}
+init_id: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
+       | IDENTIFIER dim_decl { /* TODO */ }
+       | IDENTIFIER O_ASSIGN relop_expr { /* TODO */ }
        ;
 
-stmt_list: stmt_list stmt {}
-         | stmt {}
+stmt_list: stmt_list stmt { /* TODO */ }
+         | stmt { /* TODO */ }
          ;
 
-stmt: S_L_BRACE block S_R_BRACE {}
+stmt: S_L_BRACE block S_R_BRACE { /* TODO */ }
     /* TODO: while statement */
-    | R_FOR S_L_PAREN assign_expr_list S_SEMICOLON relop_expr_list S_SEMICOLON assign_expr_list S_R_PAREN stmt {}
-    | var_ref O_ASSIGN relop_expr S_SEMICOLON {}
+    | R_FOR S_L_PAREN assign_expr_list S_SEMICOLON relop_expr_list S_SEMICOLON assign_expr_list S_R_PAREN stmt { /* TODO */ }
+    | var_ref O_ASSIGN relop_expr S_SEMICOLON { /* TODO */ }
     /* TODO: if statement */
     /* TODO: if then else */
     /* TODO: function call */
-    | S_SEMICOLON {}
-    | R_RETURN S_SEMICOLON {}
-    | R_RETURN relop_expr S_SEMICOLON {}
+    | S_SEMICOLON { /* TODO */ }
+    | R_RETURN S_SEMICOLON { /* TODO */ }
+    | R_RETURN relop_expr S_SEMICOLON { /* TODO */ }
     ;
 
-assign_expr_list: nonempty_assign_expr_list {}
-                | {}
+assign_expr_list: nonempty_assign_expr_list { /* TODO */ }
+                | { $$ = Allocate(NULL_NODE); }
                 ;
 
-nonempty_assign_expr_list: nonempty_assign_expr_list S_COMMA assign_expr {}
-                         | assign_expr {}
+nonempty_assign_expr_list: nonempty_assign_expr_list S_COMMA assign_expr { /* TODO */ }
+                         | assign_expr { /* TODO */ }
                          ;
 
-assign_expr: IDENTIFIER O_ASSIGN relop_expr {}
-           | relop_expr {}
+assign_expr: IDENTIFIER O_ASSIGN relop_expr { /* TODO */ }
+           | relop_expr { /* TODO */ }
            ;
 
-relop_expr: relop_term {}
-          | relop_expr O_LOGICAL_OR relop_term {}
+relop_expr: relop_term { $$ = $1; }
+          | relop_expr O_LOGICAL_OR relop_term {
+              $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_OR);
+              MakeFamily($$, 2, $1, $3);
+            }
           ;
 
-relop_term: relop_factor {}
-          | relop_term O_LOGICAL_AND relop_factor {}
+relop_term: relop_factor { /* TODO */ }
+          | relop_term O_LOGICAL_AND relop_factor { /* TODO */ }
           ;
 
-relop_factor: expr {}
-            | expr rel_op expr {}
+relop_factor: expr { /* TODO */ }
+            | expr rel_op expr { /* TODO */ }
             ;
 
-rel_op: O_EQ {}
-      | O_GREATER_THAN_OR_EQ {}
-      | O_LESS_THAN_OR_EQ {}
-      | O_NOT_EQ {}
-      | O_GREATER_THAN {}
-      | O_LESS_THAN {}
+rel_op: O_EQ { /* TODO */ }
+      | O_GREATER_THAN_OR_EQ { /* TODO */ }
+      | O_LESS_THAN_OR_EQ { /* TODO */ }
+      | O_NOT_EQ { /* TODO */ }
+      | O_GREATER_THAN { /* TODO */ }
+      | O_LESS_THAN { /* TODO */ }
       ;
 
-relop_expr_list: nonempty_relop_expr_list {}
-               | {}
+relop_expr_list: nonempty_relop_expr_list { /* TODO */ }
+               | { $$ = Allocate(NULL_NODE); }
                ;
 
-nonempty_relop_expr_list: nonempty_relop_expr_list S_COMMA relop_expr {}
-                        | relop_expr {}
+nonempty_relop_expr_list: nonempty_relop_expr_list S_COMMA relop_expr { /* TODO */ }
+                        | relop_expr { /* TODO */ }
                         ;
 
-expr: expr add_op term {}
-    | term {}
+expr: expr add_op term { /* TODO */ }
+    | term { /* TODO */ }
     ;
 
-add_op: O_ADDITION {}
-      | O_SUBTRACTION {}
+add_op: O_ADDITION { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_ADD); }
+      | O_SUBTRACTION { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_SUB); }
       ;
 
-term: term mul_op factor {}
-    | factor {}
+term: term mul_op factor { /* TODO */ }
+    | factor { /* TODO */ }
     ;
 
-mul_op: O_MULTIPLICATION {}
-      | O_DIVISION {}
+mul_op: O_MULTIPLICATION { /* TODO */ }
+      | O_DIVISION { /* TODO */ }
       ;
 
-factor: S_L_PAREN relop_expr S_R_PAREN {}
-      /* TODO */
-      | O_LOGICAL_NOT S_L_PAREN relop_expr S_R_PAREN {}
-      | CONST {}
-      | O_LOGICAL_NOT CONST {}
-      | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {}
-      | O_LOGICAL_NOT IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {}
-      | var_ref {}
-      | O_LOGICAL_NOT var_ref {}
+factor: S_L_PAREN relop_expr S_R_PAREN { /* TODO */ }
+      /* TODO: | -(<relop_expr>) e.g. -(4) */
+      | O_LOGICAL_NOT S_L_PAREN relop_expr S_R_PAREN { /* TODO */ }
+      | CONST {
+          $$ = Allocate(CONST_VALUE_NODE);
+          $$->semantic_value.const1 = $1;
+        }
+      /* TODO: | -<constant> e.g., -4 */
+      | O_LOGICAL_NOT CONST { /* TODO */ }
+      | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { /* TODO */ }
+      /* TODO: | -<function call> e.g. -f(4) */
+      | O_LOGICAL_NOT IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { /* TODO */ }
+      | var_ref { /* TODO */ }
+      /* TODO: | -<var_ref> e.g. -var */
+      | O_LOGICAL_NOT var_ref { /* TODO */ }
       ;
 
-var_ref: IDENTIFIER {}
-       | IDENTIFIER dim_list {}
+var_ref: IDENTIFIER { /* TODO */ }
+       | IDENTIFIER dim_list { /* TODO */ }
        ;
 
-dim_list: dim_list S_L_BRACKET expr S_R_BRACKET {} 
-        | S_L_BRACKET expr S_R_BRACKET {}
-		    ;
+dim_list: dim_list S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
+        | S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
+        ;
 
 %%
 

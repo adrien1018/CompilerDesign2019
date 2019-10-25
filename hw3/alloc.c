@@ -3,9 +3,9 @@
 
 extern int linenumber;
 
-AST_NODE *Allocate(AST_TYPE type){
-    AST_NODE *temp;
-    temp = (AST_NODE*)malloc(sizeof(struct AST_NODE));
+AstNode *Allocate(AST_TYPE type){
+    AstNode *temp;
+    temp = (AstNode*)malloc(sizeof(struct AstNode));
     temp->nodeType = type;
     temp->dataType = NONE_TYPE;
     temp->child = NULL;
