@@ -1,8 +1,11 @@
+%require "3.2"
+%language "c++"
 %{
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cstdarg>
+#include <vector>
 
 #include "header.h"
 
@@ -11,7 +14,9 @@ AstNode *prog;
 
 extern int g_anyErrorOccur;
 
-static inline AstNode* MakeSibling(AstNode * a, AstNode * b) {
+namespace {
+
+inline AstNode* MakeSibling(AstNode * a, AstNode * b) {
   while (a->rightSibling) {
     a = a->rightSibling;
   }
@@ -31,7 +36,7 @@ static inline AstNode* MakeSibling(AstNode * a, AstNode * b) {
   return b;
 }
 
-static inline AstNode* MakeChild(AstNode * parent, AstNode * child) {
+inline AstNode* MakeChild(AstNode * parent, AstNode * child) {
   if (child == NULL) {
     return parent;
   }
@@ -48,22 +53,18 @@ static inline AstNode* MakeChild(AstNode * parent, AstNode * child) {
   return parent;
 }
 
-static AstNode* MakeFamily(AstNode * parent, int childrenCount, ...) {
-  va_list childrenList;
-  va_start(childrenList, childrenCount);
-  AstNode* child = va_arg(childrenList, AstNode*);
+AstNode* MakeFamily(AstNode * parent, const std::vector<AstNode *> &children) {
+  AstNode *child = children[0];
   MakeChild(parent, child);
-  AstNode* tmp = child;
-  int index = 1;
-  for (index = 1; index < childrenCount; ++index) {
-    child = va_arg(childrenList, AstNode*);
+  AstNode *tmp = child;
+  for (size_t i = 1; i < children.size(); ++i) {
+    child = children[i];
     tmp = MakeSibling(tmp, child);
   }
-  va_end(childrenList);
   return parent;
 }
 
-static inline AstNode* MakeIDNode(char* lexeme, IDENTIFIER_KIND idKind) {
+inline AstNode* MakeIDNode(char* lexeme, IDENTIFIER_KIND idKind) {
   AstNode* identifier = Allocate(IDENTIFIER_NODE);
   identifier->semantic_value.identifierSemanticValue.identifierName = lexeme;
   identifier->semantic_value.identifierSemanticValue.kind = idKind;
@@ -71,19 +72,19 @@ static inline AstNode* MakeIDNode(char* lexeme, IDENTIFIER_KIND idKind) {
   return identifier;
 }
 
-static inline AstNode* MakeStmtNode(STMT_KIND stmtKind) {
+inline AstNode* MakeStmtNode(STMT_KIND stmtKind) {
   AstNode* stmtNode = Allocate(STMT_NODE);
   stmtNode->semantic_value.stmtSemanticValue.kind = stmtKind;
   return stmtNode;
 }
 
-static inline AstNode* MakeDeclNode(DECL_KIND declKind) {
+inline AstNode* MakeDeclNode(DECL_KIND declKind) {
   AstNode* declNode = Allocate(DECLARATION_NODE);
   declNode->semantic_value.declSemanticValue.kind = declKind;
   return declNode;
 }
 
-static inline AstNode* MakeExprNode(EXPR_KIND exprKind,
+inline AstNode* MakeExprNode(EXPR_KIND exprKind,
                                      int operationEnumValue) {
   AstNode* exprNode = Allocate(EXPR_NODE);
   exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
@@ -99,6 +100,8 @@ static inline AstNode* MakeExprNode(EXPR_KIND exprKind,
   }
   return exprNode;
 }
+
+}  // namespace
 
 %}
 
@@ -179,13 +182,13 @@ function_decl: type IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_
                  $$ = MakeDeclNode(FUNCTION_DECL);
                  AstNode *param = Allocate(PARAM_LIST_NODE);
                  MakeChild(param, $4);
-                 MakeFamily($$, 4, $1, MakeIDNode($2, NORMAL_ID), param, $7);
+                 MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID), param, $7});
                }
              | R_VOID IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE { /* TODO */ }
              | type IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
                  $$ = MakeDeclNode(FUNCTION_DECL);
                  AstNode *empty_param = Allocate(PARAM_LIST_NODE);
-                 MakeFamily($$, 4, $1, MakeIDNode($2, NORMAL_ID), empty_param, $6);
+                 MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID), empty_param, $6});
                }
              | R_VOID IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE { /* TODO */ }
              ;
@@ -196,7 +199,7 @@ param_list: param_list S_COMMA param { $$ = MakeSibling($1, $3); }
 
 param: type IDENTIFIER {
          $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
-         MakeFamily($$, 2, $1, MakeIDNode($2, NORMAL_ID));
+         MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID)});
        }
      | type IDENTIFIER dim_fn { /* TODO */ }
      ;
@@ -255,7 +258,7 @@ dim_decl: S_L_BRACKET cexpr S_R_BRACKET { /* TODO */ }
 
 cexpr: cexpr O_ADDITION mcexpr {
          $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_ADD);
-         MakeFamily($$, 2, $1, $3);
+         MakeFamily($$, {$1, $3});
        }
      | cexpr O_SUBTRACTION mcexpr { /* TODO */ }
      | mcexpr { /* TODO */ }
@@ -310,7 +313,7 @@ assign_expr: IDENTIFIER O_ASSIGN relop_expr { /* TODO */ }
 relop_expr: relop_term { $$ = $1; }
           | relop_expr O_LOGICAL_OR relop_term {
               $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_OR);
-              MakeFamily($$, 2, $1, $3);
+              MakeFamily($$, {$1, $3});
             }
           ;
 
