@@ -87,24 +87,24 @@ error            .
 {op_times}      return OP_TIMES;
 {op_divide}     return OP_DIVIDE;
 {int_constant}  {
-                    CON_Type *p;
-                    p = (CON_Type *)malloc(sizeof(CON_Type));
+                    ConstType *p;
+                    p = (ConstType *)malloc(sizeof(ConstType));
                     p->const_type = INTEGERC;
                     p->const_u.intval = atoi(yytext);
                     yylval.const1 = p;
                     return CONST;
                 }
 {flt_constant}  {
-                    CON_Type *p;
-                    p = (CON_Type *)malloc(sizeof(CON_Type));
+                    ConstType *p;
+                    p = (ConstType *)malloc(sizeof(ConstType));
                     p->const_type = FLOATC;
                     p->const_u.fval = atof(yytext);
                     yylval.const1 = p;
                     return CONST;
                 }
 {s-const}       {
-                    CON_Type *p;
-                    p = (CON_Type *)malloc(sizeof(CON_Type));
+                    ConstType *p;
+                    p = (ConstType *)malloc(sizeof(ConstType));
                     p->const_type = STRINGC;
                     p->const_u.sc = strdup(yytext);
                     yylval.const1 = p;

@@ -17,20 +17,20 @@ extern int g_anyErrorOccur;
 namespace {
 
 inline AstNode* MakeSibling(AstNode* a, AstNode* b) {
-  while (a->rightSibling) {
-    a = a->rightSibling;
+  while (a->right_sibling) {
+    a = a->right_sibling;
   }
   if (b == nullptr) {
     return a;
   }
-  b = b->leftmostSibling;
-  a->rightSibling = b;
+  b = b->leftmost_sibling;
+  a->right_sibling = b;
 
-  b->leftmostSibling = a->leftmostSibling;
+  b->leftmost_sibling = a->leftmost_sibling;
   b->parent = a->parent;
-  while (b->rightSibling) {
-    b = b->rightSibling;
-    b->leftmostSibling = a->leftmostSibling;
+  while (b->right_sibling) {
+    b = b->right_sibling;
+    b->leftmost_sibling = a->leftmost_sibling;
     b->parent = a->parent;
   }
   return b;
@@ -43,11 +43,11 @@ inline AstNode* MakeChild(AstNode* parent, AstNode* child) {
   if (parent->child) {
     MakeSibling(parent->child, child);
   } else {
-    child = child->leftmostSibling;
+    child = child->leftmost_sibling;
     parent->child = child;
     while (child) {
       child->parent = parent;
-      child = child->rightSibling;
+      child = child->right_sibling;
     }
   }
   return parent;
@@ -66,33 +66,33 @@ AstNode* MakeFamily(AstNode* parent, const std::vector<AstNode*>& children) {
 
 inline AstNode* MakeIDNode(char* lexeme, IdentifierKind idKind) {
   AstNode* identifier = Allocate(IDENTIFIER_NODE);
-  identifier->semantic_value.identifierSemanticValue.identifierName = lexeme;
-  identifier->semantic_value.identifierSemanticValue.kind = idKind;
-  identifier->semantic_value.identifierSemanticValue.symbolTableEntry = NULL;
+  identifier->semantic_value.identifier_semantic_value.identifierName = lexeme;
+  identifier->semantic_value.identifier_semantic_value.kind = idKind;
+  identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
   return identifier;
 }
 
 inline AstNode* MakeStmtNode(StmtKind stmtKind) {
   AstNode* stmtNode = Allocate(STMT_NODE);
-  stmtNode->semantic_value.stmtSemanticValue.kind = stmtKind;
+  stmtNode->semantic_value.stmt_semantic_value.kind = stmtKind;
   return stmtNode;
 }
 
 inline AstNode* MakeDeclNode(DeclKind declKind) {
   AstNode* declNode = Allocate(DECLARATION_NODE);
-  declNode->semantic_value.declSemanticValue.kind = declKind;
+  declNode->semantic_value.decl_semantic_value.kind = declKind;
   return declNode;
 }
 
 inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
   AstNode* exprNode = Allocate(EXPR_NODE);
-  exprNode->semantic_value.exprSemanticValue.isConstEval = 0;
-  exprNode->semantic_value.exprSemanticValue.kind = exprKind;
+  exprNode->semantic_value.expr_semantic_value.is_const_eval = 0;
+  exprNode->semantic_value.expr_semantic_value.kind = exprKind;
   if (exprKind == BINARY_OPERATION) {
-    exprNode->semantic_value.exprSemanticValue.op.binaryOp =
+    exprNode->semantic_value.expr_semantic_value.op.binary_op =
         BinaryOperator(operationEnumValue);
   } else if (exprKind == UNARY_OPERATION) {
-    exprNode->semantic_value.exprSemanticValue.op.unaryOp =
+    exprNode->semantic_value.expr_semantic_value.op.unary_op =
         UnaryOperator(operationEnumValue);
   } else {
     printf(
@@ -108,7 +108,7 @@ inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
 
 %union {
   char *lexeme;
-  CON_Type *const1;
+  ConstType *const1;
   AstNode *node;
 };
 
@@ -284,10 +284,8 @@ id_list: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
          }
        ;
 
-dim_decl: S_L_BRACKET cexpr S_R_BRACKET { /* TODO */ }
-        /* TODO: try if you can define a recursive production rule
-        |
-        */
+dim_decl: S_L_BRACKET cexpr S_R_BRACKET { $$ = $2; }
+        /* TODO: recursive grammar rule */
         ;
 
 cexpr: cexpr O_ADDITION mcexpr {
@@ -312,7 +310,10 @@ mcexpr: mcexpr O_MULTIPLICATION cfactor {
       | cfactor { $$ = $1; }
       ;
 
-cfactor: CONST { /* TODO */ }
+cfactor: CONST { 
+           $$ = Allocate(CONST_VALUE_NODE);
+           $$->semantic_value.const1 = $1;
+         }
        | S_L_PAREN cexpr S_R_PAREN { $$ = $2; }
        ;
 
@@ -337,8 +338,14 @@ stmt_list: stmt_list stmt { $$ = MakeSibling($1, $2); }
          ;
 
 stmt: S_L_BRACE block S_R_BRACE { /* TODO */ }
-    | R_WHILE S_L_PAREN relop_expr_list S_R_PAREN stmt { /* TODO */ }
-    | R_FOR S_L_PAREN assign_expr_list S_SEMICOLON relop_expr_list S_SEMICOLON assign_expr_list S_R_PAREN stmt { /* TODO */ }
+    | R_WHILE S_L_PAREN relop_expr_list S_R_PAREN stmt { 
+        $$ = MakeStmtNode(WHILE_STMT);
+        MakeFamily($$, {$3, $5});
+      }
+    | R_FOR S_L_PAREN assign_expr_list S_SEMICOLON relop_expr_list S_SEMICOLON assign_expr_list S_R_PAREN stmt {
+        $$ = MakeStmtNode(FOR_STMT);
+        MakeFamily($$, {$3, $5, $7, $9});
+      }
     | var_ref O_ASSIGN relop_expr S_SEMICOLON { /* TODO */ }
     | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt { /* TODO */ }
     /* TODO: if then else */

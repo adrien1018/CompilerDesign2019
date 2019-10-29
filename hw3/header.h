@@ -41,14 +41,14 @@ enum UnaryOperator {
   UNARY_OP_LOGICAL_NEGATION
 };
 
-// C_type= type of constant ex: 1, 3.3, "const string"
+// C_type = type of constant ex: 1, 3.3, "const string"
 // do not modify, or lexer might break
-typedef enum C_type { INTEGERC, FLOATC, STRINGC } C_type;
+enum CType { INTEGERC, FLOATC, STRINGC };
 
 enum StmtKind {
   WHILE_STMT,
   FOR_STMT,
-  ASSIGN_STMT,  // TODO:for simpler implementation, assign_expr also uses this
+  ASSIGN_STMT,  // TODO: for simpler implementation, assign_expr also uses this
   IF_STMT,
   FUNCTION_CALL_STMT,
   RETURN_STMT,
@@ -90,16 +90,16 @@ struct StmtSemanticValue {
 struct ExprSemanticValue {
   ExprKind kind;
 
-  int isConstEval;
+  int is_const_eval;
 
   union {
-    int iValue;
-    float fValue;
-  } constEvalValue;
+    int ivalue;
+    float fvalue;
+  } const_eval_value;
 
   union {
-    BinaryOperator binaryOp;
-    UnaryOperator unaryOp;
+    BinaryOperator binary_op;
+    UnaryOperator unary_op;
   } op;
 };
 
@@ -110,8 +110,8 @@ struct DeclSemanticValue {
 struct SymbolAttribute;
 
 struct IdentifierSemanticValue {
-  char *identifierName;
-  SymbolTableEntry *symbolTableEntry;
+  char *identifier_name;
+  SymbolTableEntry *symboltable_entry;
   IdentifierKind kind;
 };
 
@@ -120,8 +120,8 @@ struct TypeSpecSemanticValue {
 };
 
 // don't modify or lexer may break
-struct CON_Type {
-  C_type const_type;
+struct ConstType {
+  CType const_type;
   union {
     int intval;
     double fval;
@@ -132,17 +132,17 @@ struct CON_Type {
 struct AstNode {
   struct AstNode *child;
   struct AstNode *parent;
-  struct AstNode *rightSibling;
-  struct AstNode *leftmostSibling;
-  AstType nodeType;
-  DataType dataType;
+  struct AstNode *right_sibling;
+  struct AstNode *leftmost_sibling;
+  AstType node_type;
+  DataType data_type;
   int linenumber;
   union {
-    IdentifierSemanticValue identifierSemanticValue;
-    StmtSemanticValue stmtSemanticValue;
-    DeclSemanticValue declSemanticValue;
-    ExprSemanticValue exprSemanticValue;
-    CON_Type *const1;
+    IdentifierSemanticValue identifier_semantic_value;
+    StmtSemanticValue stmt_semantic_value;
+    DeclSemanticValue decl_semantic_value;
+    ExprSemanticValue expr_semantic_value;
+    ConstType *const1;
   } semantic_value;
 };
 

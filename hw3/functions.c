@@ -63,13 +63,13 @@ char *printLabelString(FILE *fp, AstNode *astNode) {
       "+", "-", "*", "/", "==", ">=", "<=", "!=", ">", "<", "&&", "||"};
   char *unaryOpString[] = {"+", "-", "!"};
   //    fprintf(fp, "%d ", astNode->linenumber);
-  switch (astNode->nodeType) {
+  switch (astNode->node_type) {
     case PROGRAM_NODE:
       fprintf(fp, "PROGRAM_NODE");
       break;
     case DECLARATION_NODE:
       fprintf(fp, "DECLARATION_NODE ");
-      switch (astNode->semantic_value.declSemanticValue.kind) {
+      switch (astNode->semantic_value.decl_semantic_value.kind) {
         case VARIABLE_DECL:
           fprintf(fp, "VARIABLE_DECL");
           break;
@@ -87,8 +87,8 @@ char *printLabelString(FILE *fp, AstNode *astNode) {
     case IDENTIFIER_NODE:
       fprintf(fp, "IDENTIFIER_NODE ");
       fprintf(fp, "%s ",
-              astNode->semantic_value.identifierSemanticValue.identifierName);
-      switch (astNode->semantic_value.identifierSemanticValue.kind) {
+              astNode->semantic_value.identifier_semantic_value.identifier_name);
+      switch (astNode->semantic_value.identifier_semantic_value.kind) {
         case NORMAL_ID:
           fprintf(fp, "NORMAL_ID");
           break;
@@ -117,7 +117,7 @@ char *printLabelString(FILE *fp, AstNode *astNode) {
       break;
     case STMT_NODE:
       fprintf(fp, "STMT_NODE ");
-      switch (astNode->semantic_value.stmtSemanticValue.kind) {
+      switch (astNode->semantic_value.stmt_semantic_value.kind) {
         case WHILE_STMT:
           fprintf(fp, "WHILE_STMT");
           break;
@@ -140,16 +140,16 @@ char *printLabelString(FILE *fp, AstNode *astNode) {
       break;
     case EXPR_NODE:
       fprintf(fp, "EXPR_NODE ");
-      switch (astNode->semantic_value.exprSemanticValue.kind) {
+      switch (astNode->semantic_value.expr_semantic_value.kind) {
         case BINARY_OPERATION:
           fprintf(fp, "%s",
-                  binaryOpString[astNode->semantic_value.exprSemanticValue.op
-                                     .binaryOp]);
+                  binaryOpString[astNode->semantic_value.expr_semantic_value.op
+                                     .binary_op]);
           break;
         case UNARY_OPERATION:
           fprintf(fp, "%s",
-                  unaryOpString[astNode->semantic_value.exprSemanticValue.op
-                                    .unaryOp]);
+                  unaryOpString[astNode->semantic_value.expr_semantic_value.op
+                                    .unary_op]);
           break;
       }
       break;
@@ -226,9 +226,9 @@ int printGVNode(FILE *fp, AstNode *node, int count) {
   }
 
   int countAfterCheckSibling = countAfterCheckChildren;
-  if (node->rightSibling) {
+  if (node->right_sibling) {
     countAfterCheckSibling =
-        printGVNode(fp, node->rightSibling, countAfterCheckChildren);
+        printGVNode(fp, node->right_sibling, countAfterCheckChildren);
     fprintf(fp, "node%d -> node%d [style = dashed]\n", currentNodeCount,
             countAfterCheckChildren);
   }
