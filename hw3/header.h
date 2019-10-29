@@ -111,7 +111,7 @@ struct SymbolAttribute;
 
 struct IdentifierSemanticValue {
   char *identifier_name;
-  SymbolTableEntry *symboltable_entry;
+  struct SymbolTableEntry *symboltable_entry;
   IdentifierKind kind;
 };
 
