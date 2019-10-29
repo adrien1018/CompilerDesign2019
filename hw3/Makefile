@@ -1,29 +1,22 @@
 TARGET = parser
-OBJECT = parser.tab.cc parser.tab.o lex.yy.c alloc.o functions.o
-CC = gcc -g
+INTERMEDIATE = parser.cc scanner.cc
+OBJS = $(INTERMEDIATE:%.cc=%.o) alloc.o functions.o main.o
 LEX = flex
-YACC = bison -v
-YACCFLAG = -d
-LIBS = -lfl 
+YACC = bison -v -Lc++
+YACCFLAGS = -d
 
-parser: parser.tab.o alloc.o functions.o
-	$(CC) -o $(TARGET) parser.tab.o alloc.o functions.o $(LIBS)
+$(TARGET): $(OBJS)
+	$(CXX) -o $@ $^
 
-parser.tab.o: parser.tab.cc lex.yy.c alloc.o functions.c
-	$(CC) -c parser.tab.cc
-    
-lex.yy.c: lexer3.l
-	$(LEX) lexer3.l
+scanner.cc: lexer.ll parser.cc
+	$(LEX) -o $@ $<
 
-parser.tab.cc: parser.y 
-	$(YACC) $(YACCFLAG) parser.y
+parser.cc: parser.yy
+	$(YACC) -o $@ $(YACCFLAGS) $<
 
-alloc.o: alloc.c
-	$(CC) -c alloc.c
-	
-functions.o: functions.c
-	$(CC) -c functions.c
+$(OBJS): %.o: %.cc
+
+main.o: parser.cc
 
 clean:
-	rm -f $(TARGET) $(OBJECT) 
-
+	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output location.hh

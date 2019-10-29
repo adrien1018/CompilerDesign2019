@@ -1,5 +1,18 @@
-%require "3.2"
+%require "3.4"
 %language "c++"
+%define api.token.constructor
+%define api.value.type variant
+%defines
+%code requires {
+  #include <string>
+  class Driver;
+}
+%param { Driver& drv }
+%locations
+%code {
+#include "driver.h"
+}
+
 %{
 #include <cstdio>
 #include <cstdlib>
@@ -8,6 +21,8 @@
 #include <vector>
 
 #include "header.h"
+#include "header_lex.h"
+#include "driver.h"
 
 int linenumber = 1;
 AstNode *prog;
@@ -64,9 +79,9 @@ AstNode* MakeFamily(AstNode* parent, const std::vector<AstNode*>& children) {
   return parent;
 }
 
-inline AstNode* MakeIDNode(char* lexeme, IdentifierKind idKind) {
+inline AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind idKind) {
   AstNode* identifier = Allocate(IDENTIFIER_NODE);
-  identifier->semantic_value.identifier_semantic_value.identifierName = lexeme;
+  identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
   identifier->semantic_value.identifier_semantic_value.kind = idKind;
   identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
   return identifier;
@@ -106,14 +121,11 @@ inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
 
 %}
 
-%union {
-  char *lexeme;
-  ConstType *const1;
-  AstNode *node;
-};
+%token <std::string> IDENTIFIER
+%token <AstNode*> CONST
+//%token <ConstType*> CONST
 
-%token <lexeme> IDENTIFIER
-%token <const1> CONST
+%token END 0
 
 %token R_RETURN
 %token R_TYPEDEF
@@ -157,9 +169,10 @@ inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
 %token S_COMMA
 %token S_PERIOD
 
-%type <node> program global_decl_list global_decl function_decl block stmt_list decl_list decl var_decl type init_id_list init_id  stmt relop_expr relop_term relop_factor expr term factor var_ref
-%type <node> param_list param dim_fn expr_null id_list dim_decl cexpr mcexpr cfactor assign_expr_list assign_expr rel_op relop_expr_list nonempty_relop_expr_list
-%type <node> add_op mul_op dim_list type_decl nonempty_assign_expr_list
+%type <AstNode*> program global_decl_list global_decl function_decl block stmt_list decl_list decl var_decl type init_id_list init_id  stmt relop_expr relop_term relop_factor expr term factor var_ref
+%type <AstNode*> param_list param dim_fn expr_null id_list dim_decl cexpr mcexpr cfactor assign_expr_list assign_expr rel_op relop_expr_list nonempty_relop_expr_list
+%type <AstNode*> add_op mul_op dim_list type_decl nonempty_assign_expr_list
+
 
 %start program
 
@@ -312,7 +325,7 @@ mcexpr: mcexpr O_MULTIPLICATION cfactor {
 
 cfactor: CONST { 
            $$ = Allocate(CONST_VALUE_NODE);
-           $$->semantic_value.const1 = $1;
+           $$->semantic_value.const1 = (ConstType*)$1;
          }
        | S_L_PAREN cexpr S_R_PAREN { $$ = $2; }
        ;
@@ -434,7 +447,7 @@ factor: S_L_PAREN relop_expr S_R_PAREN { $$ = $2; }
         }
       | CONST {
           $$ = Allocate(CONST_VALUE_NODE);
-          $$->semantic_value.const1 = $1;
+          $$->semantic_value.const1 = (ConstType*)$1;
         }
       | O_SUBTRACTION CONST {
           $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
@@ -469,19 +482,31 @@ dim_list: dim_list S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
         | S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
         ;
 
+
 %%
 
-#include "lex.yy.c"
+//#include "lex.yy.cc"
+//
+//
+//int main(int argc, char* argv[]) {
+//  /*yyFlexLexer* lexer;
+//  std::ifstream input;
+//  if (argc > 1) {
+//    input.open(argv[1]);
+//    lexer = new yyFlexLexer(&input, &std::cout);
+//  } else {
+//    lexer = new yyFlexLexer();
+//  }
+//  while (lexer->yylex() != 0);
+//  delete lexer;
+//  PrintStrings(comments);
+//  PrintSymTab(symtab);*/
+//  yyin = fopen(argv[1], "r");
+//  yyparse();
+//  printf("%s\n", "Parsing completed. No errors found.");
+//  printGV(prog, NULL);
+//}
 
-int main(int argc, char* argv[]) {
-  yyin = fopen(argv[1], "r");
-  yyparse();
-  printf("%s\n", "Parsing completed. No errors found.");
-  printGV(prog, NULL);
-}
-
-int yyerror(char* mesg) {
-  printf("%s\t%d\t%s\t%s\n", "Error found in Line ", linenumber,
-         "next token: ", yytext);
-  exit(1);
+void yy::parser::error (const location_type& l, const std::string& m) {
+  std::cerr << l << ": " << m << '\n';
 }

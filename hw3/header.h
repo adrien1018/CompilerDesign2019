@@ -3,6 +3,8 @@
 
 #define MAX_ARRAY_DIMENSION 7
 
+#include <string>
+
 enum DataType {
   INT_TYPE,
   FLOAT_TYPE,
@@ -110,7 +112,7 @@ struct DeclSemanticValue {
 struct SymbolAttribute;
 
 struct IdentifierSemanticValue {
-  char *identifier_name;
+  std::string identifier_name;
   struct SymbolTableEntry *symboltable_entry;
   IdentifierKind kind;
 };
@@ -137,7 +139,7 @@ struct AstNode {
   AstType node_type;
   DataType data_type;
   int linenumber;
-  union {
+  struct {
     IdentifierSemanticValue identifier_semantic_value;
     StmtSemanticValue stmt_semantic_value;
     DeclSemanticValue decl_semantic_value;

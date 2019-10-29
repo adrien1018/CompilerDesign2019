@@ -1,4 +1,8 @@
 *.o
 parser.output
-parser.tab.*
-lex.yy.*
+parser
+parser.cc
+parser.hh
+scanner.cc
+location.hh
+calc++/
