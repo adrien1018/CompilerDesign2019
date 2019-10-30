@@ -168,6 +168,9 @@ inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
 %token S_COMMA
 %token S_PERIOD
 
+%nonassoc LOWER_THAN_ELSE
+%nonassoc R_ELSE
+
 %type <AstNode*> program global_decl_list global_decl function_decl block stmt_list decl_list decl var_decl type init_id_list init_id  stmt relop_expr relop_term relop_factor expr term factor var_ref
 %type <AstNode*> param_list param dim_fn expr_null id_list dim_decl cexpr mcexpr cfactor assign_expr_list assign_expr rel_op relop_expr_list nonempty_relop_expr_list
 %type <AstNode*> add_op mul_op dim_list type_decl nonempty_assign_expr_list
@@ -223,7 +226,12 @@ param: type IDENTIFIER {
          $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
          MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID)});
        }
-     | type IDENTIFIER dim_fn { /* TODO */ }
+     | type IDENTIFIER dim_fn {
+         $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
+         AstNode *identifier = MakeIDNode($2, ARRAY_ID);
+         MakeChild(identifier, $3);
+         MakeFamily($$, {$1, identifier});
+       }
      ;
 
 dim_fn: S_L_BRACKET expr_null S_R_BRACKET { $$ = $2; }
@@ -248,7 +256,7 @@ block: decl_list stmt_list {
          $$ = Allocate(BLOCK_NODE);
          MakeChild($$, MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1));
        }
-     | { /* TODO */ }
+     | { $$ = Allocate(NULL_NODE); }
      ;
 
 decl_list: decl_list decl { $$ = MakeSibling($1, $2); }
@@ -296,8 +304,8 @@ id_list: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
          }
        ;
 
-dim_decl: S_L_BRACKET cexpr S_R_BRACKET { $$ = $2; }
-        /* TODO: recursive grammar rule */
+dim_decl: dim_decl S_L_BRACKET cexpr S_R_BRACKET { $$ = MakeSibling($1, $3); }
+        | S_L_BRACKET cexpr S_R_BRACKET { $$ = $2; }
         ;
 
 cexpr: cexpr O_ADDITION mcexpr {
@@ -346,7 +354,7 @@ stmt_list: stmt_list stmt { $$ = MakeSibling($1, $2); }
          | stmt { $$ = $1; }
          ;
 
-stmt: S_L_BRACE block S_R_BRACE { /* TODO */ }
+stmt: S_L_BRACE block S_R_BRACE { $$ = $2; }
     | R_WHILE S_L_PAREN relop_expr_list S_R_PAREN stmt { 
         $$ = MakeStmtNode(WHILE_STMT);
         MakeFamily($$, {$3, $5});
@@ -356,9 +364,14 @@ stmt: S_L_BRACE block S_R_BRACE { /* TODO */ }
         MakeFamily($$, {$3, $5, $7, $9});
       }
     | var_ref O_ASSIGN relop_expr S_SEMICOLON { /* TODO */ }
-    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt { /* TODO */ }
+    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt %prec LOWER_THAN_ELSE { /* TODO */ }
+    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt R_ELSE stmt {}
     /* TODO: if then else */
     /* TODO: function call */
+    | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN S_SEMICOLON {
+        $$ = MakeStmtNode(FUNCTION_CALL_STMT);
+        MakeFamily($$, {MakeIDNode($1, NORMAL_ID), $3});
+      }
     | S_SEMICOLON { $$ = Allocate(NULL_NODE); }
     | R_RETURN S_SEMICOLON { $$ = MakeStmtNode(RETURN_STMT); }
     | R_RETURN relop_expr S_SEMICOLON {
@@ -471,8 +484,8 @@ var_ref: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
          }
        ;
 
-dim_list: dim_list S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
-        | S_L_BRACKET expr S_R_BRACKET { /* TODO */ }
+dim_list: dim_list S_L_BRACKET expr S_R_BRACKET { $$ = MakeSibling($1, $3); }
+        | S_L_BRACKET expr S_R_BRACKET { $$ = $2; }
         ;
 
 

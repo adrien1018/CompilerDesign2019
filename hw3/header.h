@@ -65,7 +65,7 @@ enum DeclKind {
   FUNCTION_PARAMETER_DECL
 };
 
-typedef enum AstType {
+enum AstType {
   PROGRAM_NODE,
   DECLARATION_NODE,
   IDENTIFIER_NODE,
@@ -79,7 +79,7 @@ typedef enum AstType {
   CONST_VALUE_NODE,  // ex:1, 2, "constant string"
   NONEMPTY_ASSIGN_EXPR_LIST_NODE,
   NONEMPTY_RELOP_EXPR_LIST_NODE
-} AstType;
+};
 
 //*************************
 // AstNode's semantic value
