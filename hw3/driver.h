@@ -5,7 +5,7 @@
 #include "header.h"
 #include "parser.hh"
 
-# define YY_DECL yy::parser::symbol_type yylex(Driver& drv)
+#define YY_DECL yy::parser::symbol_type yylex(Driver& drv)
 // ... and declare it for the parser's sake.
 YY_DECL;
 
@@ -28,4 +28,4 @@ class Driver {
   }
 };
 
-#endif
+#endif  // DRIVER_H_

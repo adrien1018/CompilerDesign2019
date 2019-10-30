@@ -6,3 +6,4 @@ parser.hh
 scanner.cc
 location.hh
 calc++/
+*.gv

@@ -20,14 +20,13 @@
 #include <cstdarg>
 #include <vector>
 
+#include "gv.h"
 #include "header.h"
 #include "header_lex.h"
 #include "driver.h"
 
 int linenumber = 1;
 AstNode *prog;
-
-extern int g_anyErrorOccur;
 
 namespace {
 
@@ -178,8 +177,8 @@ inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
 
 %%
 
-program: global_decl_list { $$ = Allocate(PROGRAM_NODE); MakeChild($$, $1); prog = $$; }
-       | { $$ = Allocate(PROGRAM_NODE); prog = $$; }
+program: global_decl_list { $$ = Allocate(PROGRAM_NODE); MakeChild($$, $1); prog = $$; PrintGV(prog, ""); }
+       | { $$ = Allocate(PROGRAM_NODE); prog = $$; PrintGV(prog, ""); }
        ;
 
 global_decl_list: global_decl_list global_decl { $$ = MakeSibling($1, $2); }
@@ -323,10 +322,7 @@ mcexpr: mcexpr O_MULTIPLICATION cfactor {
       | cfactor { $$ = $1; }
       ;
 
-cfactor: CONST { 
-           $$ = Allocate(CONST_VALUE_NODE);
-           $$->semantic_value.const1 = (ConstType*)$1;
-         }
+cfactor: CONST { $$ = $1; }
        | S_L_PAREN cexpr S_R_PAREN { $$ = $2; }
        ;
 
@@ -445,10 +441,7 @@ factor: S_L_PAREN relop_expr S_R_PAREN { $$ = $2; }
           $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
           MakeChild($$, $3);
         }
-      | CONST {
-          $$ = Allocate(CONST_VALUE_NODE);
-          $$->semantic_value.const1 = (ConstType*)$1;
-        }
+      | CONST { $$ = $1; }
       | O_SUBTRACTION CONST {
           $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
           MakeChild($$, $2);

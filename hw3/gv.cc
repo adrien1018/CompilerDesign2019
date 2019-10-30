@@ -6,6 +6,8 @@
 
 #include "header.h"
 
+namespace {
+
 void PrintLabelString(std::ofstream &ofs, AstNode *node) {
   static const std::string kBinaryOpString[] = {
       "+", "-", "*", "/", "==", ">=", "<=", "!=", ">", "<", "&&", "||"};
@@ -156,6 +158,8 @@ int PrintGVNode(std::ofstream &ofs, AstNode *node, int count) {
 
   return count_after_check_sibling;
 }
+
+}  // namespace
 
 void PrintGV(AstNode *root, std::string filename) {
   if (filename == "") filename = "AST_Graph.gv";

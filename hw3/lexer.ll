@@ -155,6 +155,7 @@ ERROR                      .
                                AstNode *node = Allocate(CONST_VALUE_NODE);
                                ConstType *p = new ConstType();
                                p->const_type = INTEGERC;
+                               std::cerr << "REGEX_C_INT: " << yytext << std::endl;
                                p->const_u.intval = atoi(yytext);
                                node->semantic_value.const1 = p;
                                return yy::parser::make_CONST(node, loc);
@@ -253,6 +254,4 @@ void Driver::scan_begin() {
   }
 }
 
-void Driver::scan_end() {
-  fclose(yyin);
-}
+void Driver::scan_end() { fclose(yyin); }
