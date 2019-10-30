@@ -151,9 +151,30 @@ ERROR                      .
 
 {WHITE_SPACE}                { loc.step(); }
 
-{REGEX_C_INT}                { RETURN_TOKEN(C_INT); }
-{REGEX_C_FLOAT}              { RETURN_TOKEN(C_FLOAT); }
-{REGEX_C_STRING}             { RETURN_TOKEN(C_STRING); }
+{REGEX_C_INT}                { 
+                               AstNode *node = Allocate(CONST_VALUE_NODE);
+                               ConstType *p = new ConstType();
+                               p->const_type = INTEGERC;
+                               p->const_u.intval = atoi(yytext);
+                               node->semantic_value.const1 = p;
+                               return yy::parser::make_CONST(node, loc);
+                             }
+{REGEX_C_FLOAT}              {
+                               AstNode *node = Allocate(CONST_VALUE_NODE);
+                               ConstType *p = new ConstType();
+                               p->const_type = FLOATC;
+                               p->const_u.fval = atof(yytext);
+                               node->semantic_value.const1 = p;
+                               return yy::parser::make_CONST(node, loc);
+                             }
+{REGEX_C_STRING}             { 
+                               AstNode *node = Allocate(CONST_VALUE_NODE);
+                               ConstType *p = new ConstType();
+                               p->const_type = STRINGC;
+                               p->const_u.sc = strdup(yytext);
+                               node->semantic_value.const1 = p;
+                               return yy::parser::make_CONST(node, loc);
+                             }
 
 {REGEX_O_ADDITION}           { RETURN_TOKEN(O_ADDITION); }
 {REGEX_O_SUBTRACTION}        { RETURN_TOKEN(O_SUBTRACTION); }

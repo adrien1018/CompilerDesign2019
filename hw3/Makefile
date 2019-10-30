@@ -4,9 +4,10 @@ OBJS = $(INTERMEDIATE:%.cc=%.o) alloc.o functions.o main.o
 LEX = flex
 YACC = bison -v -Lc++
 YACCFLAGS = -d
+CXXFLAGS = -O3 -Wall
 
 $(TARGET): $(OBJS)
-	$(CXX) -o $@ $^
+	$(CXX) $(CXXFLAGS) -o $@ $^
 
 scanner.cc: lexer.ll parser.cc
 	$(LEX) -o $@ $<
