@@ -35,6 +35,16 @@ DataType GetDataType(AstNode *a, AstNode *b) {
   return FLOAT_TYPE;
 }
 
+DataType GetTypedefValue(const std::string &s) {
+  // TODO: return the typedef value of s. Report an error if s does not name a
+  // type.
+}
+
+AstNode *MakeTypeNode(DataType type) {
+  // TODO: return an AST node specifying the declaration type of a function or a
+  // variable.
+}
+
 inline AstNode* MakeSibling(AstNode* a, AstNode* b) {
   while (a->right_sibling) {
     a = a->right_sibling;
@@ -202,27 +212,18 @@ global_decl: decl_list function_decl {
            | function_decl { $$ = $1; }
            ;
 
-function_decl: type IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
+function_decl: IDENTIFIER IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
                  $$ = MakeDeclNode(FUNCTION_DECL);
                  AstNode *param = Allocate(PARAM_LIST_NODE);
                  MakeChild(param, $4);
-                 MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID), param, $7});
+                 DataType type = GetTypedefValue($1);
+                 MakeFamily($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID), param, $7});
                }
-             | R_VOID IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
-                 $$ = MakeDeclNode(FUNCTION_DECL);
-                 AstNode *param = Allocate(PARAM_LIST_NODE);
-                 MakeChild(param, $4);
-                 MakeFamily($$, {MakeIDNode("void", NORMAL_ID), MakeIDNode($2, NORMAL_ID), param, $7});
-               }
-             | type IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
+             | IDENTIFIER IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
                  $$ = MakeDeclNode(FUNCTION_DECL);
                  AstNode *empty_param = Allocate(PARAM_LIST_NODE);
-                 MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID), empty_param, $6});
-               }
-             | R_VOID IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
-                 $$ = MakeDeclNode(FUNCTION_DECL);
-                 AstNode *empty_param = Allocate(PARAM_LIST_NODE);
-                 MakeFamily($$, {MakeIDNode("void", NORMAL_ID), MakeIDNode($2, NORMAL_ID), empty_param, $6});
+                 DataType type = GetTypedefValue($1);
+                 MakeFamily($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID), empty_param, $6});
                }
              ;
 
@@ -289,8 +290,9 @@ var_decl: type init_id_list S_SEMICOLON {
             $$ = MakeDeclNode(VARIABLE_DECL);
             MakeFamily($$, {$1, $2});
           }
-        | IDENTIFIER id_list S_SEMICOLON {
+        | IDENTIFIER init_id_list S_SEMICOLON {
             $$ = MakeDeclNode(VARIABLE_DECL);
+            /* TODO: Find the typedef of IDENTIFIER  */
             MakeFamily($$, {MakeIDNode($1, NORMAL_ID), $2});
           }
         ;
