@@ -79,6 +79,9 @@ void PrintLabelString(std::ofstream &ofs, AstNode *node) {
         case IF_STMT:
           ofs << "IF_STMT";
           break;
+        case IF_ELSE_STMT:
+          ofs << "IF_ELSE_STMT";
+          break;
         case FUNCTION_CALL_STMT:
           ofs << "FUNCTION_CALL_STMT";
           break;

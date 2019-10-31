@@ -256,7 +256,7 @@ block: decl_list stmt_list {
          $$ = Allocate(BLOCK_NODE);
          MakeChild($$, MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1));
        }
-     | { $$ = Allocate(NULL_NODE); }
+     | { $$ = Allocate(BLOCK_NODE); MakeChild($$, Allocate(NULL_NODE)); }
      ;
 
 decl_list: decl_list decl { $$ = MakeSibling($1, $2); }
@@ -363,11 +363,18 @@ stmt: S_L_BRACE block S_R_BRACE { $$ = $2; }
         $$ = MakeStmtNode(FOR_STMT);
         MakeFamily($$, {$3, $5, $7, $9});
       }
-    | var_ref O_ASSIGN relop_expr S_SEMICOLON { /* TODO */ }
-    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt %prec LOWER_THAN_ELSE { /* TODO */ }
-    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt R_ELSE stmt {}
-    /* TODO: if then else */
-    /* TODO: function call */
+    | var_ref O_ASSIGN relop_expr S_SEMICOLON {
+        $$ = MakeStmtNode(ASSIGN_STMT);
+        MakeFamily($$, {$1, $3});
+      }
+    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt %prec LOWER_THAN_ELSE {
+        $$ = MakeStmtNode(IF_STMT);
+        MakeFamily($$, {$3, $5});
+      }
+    | R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt R_ELSE stmt {
+        $$ = MakeStmtNode(IF_ELSE_STMT);
+        MakeFamily($$, {$3, $5, $7});
+      }
     | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN S_SEMICOLON {
         $$ = MakeStmtNode(FUNCTION_CALL_STMT);
         MakeFamily($$, {MakeIDNode($1, NORMAL_ID), $3});
@@ -463,9 +470,22 @@ factor: S_L_PAREN relop_expr S_R_PAREN { $$ = $2; }
           $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
           MakeChild($$, $2);
         }
-      | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { /* TODO */ }
-      | O_SUBTRACTION IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { /* TODO */ }
-      | O_LOGICAL_NOT IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { /* TODO */ }
+      | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
+          $$ = MakeStmtNode(FUNCTION_CALL_STMT);
+          MakeFamily($$, {MakeIDNode($1, NORMAL_ID), $3});
+        }
+      | O_SUBTRACTION IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
+          AstNode *func = MakeStmtNode(FUNCTION_CALL_STMT);
+          MakeFamily(func, {MakeIDNode($2, NORMAL_ID), $4});
+          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
+          MakeChild($$, func);
+        }
+      | O_LOGICAL_NOT IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { 
+          AstNode *func = MakeStmtNode(FUNCTION_CALL_STMT);
+          MakeFamily(func, {MakeIDNode($2, NORMAL_ID), $4});
+          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
+          MakeChild($$, func);
+        }
       | var_ref { $$ = $1; }
       | O_SUBTRACTION var_ref {
           $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);

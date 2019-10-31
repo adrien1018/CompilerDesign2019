@@ -1,8 +1,7 @@
-int a[3][3][4][5];
-
-int c[1];
+int fib(int n) {
+  if (n <= 1) return 1;
+  return fib(n - 1) + fib(n - 2);
+}
 
 int main() {
-  while (1 + 1) {}
-  for (int x = 1; x < 5; x = x + 1) { f(123, jizz, jizz * 123, f < 5); }
 }

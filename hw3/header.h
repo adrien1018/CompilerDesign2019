@@ -52,6 +52,7 @@ enum StmtKind {
   FOR_STMT,
   ASSIGN_STMT,  // TODO: for simpler implementation, assign_expr also uses this
   IF_STMT,
+  IF_ELSE_STMT,
   FUNCTION_CALL_STMT,
   RETURN_STMT,
 };
