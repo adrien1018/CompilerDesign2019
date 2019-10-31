@@ -36,16 +36,20 @@ DataType GetDataType(AstNode *a, AstNode *b) {
 }
 
 DataType GetTypedefValue(const std::string &s) {
+  if (s == "int") return INT_TYPE;
+  if (s == "float") return FLOAT_TYPE;
+  if (s == "void") return VOID_TYPE;
   // TODO: return the typedef value of s. Report an error if s does not name a
   // type.
 }
 
 AstNode *MakeTypeNode(DataType type) {
-  // TODO: return an AST node specifying the declaration type of a function or a
-  // variable.
+  AstNode *type_node = Allocate(TYPE_NODE);
+  type_node->data_type = type;
+  return type_node;
 }
 
-inline AstNode* MakeSibling(AstNode* a, AstNode* b) {
+AstNode* MakeSibling(AstNode* a, AstNode* b) {
   while (a->right_sibling) {
     a = a->right_sibling;
   }
@@ -65,7 +69,7 @@ inline AstNode* MakeSibling(AstNode* a, AstNode* b) {
   return b;
 }
 
-inline AstNode* MakeChild(AstNode* parent, AstNode* child) {
+AstNode* MakeChild(AstNode* parent, AstNode* child) {
   if (child == nullptr) {
     return parent;
   }
@@ -93,7 +97,7 @@ AstNode* MakeFamily(AstNode* parent, const std::vector<AstNode*>& children) {
   return parent;
 }
 
-inline AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
+AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
   AstNode* identifier = Allocate(IDENTIFIER_NODE);
   identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
   identifier->semantic_value.identifier_semantic_value.kind = id_kind;
@@ -101,19 +105,19 @@ inline AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
   return identifier;
 }
 
-inline AstNode* MakeStmtNode(StmtKind stmt_kind) {
+AstNode* MakeStmtNode(StmtKind stmt_kind) {
   AstNode* stmt_node = Allocate(STMT_NODE);
   stmt_node->semantic_value.stmt_semantic_value.kind = stmt_kind;
   return stmt_node;
 }
 
-inline AstNode* MakeDeclNode(DeclKind decl_kind) {
+AstNode* MakeDeclNode(DeclKind decl_kind) {
   AstNode* decl_node = Allocate(DECLARATION_NODE);
   decl_node->semantic_value.decl_semantic_value.kind = decl_kind;
   return decl_node;
 }
 
-inline AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum_value) {
+AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum_value) {
   AstNode* expr_node = Allocate(EXPR_NODE);
   expr_node->data_type = data_type;
   expr_node->semantic_value.expr_semantic_value.is_const_eval = 0;
@@ -189,7 +193,7 @@ inline AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operati
 %nonassoc LOWER_THAN_ELSE
 %nonassoc R_ELSE
 
-%type <AstNode*> program global_decl_list global_decl function_decl block stmt_list decl_list decl var_decl type init_id_list init_id  stmt relop_expr relop_term relop_factor expr term factor var_ref
+%type <AstNode*> program global_decl_list global_decl function_decl block stmt_list decl_list decl var_decl init_id_list init_id  stmt relop_expr relop_term relop_factor expr term factor var_ref
 %type <AstNode*> param_list param dim_fn expr_null id_list dim_decl cexpr mcexpr cfactor assign_expr_list assign_expr rel_op relop_expr_list nonempty_relop_expr_list
 %type <AstNode*> add_op mul_op dim_list type_decl nonempty_assign_expr_list
 
@@ -212,7 +216,9 @@ global_decl: decl_list function_decl {
            | function_decl { $$ = $1; }
            ;
 
+/* function declaration */
 function_decl: IDENTIFIER IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
+                 /* e.g., int f(float a, int b) {} / my_type g(int k[]) {} */
                  $$ = MakeDeclNode(FUNCTION_DECL);
                  AstNode *param = Allocate(PARAM_LIST_NODE);
                  MakeChild(param, $4);
@@ -220,6 +226,7 @@ function_decl: IDENTIFIER IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE bl
                  MakeFamily($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID), param, $7});
                }
              | IDENTIFIER IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
+                 /* e.g., int f() {} / my_type g() {} */
                  $$ = MakeDeclNode(FUNCTION_DECL);
                  AstNode *empty_param = Allocate(PARAM_LIST_NODE);
                  DataType type = GetTypedefValue($1);
@@ -231,15 +238,18 @@ param_list: param_list S_COMMA param { $$ = MakeSibling($1, $3); }
           | param { $$ = $1; }
           ;
 
-param: type IDENTIFIER {
+/* Function parameter */
+param: IDENTIFIER IDENTIFIER {
+         /* e.g., int a, float b, my_type c */
          $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
-         MakeFamily($$, {$1, MakeIDNode($2, NORMAL_ID)});
+         MakeFamily($$, {MakeTypeNode(GetTypedefValue($1)), MakeIDNode($2, NORMAL_ID)});
        }
-     | type IDENTIFIER dim_fn {
+     | IDENTIFIER IDENTIFIER dim_fn {
+         /* e.g., int a[3], float b[][5], my_type c[][12][34] */
          $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
          AstNode *identifier = MakeIDNode($2, ARRAY_ID);
          MakeChild(identifier, $3);
-         MakeFamily($$, {$1, identifier});
+         MakeFamily($$, {MakeTypeNode(GetTypedefValue($1)), identifier});
        }
      ;
 
@@ -276,30 +286,18 @@ decl: type_decl { $$ = $1; }
     | var_decl { $$ = $1; }
     ;
 
-type_decl: R_TYPEDEF type id_list S_SEMICOLON { 
+/* typedef declaration */
+type_decl: R_TYPEDEF IDENTIFIER id_list S_SEMICOLON { 
              $$ = MakeDeclNode(TYPE_DECL);
-             MakeFamily($$, {$2, $3});
-           }
-         | R_TYPEDEF R_VOID id_list S_SEMICOLON {
-             $$ = MakeDeclNode(TYPE_DECL);
-             MakeFamily($$, {MakeIDNode("void", NORMAL_ID), $3});
+             MakeFamily($$, {MakeTypeNode(GetTypedefValue($2)), $3});
            }
          ;
 
-var_decl: type init_id_list S_SEMICOLON { 
+var_decl: IDENTIFIER init_id_list S_SEMICOLON { 
             $$ = MakeDeclNode(VARIABLE_DECL);
-            MakeFamily($$, {$1, $2});
-          }
-        | IDENTIFIER init_id_list S_SEMICOLON {
-            $$ = MakeDeclNode(VARIABLE_DECL);
-            /* TODO: Find the typedef of IDENTIFIER  */
-            MakeFamily($$, {MakeIDNode($1, NORMAL_ID), $2});
+            MakeFamily($$, {MakeTypeNode(GetTypedefValue($1)), $2});
           }
         ;
-
-type: R_INT { $$ = MakeIDNode("int", NORMAL_ID); }
-    | R_FLOAT { $$ = MakeIDNode("float", NORMAL_ID); }
-    ;
 
 id_list: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
        | id_list S_COMMA IDENTIFIER { $$ = MakeSibling($1, MakeIDNode($3, NORMAL_ID)); }

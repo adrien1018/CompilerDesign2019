@@ -79,10 +79,7 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
   {"typedef", yy::parser::token::R_TYPEDEF},
   {"if",      yy::parser::token::R_IF},
   {"else",    yy::parser::token::R_ELSE},
-  {"int",     yy::parser::token::R_INT},
-  {"float",   yy::parser::token::R_FLOAT},
   {"for",     yy::parser::token::R_FOR},
-  {"void",    yy::parser::token::R_VOID},
   {"while",   yy::parser::token::R_WHILE},
 };
 

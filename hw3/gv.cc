@@ -55,6 +55,22 @@ void PrintLabelString(std::ofstream &ofs, AstNode *node) {
     case NULL_NODE:
       ofs << "NULL_NODE";
       break;
+    case TYPE_NODE:
+      ofs << "TYPE_NODE ";
+      switch (node->data_type) {
+        case INT_TYPE:
+          ofs << "INT_TYPE";
+          break;
+        case FLOAT_TYPE:
+          ofs << "FLOAT_TYPE";
+          break;
+        case VOID_TYPE:
+          ofs << "VOID_TYPE";
+          break;
+        default:
+          break;
+      }
+      break;
     case BLOCK_NODE:
       ofs << "BLOCK_NODE";
       break;
