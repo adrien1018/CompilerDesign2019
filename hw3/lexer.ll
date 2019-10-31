@@ -156,6 +156,7 @@ ERROR                      .
                                 node->semantic_value.const1 = new ConstType();
                                 node->semantic_value.const1->const_type = INTEGERC;
                                 node->semantic_value.const1->const_u.intval = atoi(yytext);
+                                node->data_type = INT_TYPE;
                                 return yy::parser::make_CONST(node, loc);
                              }
 {REGEX_C_FLOAT}              {
@@ -163,6 +164,7 @@ ERROR                      .
                                 node->semantic_value.const1 = new ConstType();
                                 node->semantic_value.const1->const_type = FLOATC;
                                 node->semantic_value.const1->const_u.fval = atof(yytext);
+                                node->data_type = FLOAT_TYPE;
                                 return yy::parser::make_CONST(node, loc);
                              }
 {REGEX_C_STRING}             { 
@@ -170,6 +172,7 @@ ERROR                      .
                                 node->semantic_value.const1 = new ConstType();
                                 node->semantic_value.const1->const_type = STRINGC;
                                 node->semantic_value.const1->const_u.sc = strdup(yytext);
+                                node->data_type = CONST_STRING_TYPE;
                                 return yy::parser::make_CONST(node, loc);
                              }
 

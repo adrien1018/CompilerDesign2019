@@ -30,6 +30,11 @@ AstNode *prog;
 
 namespace {
 
+DataType GetDataType(AstNode *a, AstNode *b) {
+  if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
+  return FLOAT_TYPE;
+}
+
 inline AstNode* MakeSibling(AstNode* a, AstNode* b) {
   while (a->right_sibling) {
     a = a->right_sibling;
@@ -78,47 +83,50 @@ AstNode* MakeFamily(AstNode* parent, const std::vector<AstNode*>& children) {
   return parent;
 }
 
-inline AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind idKind) {
+inline AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
   AstNode* identifier = Allocate(IDENTIFIER_NODE);
   identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
-  identifier->semantic_value.identifier_semantic_value.kind = idKind;
+  identifier->semantic_value.identifier_semantic_value.kind = id_kind;
   identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
   return identifier;
 }
 
-inline AstNode* MakeStmtNode(StmtKind stmtKind) {
-  AstNode* stmtNode = Allocate(STMT_NODE);
-  stmtNode->semantic_value.stmt_semantic_value.kind = stmtKind;
-  return stmtNode;
+inline AstNode* MakeStmtNode(StmtKind stmt_kind) {
+  AstNode* stmt_node = Allocate(STMT_NODE);
+  stmt_node->semantic_value.stmt_semantic_value.kind = stmt_kind;
+  return stmt_node;
 }
 
-inline AstNode* MakeDeclNode(DeclKind declKind) {
-  AstNode* declNode = Allocate(DECLARATION_NODE);
-  declNode->semantic_value.decl_semantic_value.kind = declKind;
-  return declNode;
+inline AstNode* MakeDeclNode(DeclKind decl_kind) {
+  AstNode* decl_node = Allocate(DECLARATION_NODE);
+  decl_node->semantic_value.decl_semantic_value.kind = decl_kind;
+  return decl_node;
 }
 
-inline AstNode* MakeExprNode(ExprKind exprKind, int operationEnumValue) {
-  AstNode* exprNode = Allocate(EXPR_NODE);
-  exprNode->semantic_value.expr_semantic_value.is_const_eval = 0;
-  exprNode->semantic_value.expr_semantic_value.kind = exprKind;
-  if (exprKind == BINARY_OPERATION) {
-    exprNode->semantic_value.expr_semantic_value.op.binary_op =
-        BinaryOperator(operationEnumValue);
-  } else if (exprKind == UNARY_OPERATION) {
-    exprNode->semantic_value.expr_semantic_value.op.unary_op =
-        UnaryOperator(operationEnumValue);
+inline AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum_value) {
+  AstNode* expr_node = Allocate(EXPR_NODE);
+  expr_node->data_type = data_type;
+  expr_node->semantic_value.expr_semantic_value.is_const_eval = 0;
+  expr_node->semantic_value.expr_semantic_value.kind = expr_kind;
+  if (expr_kind == BINARY_OPERATION) {
+    expr_node->semantic_value.expr_semantic_value.op.binary_op =
+        BinaryOperator(operation_enum_value);
+  } else if (expr_kind == UNARY_OPERATION) {
+    expr_node->semantic_value.expr_semantic_value.op.unary_op =
+        UnaryOperator(operation_enum_value);
   } else {
     printf(
         "Error in static inline AstNode* MakeExprNode(EXPR_KIND exprKind, int "
         "operationEnumValue)\n");
   }
-  return exprNode;
+  return expr_node;
 }
 
 }  // namespace
 
 %}
+
+// TODO: constant folding, typedef, symbol table
 
 %token <std::string> IDENTIFIER
 %token <AstNode*> CONST
@@ -309,22 +317,22 @@ dim_decl: dim_decl S_L_BRACKET cexpr S_R_BRACKET { $$ = MakeSibling($1, $3); }
         ;
 
 cexpr: cexpr O_ADDITION mcexpr {
-         $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_ADD);
+         $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD);
          MakeFamily($$, {$1, $3});
        }
      | cexpr O_SUBTRACTION mcexpr {
-         $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_SUB);
+         $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB);
          MakeFamily($$, {$1, $3});
        }
      | mcexpr { $$ = $1; }
      ;
 
 mcexpr: mcexpr O_MULTIPLICATION cfactor {
-          $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_MUL);
+          $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL);
           MakeFamily($$, {$1, $3});
         }
       | mcexpr O_DIVISION cfactor {
-          $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_DIV);
+          $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV);
           MakeFamily($$, {$1, $3});
         }
       | cfactor { $$ = $1; }
@@ -344,9 +352,8 @@ init_id: IDENTIFIER { $$ = MakeIDNode($1, NORMAL_ID); }
            MakeChild($$, $2);
          }
        | IDENTIFIER O_ASSIGN relop_expr {
-           AstNode *identifier = MakeIDNode($1, NORMAL_ID);
-           $$ = MakeStmtNode(ASSIGN_STMT);
-           MakeFamily($$, {identifier, $3});
+           $$ = MakeIDNode($1, WITH_INIT_ID);
+           MakeChild($$, $3);
          }
        ;
 
@@ -404,14 +411,14 @@ assign_expr: IDENTIFIER O_ASSIGN relop_expr {
 
 relop_expr: relop_term { $$ = $1; }
           | relop_expr O_LOGICAL_OR relop_term {
-              $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_OR);
+              $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_OR);
               MakeFamily($$, {$1, $3});
             }
           ;
 
 relop_term: relop_factor { $$ = $1; }
           | relop_term O_LOGICAL_AND relop_factor { 
-              $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_AND);
+              $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_AND);
               MakeFamily($$, {$1, $3});
             }
           ;
@@ -420,12 +427,12 @@ relop_factor: expr { $$ = $1; }
             | expr rel_op expr { $$ = MakeFamily($2, {$1, $3}); }
             ;
 
-rel_op: O_EQ { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_EQ); }
-      | O_GREATER_THAN_OR_EQ { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_GE); }
-      | O_LESS_THAN_OR_EQ { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_LE); }
-      | O_NOT_EQ { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_NE); }
-      | O_GREATER_THAN { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_GT); }
-      | O_LESS_THAN { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_LT); }
+rel_op: O_EQ { $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_EQ); }
+      | O_GREATER_THAN_OR_EQ { $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_GE); }
+      | O_LESS_THAN_OR_EQ { $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_LE); }
+      | O_NOT_EQ { $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_NE); }
+      | O_GREATER_THAN { $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_GT); }
+      | O_LESS_THAN { $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_LT); }
       ;
 
 relop_expr_list: nonempty_relop_expr_list { $$ = $1; }
@@ -436,38 +443,44 @@ nonempty_relop_expr_list: nonempty_relop_expr_list S_COMMA relop_expr { $$ = Mak
                         | relop_expr { $$ = $1; }
                         ;
 
-expr: expr add_op term { $$ = MakeFamily($2, {$1, $3}); }
+expr: expr add_op term { 
+        $$ = MakeFamily($2, {$1, $3}); 
+        $$->data_type = GetDataType($1, $3);
+      }
     | term { $$ = $1; }
     ;
 
-add_op: O_ADDITION { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_ADD); }
-      | O_SUBTRACTION { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_SUB); }
+add_op: O_ADDITION { $$ = MakeExprNode(BINARY_OPERATION, NONE_TYPE, BINARY_OP_ADD); }
+      | O_SUBTRACTION { $$ = MakeExprNode(BINARY_OPERATION, NONE_TYPE, BINARY_OP_SUB); }
       ;
 
-term: term mul_op factor { $$ = MakeFamily($2, {$1, $3}); }
+term: term mul_op factor { 
+        $$ = MakeFamily($2, {$1, $3}); 
+        $$->data_type = GetDataType($1, $3);
+      }
     | factor { $$ = $1; }
     ;
 
-mul_op: O_MULTIPLICATION { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_MUL); }
-      | O_DIVISION { $$ = MakeExprNode(BINARY_OPERATION, BINARY_OP_DIV); }
+mul_op: O_MULTIPLICATION { $$ = MakeExprNode(BINARY_OPERATION, NONE_TYPE, BINARY_OP_MUL); }
+      | O_DIVISION { $$ = MakeExprNode(BINARY_OPERATION, NONE_TYPE, BINARY_OP_DIV); }
       ;
 
 factor: S_L_PAREN relop_expr S_R_PAREN { $$ = $2; }
       | O_SUBTRACTION S_L_PAREN relop_expr S_R_PAREN {
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
+          $$ = MakeExprNode(UNARY_OPERATION, $3->data_type, UNARY_OP_NEGATIVE);
           MakeChild($$, $3);
         }
       | O_LOGICAL_NOT S_L_PAREN relop_expr S_R_PAREN { 
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
+          $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION);
           MakeChild($$, $3);
         }
       | CONST { $$ = $1; }
       | O_SUBTRACTION CONST {
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
+          $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE);
           MakeChild($$, $2);
         }
       | O_LOGICAL_NOT CONST {
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
+          $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION);
           MakeChild($$, $2);
         }
       | IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
@@ -477,22 +490,22 @@ factor: S_L_PAREN relop_expr S_R_PAREN { $$ = $2; }
       | O_SUBTRACTION IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
           AstNode *func = MakeStmtNode(FUNCTION_CALL_STMT);
           MakeFamily(func, {MakeIDNode($2, NORMAL_ID), $4});
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
+          $$ = MakeExprNode(UNARY_OPERATION, FUNCTION_RETURN_TYPE, UNARY_OP_NEGATIVE);
           MakeChild($$, func);
         }
       | O_LOGICAL_NOT IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN { 
           AstNode *func = MakeStmtNode(FUNCTION_CALL_STMT);
           MakeFamily(func, {MakeIDNode($2, NORMAL_ID), $4});
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
+          $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION);
           MakeChild($$, func);
         }
       | var_ref { $$ = $1; }
       | O_SUBTRACTION var_ref {
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_NEGATIVE);
+          $$ = MakeExprNode(UNARY_OPERATION, VARIABLE_TYPE, UNARY_OP_NEGATIVE);
           MakeChild($$, $2);
         }
       | O_LOGICAL_NOT var_ref { 
-          $$ = MakeExprNode(UNARY_OPERATION, UNARY_OP_LOGICAL_NEGATION);
+          $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION);
           MakeChild($$, $2);
         }
       ;

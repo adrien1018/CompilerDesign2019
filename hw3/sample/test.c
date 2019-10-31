@@ -1,6 +1,10 @@
-int fib(int n) {
-  if (n <= 1) return 1;
-  return fib(n - 1) + fib(n - 2);
+int f = g + h - 4 && f, x, y;
+int z[1][2][3][4][5];
+
+typedef int ffff;
+
+ffff func() {
+
 }
 
 int main() {

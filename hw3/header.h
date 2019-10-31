@@ -13,6 +13,8 @@ enum DataType {
   FLOAT_PTR_TYPE,     // for parameter passing
   CONST_STRING_TYPE,  // for "const string"
   NONE_TYPE,          // for nodes like PROGRAM_NODE which has no type
+  FUNCTION_RETURN_TYPE,
+  VARIABLE_TYPE,
   ERROR_TYPE
 };
 
