@@ -27,6 +27,7 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
 
 %}
 
+/* --------- Regexp --------- */
 /*** basic things ***/
 LETTER                     [A-Za-z]
 DIGIT                      [0-9]
@@ -73,6 +74,8 @@ REGEX_IDENTIFIER           {LETTER}({DIGIT}|{LETTER}|_)*
 
 ERROR                      .
 
+/* --------- End regexp --------- */
+
 %{
   #define YY_USER_ACTION loc.columns(yyleng);
 %}
@@ -84,32 +87,35 @@ ERROR                      .
   loc.step();
 %}
 
-{WHITE_SPACE}                { loc.step(); }
+{WHITE_SPACE}  { loc.step(); }
 
-{REGEX_C_INT}                { 
-                                AstNode *node = new AstNode(CONST_VALUE_NODE);
-                                node->semantic_value.const1 = new ConstType();
-                                node->semantic_value.const1->const_type = INTEGERC;
-                                node->semantic_value.const1->const_u.intval = atoi(yytext);
-                                node->data_type = INT_TYPE;
-                                return yy::parser::make_CONST(node, loc);
-                             }
-{REGEX_C_FLOAT}              {
-                                AstNode *node = new AstNode(CONST_VALUE_NODE);
-                                node->semantic_value.const1 = new ConstType();
-                                node->semantic_value.const1->const_type = FLOATC;
-                                node->semantic_value.const1->const_u.fval = atof(yytext);
-                                node->data_type = FLOAT_TYPE;
-                                return yy::parser::make_CONST(node, loc);
-                             }
-{REGEX_C_STRING}             { 
-                                AstNode *node = new AstNode(CONST_VALUE_NODE);
-                                node->semantic_value.const1 = new ConstType();
-                                node->semantic_value.const1->const_type = STRINGC;
-                                node->semantic_value.const1->const_u.sc = strdup(yytext);
-                                node->data_type = CONST_STRING_TYPE;
-                                return yy::parser::make_CONST(node, loc);
-                             }
+{REGEX_C_INT} {
+  AstNode *node = new AstNode(CONST_VALUE_NODE);
+  node->semantic_value.const1 = new ConstType();
+  node->semantic_value.const1->const_type = INTEGERC;
+  node->semantic_value.const1->const_u.intval = atoi(yytext);
+  node->data_type = INT_TYPE;
+  return yy::parser::make_CONST(node, loc);
+}
+
+{REGEX_C_FLOAT} {
+  AstNode *node = new AstNode(CONST_VALUE_NODE);
+  node->semantic_value.const1 = new ConstType();
+  node->semantic_value.const1->const_type = FLOATC;
+  node->semantic_value.const1->const_u.fval = atof(yytext);
+  node->data_type = FLOAT_TYPE;
+  return yy::parser::make_CONST(node, loc);
+}
+
+{REGEX_C_STRING} {
+  AstNode *node = new AstNode(CONST_VALUE_NODE);
+  node->semantic_value.const1 = new ConstType();
+  node->semantic_value.const1->const_type = STRINGC;
+  node->semantic_value.const1->const_u.sc = strdup(yytext);
+  node->data_type = CONST_STRING_TYPE;
+  return yy::parser::make_CONST(node, loc);
+}
+>>>>>>> Remove old lexer file
 
 {REGEX_O_ADDITION}           { RETURN_TOKEN(O_ADDITION); }
 {REGEX_O_SUBTRACTION}        { RETURN_TOKEN(O_SUBTRACTION); }
@@ -140,33 +146,34 @@ ERROR                      .
 {REGEX_S_PERIOD}             { RETURN_TOKEN(S_PERIOD); }
 
 {NEWLINE}                    { /*loc.lines(1); loc.step()*/ }
-{COMMENT}                    {
-      comments.push_back(yytext);
-      //loc.lines(std::count(comments.back().begin(), comments.back().end(), '\n')); //?
+{COMMENT} {
+  comments.push_back(yytext);
+  //loc.lines(std::count(comments.back().begin(), comments.back().end(), '\n')); //?
 #ifdef DEBUG
-      printf("Get comment: [%s]\n", yytext);
+  printf("Get comment: [%s]\n", yytext);
 #endif
-    }
+}
 
-{REGEX_IDENTIFIER}            {
-      std::string text = yytext;
-      auto reserved_it = kReservedWords.find(text);
-      if (reserved_it != kReservedWords.end()) {
-        RETURN_RESERVED(reserved_it->second);
-      }
+{REGEX_IDENTIFIER} {
+  std::string text = yytext;
+  auto reserved_it = kReservedWords.find(text);
+  if (reserved_it != kReservedWords.end()) {
+    RETURN_RESERVED(reserved_it->second);
+  }
 #ifdef DEBUG
-      printf("Get identifier: [%s]\n", yytext);
+  printf("Get identifier: [%s]\n", yytext);
 #endif
-      return yy::parser::make_IDENTIFIER(yytext, loc);
-    }
+  return yy::parser::make_IDENTIFIER(yytext, loc);
+}
 
+{ERROR} {
+  throw yy::parser::syntax_error(loc,
+      "invalid character: " + std::string(yytext));
+}
 
-{ERROR}                      {
-      throw yy::parser::syntax_error(loc,
-          "invalid character: " + std::string(yytext));
-    }
-
-<<EOF>>    return yy::parser::make_END(loc);
+<<EOF>> {
+  return yy::parser::make_END(loc);
+}
 
 %%
 
