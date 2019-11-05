@@ -7,4 +7,5 @@ scanner.cc
 location.hh
 calc++/
 *.gv
+*.png
 tags
