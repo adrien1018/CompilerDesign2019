@@ -88,7 +88,7 @@ ERROR                      .
 {WHITE_SPACE}  { loc.step(); }
 
 {REGEX_C_INT} {
-  AstNode *node = new AstNode(CONST_VALUE_NODE);
+  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
   node->semantic_value.const1 = new ConstType();
   node->semantic_value.const1->const_type = INTEGERC;
   node->semantic_value.const1->const_u.intval = atoi(yytext);
@@ -97,7 +97,7 @@ ERROR                      .
 }
 
 {REGEX_C_FLOAT} {
-  AstNode *node = new AstNode(CONST_VALUE_NODE);
+  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
   node->semantic_value.const1 = new ConstType();
   node->semantic_value.const1->const_type = FLOATC;
   node->semantic_value.const1->const_u.fval = atof(yytext);
@@ -106,7 +106,7 @@ ERROR                      .
 }
 
 {REGEX_C_STRING} {
-  AstNode *node = new AstNode(CONST_VALUE_NODE);
+  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
   node->semantic_value.const1 = new ConstType();
   node->semantic_value.const1->const_type = STRINGC;
   node->semantic_value.const1->const_u.sc = strdup(yytext);

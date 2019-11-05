@@ -38,8 +38,8 @@ DataType GetTypedefValue(const std::string &s) {
   return UNKNOWN_TYPE;
 }
 
-AstNode *MakeTypeNode(DataType type) {
-  AstNode *type_node = new AstNode(TYPE_NODE);
+AstNode *MakeTypeNode(DataType type, const yy::location& loc) {
+  AstNode *type_node = new AstNode(TYPE_NODE, loc);
   type_node->data_type = type;
   return type_node;
 }
@@ -59,28 +59,30 @@ AstNode* MakeChild(AstNode* parent, std::list<AstNode*>& children) {
   return parent;
 }
 
-AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
-  AstNode* identifier = new AstNode(IDENTIFIER_NODE);
+AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind,
+                    const yy::location& loc) {
+  AstNode* identifier = new AstNode(IDENTIFIER_NODE, loc);
   identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
   identifier->semantic_value.identifier_semantic_value.kind = id_kind;
   identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
   return identifier;
 }
 
-AstNode* MakeStmtNode(StmtKind stmt_kind) {
-  AstNode* stmt_node = new AstNode(STMT_NODE);
+AstNode* MakeStmtNode(StmtKind stmt_kind, const yy::location& loc) {
+  AstNode* stmt_node = new AstNode(STMT_NODE, loc);
   stmt_node->semantic_value.stmt_semantic_value.kind = stmt_kind;
   return stmt_node;
 }
 
-AstNode* MakeDeclNode(DeclKind decl_kind) {
-  AstNode* decl_node = new AstNode(DECLARATION_NODE);
+AstNode* MakeDeclNode(DeclKind decl_kind, const yy::location& loc) {
+  AstNode* decl_node = new AstNode(DECLARATION_NODE, loc);
   decl_node->semantic_value.decl_semantic_value.kind = decl_kind;
   return decl_node;
 }
 
-AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum_value) {
-  AstNode* expr_node = new AstNode(EXPR_NODE);
+AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
+                      int operation_enum_value, const yy::location& loc) {
+  AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
   expr_node->semantic_value.expr_semantic_value.is_const_eval = 0;
   expr_node->semantic_value.expr_semantic_value.kind = expr_kind;
@@ -173,12 +175,12 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum
 
 program:
   global_decl_list {
-    $$ = new AstNode(PROGRAM_NODE);
+    $$ = new AstNode(PROGRAM_NODE, @$);
     MakeChild($$, $1);
     drv.prog = $$;
   } |
   /* null */ {
-    $$ = new AstNode(PROGRAM_NODE);
+    $$ = new AstNode(PROGRAM_NODE, @$);
     drv.prog = $$;
   };
 
@@ -193,7 +195,7 @@ global_decl_list:
 
 global_decl:
   decl_list function_decl {
-    $$ = {MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE), $1), $2};
+    $$ = {MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE, @1), $1), $2};
   } |
   function_decl {
     $$ = {$1};
@@ -203,10 +205,10 @@ global_decl:
 function_decl:
   IDENTIFIER IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
     /* e.g., int f(float a, int b) {} / my_type g(int k[]) {} */
-    $$ = MakeDeclNode(FUNCTION_DECL);
-    AstNode *param = MakeChild(new AstNode(PARAM_LIST_NODE), $4);
+    $$ = MakeDeclNode(FUNCTION_DECL, @$);
+    AstNode *param = MakeChild(new AstNode(PARAM_LIST_NODE, @4), $4);
     DataType type = GetTypedefValue($1);
-    MakeChild($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID), param, $7});
+    MakeChild($$, {MakeTypeNode(type, @1), MakeIDNode($2, NORMAL_ID, @2), param, $7});
   };
 
 param_list:
@@ -224,24 +226,24 @@ param_list:
 param:
   IDENTIFIER IDENTIFIER {
     /* e.g., int a, float b, my_type c */
-    $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
+    $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL, @$);
     DataType type = GetTypedefValue($1);
     if (type == VOID_TYPE) {
       throw yy::parser::syntax_error(@$, "variable cannot be declared void");
     }
-    MakeChild($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID)});
+    MakeChild($$, {MakeTypeNode(type, @1), MakeIDNode($2, NORMAL_ID, @2)});
   } |
   IDENTIFIER IDENTIFIER dim_fn {
     /* e.g., int a[3], float b[][5], my_type c[][12][34] */
-    $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
-    AstNode *identifier = MakeIDNode($2, ARRAY_ID);
+    $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL, @$);
+    AstNode *identifier = MakeIDNode($2, ARRAY_ID, @2);
     MakeChild(identifier, $3);
-    MakeChild($$, {MakeTypeNode(GetTypedefValue($1)), identifier});
+    MakeChild($$, {MakeTypeNode(GetTypedefValue($1), @1), identifier});
   };
 
 dim_fn:
   S_L_BRACKET S_R_BRACKET {
-    $$ = {new AstNode(NULL_NODE)};
+    $$ = {new AstNode(NULL_NODE, @$)};
   } |
   S_L_BRACKET cexpr S_R_BRACKET {
     $$ = {$2};
@@ -253,21 +255,21 @@ dim_fn:
 
 block:
   decl_list stmt_list {
-    $$ = new AstNode(BLOCK_NODE);
-    AstNode *decl = MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE), $1);
-    AstNode *stmt = MakeChild(new AstNode(STMT_LIST_NODE), $2);
+    $$ = new AstNode(BLOCK_NODE, @$);
+    AstNode *decl = MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE, @1), $1);
+    AstNode *stmt = MakeChild(new AstNode(STMT_LIST_NODE, @2), $2);
     MakeChild($$, {decl, stmt});
   } |
   stmt_list {
-    $$ = new AstNode(BLOCK_NODE);
-    MakeChild($$, {MakeChild(new AstNode(STMT_LIST_NODE), $1)});
+    $$ = new AstNode(BLOCK_NODE, @$);
+    MakeChild($$, {MakeChild(new AstNode(STMT_LIST_NODE, @1), $1)});
   } |
   decl_list {
-    $$ = new AstNode(BLOCK_NODE);
-    MakeChild($$, {MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE), $1)});
+    $$ = new AstNode(BLOCK_NODE, @$);
+    MakeChild($$, {MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE, @1), $1)});
   } |
   /* null */ {
-    $$ = new AstNode(BLOCK_NODE);
+    $$ = new AstNode(BLOCK_NODE, @$);
     //MakeChild($$, new AstNode(NULL_NODE));
   };
 
@@ -291,24 +293,24 @@ decl:
 /* typedef declaration */
 type_decl:
   R_TYPEDEF IDENTIFIER id_list S_SEMICOLON {
-    $$ = MakeDeclNode(TYPE_DECL);
-    $3.push_front(MakeTypeNode(GetTypedefValue($2)));
+    $$ = MakeDeclNode(TYPE_DECL, @$);
+    $3.push_front(MakeTypeNode(GetTypedefValue($2), @2));
     MakeChild($$, std::move($3));
   };
 
 var_decl:
   IDENTIFIER init_id_list S_SEMICOLON {
-    $$ = MakeDeclNode(VARIABLE_DECL);
-    $2.push_front(MakeTypeNode(GetTypedefValue($1)));
+    $$ = MakeDeclNode(VARIABLE_DECL, @$);
+    $2.push_front(MakeTypeNode(GetTypedefValue($1), @1));
     MakeChild($$, std::move($2));
   };
 
 id_item:
   IDENTIFIER {
-    $$ = {MakeIDNode($1, NORMAL_ID)};
+    $$ = {MakeIDNode($1, NORMAL_ID, @1)};
   } |
   IDENTIFIER dim_decl {
-    $$ = {MakeIDNode($1, ARRAY_ID)};
+    $$ = {MakeIDNode($1, ARRAY_ID, @1)};
     MakeChild($$, $2);
   };
 
@@ -332,11 +334,11 @@ dim_decl:
 
 cexpr:
   cexpr O_ADDITION mcexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$);
     MakeChild($$, {$1, $3});
   } |
   cexpr O_SUBTRACTION mcexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$);
     MakeChild($$, {$1, $3});
   } |
   mcexpr {
@@ -345,11 +347,11 @@ cexpr:
 
 mcexpr:
   mcexpr O_MULTIPLICATION cfactor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$);
     MakeChild($$, {$1, $3});
   } |
   mcexpr O_DIVISION cfactor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$);
     MakeChild($$, {$1, $3});
   } |
   cfactor {
@@ -375,14 +377,14 @@ init_id_list:
 
 init_id:
   IDENTIFIER {
-    $$ = MakeIDNode($1, NORMAL_ID);
+    $$ = MakeIDNode($1, NORMAL_ID, @$);
   } |
   IDENTIFIER dim_decl {
-    $$ = MakeIDNode($1, ARRAY_ID);
+    $$ = MakeIDNode($1, ARRAY_ID, @$);
     MakeChild($$, $2);
   } |
   IDENTIFIER O_ASSIGN relop_expr {
-    $$ = MakeIDNode($1, WITH_INIT_ID);
+    $$ = MakeIDNode($1, WITH_INIT_ID, @$);
     MakeChild($$, {$3});
   };
 
@@ -400,47 +402,47 @@ stmt:
     $$ = $2;
   } |
   R_WHILE S_L_PAREN relop_expr S_R_PAREN stmt {
-    $$ = MakeStmtNode(WHILE_STMT);
+    $$ = MakeStmtNode(WHILE_STMT, @$);
     MakeChild($$, {$3, $5});
   } |
   R_FOR S_L_PAREN assign_expr_list S_SEMICOLON relop_expr_list S_SEMICOLON assign_expr_list S_R_PAREN stmt {
-    $$ = MakeStmtNode(FOR_STMT);
+    $$ = MakeStmtNode(FOR_STMT, @$);
     MakeChild($$, {$3, $5, $7, $9});
   } |
   var_ref O_ASSIGN relop_expr S_SEMICOLON {
-    $$ = MakeStmtNode(ASSIGN_STMT);
+    $$ = MakeStmtNode(ASSIGN_STMT, @$);
     MakeChild($$, {$1, $3});
   } |
   R_IF S_L_PAREN relop_expr S_R_PAREN stmt %prec LOWER_THAN_ELSE {
-    $$ = MakeStmtNode(IF_STMT);
+    $$ = MakeStmtNode(IF_STMT, @$);
     MakeChild($$, {$3, $5});
   } |
   R_IF S_L_PAREN relop_expr S_R_PAREN stmt R_ELSE stmt {
-    $$ = MakeStmtNode(IF_ELSE_STMT);
+    $$ = MakeStmtNode(IF_ELSE_STMT, @$);
     MakeChild($$, {$3, $5, $7});
   } |
   IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN S_SEMICOLON {
-    $$ = MakeStmtNode(FUNCTION_CALL_STMT);
-    MakeChild($$, {MakeIDNode($1, NORMAL_ID), $3});
+    $$ = MakeStmtNode(FUNCTION_CALL_STMT, @$);
+    MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
   } |
   S_SEMICOLON {
-    $$ = new AstNode(NULL_NODE);
+    $$ = new AstNode(NULL_NODE, @$);
   } |
   R_RETURN S_SEMICOLON {
-    $$ = MakeStmtNode(RETURN_STMT);
+    $$ = MakeStmtNode(RETURN_STMT, @$);
   } |
   R_RETURN relop_expr S_SEMICOLON {
-    $$ = MakeStmtNode(RETURN_STMT);
+    $$ = MakeStmtNode(RETURN_STMT, @$);
     MakeChild($$, {$2});
   };
 
 assign_expr_list:
   nonempty_assign_expr_list {
-    $$ = new AstNode(NONEMPTY_ASSIGN_EXPR_LIST_NODE);
+    $$ = new AstNode(NONEMPTY_ASSIGN_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
   } |
   /* null */ {
-    $$ = new AstNode(NULL_NODE);
+    $$ = new AstNode(NULL_NODE, @$);
   };
 
 nonempty_assign_expr_list:
@@ -454,8 +456,8 @@ nonempty_assign_expr_list:
 
 assign_expr:
   IDENTIFIER O_ASSIGN relop_expr {
-    $$ = MakeStmtNode(ASSIGN_STMT);
-    MakeChild($$, {MakeIDNode($1, NORMAL_ID), $3});
+    $$ = MakeStmtNode(ASSIGN_STMT, @$);
+    MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
   } |
   relop_expr {
     $$ = $1;
@@ -465,7 +467,7 @@ relop_expr:
   relop_term {
     $$ = $1;
   } | relop_expr O_LOGICAL_OR relop_term {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_OR);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_OR, @$);
     MakeChild($$, {$1, $3});
   };
 
@@ -474,7 +476,7 @@ relop_term:
     $$ = $1;
   } |
   relop_term O_LOGICAL_AND relop_factor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_AND);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_AND, @$);
     MakeChild($$, {$1, $3});
   };
 
@@ -483,7 +485,7 @@ relop_factor:
     $$ = $1;
   } |
   expr rel_op expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, $2);
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, $2, @$);
     MakeChild($$, {$1, $3});
   };
 
@@ -509,11 +511,11 @@ rel_op:
 
 relop_expr_list:
   nonempty_relop_expr_list {
-    $$ = new AstNode(NONEMPTY_RELOP_EXPR_LIST_NODE);
+    $$ = new AstNode(NONEMPTY_RELOP_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
   } |
   /* null */ {
-    $$ = new AstNode(NULL_NODE);
+    $$ = new AstNode(NULL_NODE, @$);
   };
 
 nonempty_relop_expr_list:
@@ -527,7 +529,7 @@ nonempty_relop_expr_list:
 
 expr:
   expr add_op term {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), $2);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), $2, @$);
     MakeChild($$, {$1, $3});
   } |
   term {
@@ -544,7 +546,7 @@ add_op:
 
 term:
   term mul_op factor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), $2);
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), $2, @$);
     MakeChild($$, {$1, $3});
   } |
   factor {
@@ -564,11 +566,11 @@ factor:
     $$ = $1;
   } |
   O_SUBTRACTION unifact {
-    $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE);
+    $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE, @$);
     MakeChild($$, {$2});
   } |
   O_LOGICAL_NOT unifact {
-    $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION);
+    $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION, @$);
     MakeChild($$, {$2});
   };
 
@@ -583,16 +585,16 @@ unifact:
     $$ = $2;
   } |
   IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
-    $$ = MakeStmtNode(FUNCTION_CALL_STMT);
-    MakeChild($$, {MakeIDNode($1, NORMAL_ID), $3});
+    $$ = MakeStmtNode(FUNCTION_CALL_STMT, @$);
+    MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
   };
 
 var_ref:
   IDENTIFIER {
-    $$ = MakeIDNode($1, NORMAL_ID);
+    $$ = MakeIDNode($1, NORMAL_ID, @$);
   } |
   IDENTIFIER dim_list {
-    $$ = MakeIDNode($1, ARRAY_ID);
+    $$ = MakeIDNode($1, ARRAY_ID, @$);
     MakeChild($$, {$2});
   };
 

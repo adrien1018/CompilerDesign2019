@@ -5,6 +5,7 @@
 
 #include <string>
 #include <list>
+#include "location.hh"
 
 extern int linenumber;
 
@@ -141,6 +142,7 @@ struct AstNode {
   AstNode* parent;
   AstType node_type;
   DataType data_type;
+  yy::location loc;
   struct {
     IdentifierSemanticValue identifier_semantic_value;
     StmtSemanticValue stmt_semantic_value;
@@ -149,9 +151,9 @@ struct AstNode {
     ConstType *const1;
   } semantic_value;
 
-  AstNode() : parent(nullptr) {}
-  AstNode(AstType type) : parent(nullptr), node_type(type),
-      data_type(NONE_TYPE) {}
+  AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
+  AstNode(AstType type, const yy::location& loc) :
+      parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
 
 void semanticAnalysis(AstNode *root);
