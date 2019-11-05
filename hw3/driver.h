@@ -15,6 +15,7 @@ class Driver {
   int result;
   std::string file;
   yy::location location;
+  AstNode* prog;
   void scan_begin();
   void scan_end();
   int parse(const std::string& f) {

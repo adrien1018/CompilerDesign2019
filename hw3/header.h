@@ -4,7 +4,7 @@
 #define MAX_ARRAY_DIMENSION 7
 
 #include <string>
-#include <vector>
+#include <list>
 
 extern int linenumber;
 
@@ -16,8 +16,6 @@ enum DataType {
   FLOAT_PTR_TYPE,     // for parameter passing
   CONST_STRING_TYPE,  // for "const string"
   NONE_TYPE,          // for nodes like PROGRAM_NODE which has no type
-  FUNCTION_RETURN_TYPE,
-  VARIABLE_TYPE,
   UNKNOWN_TYPE        // typedef; leave it to sematics stage
 };
 
@@ -77,8 +75,8 @@ enum AstType {
   IDENTIFIER_NODE,
   PARAM_LIST_NODE,
   NULL_NODE,
-  BLOCK_NODE,
   TYPE_NODE,
+  BLOCK_NODE,
   VARIABLE_DECL_LIST_NODE,
   STMT_LIST_NODE,
   STMT_NODE,
@@ -139,13 +137,10 @@ struct ConstType {
 };
 
 struct AstNode {
-  AstNode *child;
-  AstNode *parent;
-  AstNode *right_sibling;
-  AstNode *leftmost_sibling;
+  std::list<AstNode*> child;
+  AstNode* parent;
   AstType node_type;
   DataType data_type;
-  int linenumber;
   struct {
     IdentifierSemanticValue identifier_semantic_value;
     StmtSemanticValue stmt_semantic_value;
@@ -154,20 +149,9 @@ struct AstNode {
     ConstType *const1;
   } semantic_value;
 
-  AstNode()
-      : child(nullptr),
-        parent(nullptr),
-        right_sibling(nullptr),
-        leftmost_sibling(nullptr) {}
-
-  AstNode(AstType type)
-      : child(nullptr),
-        parent(nullptr),
-        right_sibling(nullptr),
-        leftmost_sibling(this),
-        node_type(type),
-        data_type(NONE_TYPE),
-        linenumber(::linenumber) {}
+  AstNode() : parent(nullptr) {}
+  AstNode(AstType type) : parent(nullptr), node_type(type),
+      data_type(NONE_TYPE) {}
 };
 
 void semanticAnalysis(AstNode *root);

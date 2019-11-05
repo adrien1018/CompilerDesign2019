@@ -6,8 +6,6 @@
 #include "header.h"
 #include "driver.h"
 
-std::vector<std::string> comments;
-
 const std::map<std::string, yy::parser::token_type> kReservedWords = {
   {"return",  yy::parser::token::R_RETURN},
   {"typedef", yy::parser::token::R_TYPEDEF},
@@ -115,7 +113,6 @@ ERROR                      .
   node->data_type = CONST_STRING_TYPE;
   return yy::parser::make_CONST(node, loc);
 }
->>>>>>> Remove old lexer file
 
 {REGEX_O_ADDITION}           { RETURN_TOKEN(O_ADDITION); }
 {REGEX_O_SUBTRACTION}        { RETURN_TOKEN(O_SUBTRACTION); }
@@ -145,10 +142,12 @@ ERROR                      .
 {REGEX_S_COMMA}              { RETURN_TOKEN(S_COMMA); }
 {REGEX_S_PERIOD}             { RETURN_TOKEN(S_PERIOD); }
 
-{NEWLINE}                    { /*loc.lines(1); loc.step()*/ }
+{NEWLINE}                    { loc.lines(1); loc.step(); }
 {COMMENT} {
-  comments.push_back(yytext);
-  //loc.lines(std::count(comments.back().begin(), comments.back().end(), '\n')); //?
+  loc.lines(std::count(yytext, yytext + yyleng, '\n'));
+  int h = 0;
+  for (int x = yyleng - 1; x >= 0 && yytext[x] != '\n'; x--, h++);
+  loc.columns(h);
 #ifdef DEBUG
   printf("Get comment: [%s]\n", yytext);
 #endif
