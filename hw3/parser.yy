@@ -288,7 +288,6 @@ expr_null:
     $$ = $1;
   } |
   /* null */ {
-    $$ = Allocate(NULL_NODE);
   };
 
 block:
@@ -308,7 +307,7 @@ block:
   } |
   /* null */ {
     $$ = Allocate(BLOCK_NODE);
-    MakeChild($$, Allocate(NULL_NODE));
+    //MakeChild($$, Allocate(NULL_NODE));
   };
 
 decl_list:
@@ -432,7 +431,7 @@ stmt:
   S_L_BRACE block S_R_BRACE {
     $$ = $2;
   } |
-  R_WHILE S_L_PAREN relop_expr_list S_R_PAREN stmt {
+  R_WHILE S_L_PAREN relop_expr S_R_PAREN stmt {
     $$ = MakeStmtNode(WHILE_STMT);
     MakeFamily($$, {$3, $5});
   } |
@@ -444,11 +443,11 @@ stmt:
     $$ = MakeStmtNode(ASSIGN_STMT);
     MakeFamily($$, {$1, $3});
   } |
-  R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt %prec LOWER_THAN_ELSE {
+  R_IF S_L_PAREN relop_expr S_R_PAREN stmt %prec LOWER_THAN_ELSE {
     $$ = MakeStmtNode(IF_STMT);
     MakeFamily($$, {$3, $5});
   } |
-  R_IF S_L_PAREN relop_expr_list S_R_PAREN stmt R_ELSE stmt {
+  R_IF S_L_PAREN relop_expr S_R_PAREN stmt R_ELSE stmt {
     $$ = MakeStmtNode(IF_ELSE_STMT);
     MakeFamily($$, {$3, $5, $7});
   } |
@@ -469,7 +468,8 @@ stmt:
 
 assign_expr_list:
   nonempty_assign_expr_list {
-    $$ = $1;
+    $$ = Allocate(NONEMPTY_ASSIGN_EXPR_LIST_NODE);
+    MakeChild($$, $1);
   } |
   /* null */ {
     $$ = Allocate(NULL_NODE);
@@ -539,7 +539,8 @@ rel_op:
 
 relop_expr_list:
   nonempty_relop_expr_list {
-    $$ = $1;
+    $$ = Allocate(NONEMPTY_RELOP_EXPR_LIST_NODE);
+    MakeChild($$, $1);
   } |
   /* null */ {
     $$ = Allocate(NULL_NODE);
