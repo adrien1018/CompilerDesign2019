@@ -81,11 +81,13 @@ AstNode* MakeDeclNode(DeclKind decl_kind, const yy::location& loc) {
 }
 
 AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
-                      int operation_enum_value, const yy::location& loc) {
+                      int operation_enum_value, const yy::location& loc,
+                      std::list<AstNode*>&& ch) {
   AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
   expr_node->semantic_value.expr_semantic_value.is_const_eval = 0;
   expr_node->semantic_value.expr_semantic_value.kind = expr_kind;
+  MakeChild(expr_node, ch);
   if (expr_kind == BINARY_OPERATION) {
     expr_node->semantic_value.expr_semantic_value.op.binary_op =
         BinaryOperator(operation_enum_value);
@@ -122,20 +124,12 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 %token R_VOID
 %token R_WHILE
 
-%token O_ADDITION
-%token O_SUBTRACTION
-%token O_DIVISION
-%token O_MULTIPLICATION
+%left O_LOGICAL_OR
+%left O_LOGICAL_AND
+%left O_LESS_THAN O_LESS_THAN_OR_EQ O_GREATER_THAN O_GREATER_THAN_OR_EQ O_EQ O_NOT_EQ
+%left O_ADDITION O_SUBTRACTION
+%left O_MULTIPLICATION O_DIVISION
 
-%token O_LESS_THAN
-%token O_GREATER_THAN
-%token O_LESS_THAN_OR_EQ
-%token O_GREATER_THAN_OR_EQ
-%token O_NOT_EQ
-%token O_EQ
-
-%token O_LOGICAL_OR
-%token O_LOGICAL_AND
 %token O_LOGICAL_NOT
 
 %token O_ASSIGN
@@ -158,15 +152,14 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 %nonassoc R_ELSE
 
 %type <AstNode*> program function_decl block decl var_decl init_id stmt
-%type <AstNode*> relop_expr relop_term relop_factor expr term factor var_ref
-%type <AstNode*> param cexpr mcexpr cfactor assign_expr assign_expr_list
+%type <AstNode*> relop_expr var_ref
+%type <AstNode*> param cexpr assign_expr assign_expr_list
 %type <AstNode*> type_decl id_item relop_expr_list unifact
 %type <std::list<AstNode*>> global_decl_list stmt_list decl_list init_id_list
 %type <std::list<AstNode*>> param_list id_list dim_list
 %type <std::list<AstNode*>> nonempty_relop_expr_list
 %type <std::list<AstNode*>> nonempty_assign_expr_list
 %type <std::list<AstNode*>> global_decl dim_fn dim_decl
-%type <BinaryOperator> rel_op add_op mul_op
 
 
 %start program
@@ -333,32 +326,18 @@ dim_decl:
   };
 
 cexpr:
-  cexpr O_ADDITION mcexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$);
-    MakeChild($$, {$1, $3});
+  cexpr O_ADDITION cexpr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3});
   } |
-  cexpr O_SUBTRACTION mcexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$);
-    MakeChild($$, {$1, $3});
+  cexpr O_SUBTRACTION cexpr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
   } |
-  mcexpr {
-    $$ = $1;
-  };
-
-mcexpr:
-  mcexpr O_MULTIPLICATION cfactor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$);
-    MakeChild($$, {$1, $3});
+  cexpr O_MULTIPLICATION cexpr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
   } |
-  mcexpr O_DIVISION cfactor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$);
-    MakeChild($$, {$1, $3});
+  cexpr O_DIVISION cexpr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
   } |
-  cfactor {
-    $$ = $1;
-  };
-
-cfactor:
   CONST {
     $$ = $1;
   } |
@@ -464,49 +443,50 @@ assign_expr:
   };
 
 relop_expr:
-  relop_term {
+  relop_expr O_LOGICAL_OR relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_OR, @$, {$1, $3});
+  } |
+  relop_expr O_LOGICAL_AND relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_AND, @$, {$1, $3});
+  } |
+  relop_expr O_LESS_THAN relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_LT, @$, {$1, $3});
+  } |
+  relop_expr O_LESS_THAN_OR_EQ relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_LE, @$, {$1, $3});
+  } |
+  relop_expr O_GREATER_THAN relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_GT, @$, {$1, $3});
+  } |
+  relop_expr O_GREATER_THAN_OR_EQ relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_GE, @$, {$1, $3});
+  } |
+  relop_expr O_EQ relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_EQ, @$, {$1, $3});
+  } |
+  relop_expr O_NOT_EQ relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_NE, @$, {$1, $3});
+  } |
+  relop_expr O_ADDITION relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3});
+  } |
+  relop_expr O_SUBTRACTION relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
+  } |
+  relop_expr O_MULTIPLICATION relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
+  } |
+  relop_expr O_DIVISION relop_expr {
+    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
+  } |
+  unifact {
     $$ = $1;
-  } | relop_expr O_LOGICAL_OR relop_term {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_OR, @$);
-    MakeChild($$, {$1, $3});
-  };
-
-relop_term:
-  relop_factor {
-    $$ = $1;
   } |
-  relop_term O_LOGICAL_AND relop_factor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_AND, @$);
-    MakeChild($$, {$1, $3});
-  };
-
-relop_factor:
-  expr {
-    $$ = $1;
+  O_SUBTRACTION unifact {
+    $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE, @$, {$2});
   } |
-  expr rel_op expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, $2, @$);
-    MakeChild($$, {$1, $3});
-  };
-
-rel_op:
-  O_EQ {
-    $$ = BINARY_OP_EQ;
-  } |
-  O_GREATER_THAN_OR_EQ {
-    $$ = BINARY_OP_GE;
-  } |
-  O_LESS_THAN_OR_EQ {
-    $$ = BINARY_OP_LE;
-  } |
-  O_NOT_EQ {
-    $$ = BINARY_OP_NE;
-  } |
-  O_GREATER_THAN {
-    $$ = BINARY_OP_GT;
-  } |
-  O_LESS_THAN {
-    $$ = BINARY_OP_LT;
+  O_LOGICAL_NOT unifact {
+    $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION, @$, {$2});
   };
 
 relop_expr_list:
@@ -525,53 +505,6 @@ nonempty_relop_expr_list:
   } |
   relop_expr {
     $$ = {$1};
-  };
-
-expr:
-  expr add_op term {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), $2, @$);
-    MakeChild($$, {$1, $3});
-  } |
-  term {
-    $$ = $1;
-  };
-
-add_op:
-  O_ADDITION {
-    $$ = BINARY_OP_ADD;
-  } |
-  O_SUBTRACTION {
-    $$ = BINARY_OP_SUB;
-  };
-
-term:
-  term mul_op factor {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), $2, @$);
-    MakeChild($$, {$1, $3});
-  } |
-  factor {
-    $$ = $1;
-  };
-
-mul_op:
-  O_MULTIPLICATION {
-    $$ = BINARY_OP_MUL;
-  } |
-  O_DIVISION {
-    $$ = BINARY_OP_DIV;
-  };
-
-factor:
-  unifact {
-    $$ = $1;
-  } |
-  O_SUBTRACTION unifact {
-    $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE, @$);
-    MakeChild($$, {$2});
-  } |
-  O_LOGICAL_NOT unifact {
-    $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION, @$);
-    MakeChild($$, {$2});
   };
 
 unifact:
@@ -599,11 +532,11 @@ var_ref:
   };
 
 dim_list:
-  dim_list S_L_BRACKET expr S_R_BRACKET {
+  dim_list S_L_BRACKET cexpr S_R_BRACKET {
     $$ = std::move($1);
     $$.push_back($3);
   } |
-  S_L_BRACKET expr S_R_BRACKET {
+  S_L_BRACKET cexpr S_R_BRACKET {
     $$ = {$2};
   };
 

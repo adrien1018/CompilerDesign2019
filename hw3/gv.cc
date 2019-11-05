@@ -60,7 +60,7 @@ static const std::unordered_map<StmtKind, std::string> kStmtTypeMap = {
 
 #undef MD_PAIR
 
-void PrintLabelString(std::ofstream &ofs, AstNode *node) {
+void PrintLabelString(std::ostream &ofs, AstNode *node) {
   static const std::string kBinaryOpString[] = {
       "+", "-", "*", "/", "==", ">=", "<=", "!=", ">", "<", "&&", "||"};
   static const std::string kUnaryOpString[] = {"+", "-", "!"};
@@ -129,7 +129,7 @@ void PrintLabelString(std::ofstream &ofs, AstNode *node) {
   }
 }
 
-int PrintGVNode(std::ofstream &ofs, AstNode *node, int count,
+int PrintGVNode(std::ostream &ofs, AstNode *node, int count,
     std::list<AstNode*>::iterator pos = std::list<AstNode*>::iterator()) {
   int current_node_count = count;
 
@@ -145,13 +145,23 @@ int PrintGVNode(std::ofstream &ofs, AstNode *node, int count,
   }
   if (!node->parent) return count;
  
-  if (node->parent && ++pos != node->parent->child.end()) {
+  if (++pos != node->parent->child.end()) {
     int tmp = count;
     count = PrintGVNode(ofs, *pos, count, pos);
     ofs << "node" << current_node_count << " -> node" << tmp
         << " [style = dashed]\n";
   }
   return count;
+}
+
+void Debug(AstNode* x) {
+  PrintLabelString(std::cout, x);
+  if (!x->child.size()) return;
+  std::cout << " (\n";
+  for (auto& i : x->child) {
+    Debug(i); std::cout << ',';
+  }
+  std::cout << ')';
 }
 
 }  // namespace
@@ -170,4 +180,5 @@ void PrintGV(AstNode *root, std::string filename) {
   int node_count = 0;
   PrintGVNode(ofs, root, node_count);
   ofs << "}\n";
+  // Debug(root); std::cout << '\n';
 }
