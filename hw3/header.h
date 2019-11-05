@@ -137,10 +137,10 @@ struct ConstType {
 };
 
 struct AstNode {
-  struct AstNode *child;
-  struct AstNode *parent;
-  struct AstNode *right_sibling;
-  struct AstNode *leftmost_sibling;
+  AstNode *child;
+  AstNode *parent;
+  AstNode *right_sibling;
+  AstNode *leftmost_sibling;
   AstType node_type;
   DataType data_type;
   int linenumber;
