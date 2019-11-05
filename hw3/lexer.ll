@@ -1,78 +1,12 @@
 %option noyywrap nounput noinput batch debug
 %{
+#include <map>
 #include <fstream>
 #include <algorithm>
 #include "header.h"
-#include "header_lex.h"
 #include "driver.h"
 
-//int linenumber;
-SymTab symtab;
 std::vector<std::string> comments;
-
-const int kReservedStart = 10;
-const int kOperatorStart = 30;
-const int kConstantStart = 50;
-const int kIdentifier = 69;
-const int kSeparatorStart = 70;
-
-//enum TokenType {
-//  // reserved words
-//  R_RETURN = kReservedStart,
-//  R_TYPEDEF,
-//  R_IF,
-//  R_ELSE,
-//  R_INT,
-//  R_FLOAT,
-//  R_FOR,
-//  R_VOID,
-//  R_WHILE,
-//
-//  // arithmetic operators
-//  O_ADDITION = kOperatorStart,
-//  O_SUBTRACTION,
-//  O_DIVISION,
-//  O_MULTIPLICATION,
-//
-//  // relational operators
-//  O_LESS_THAN,
-//  O_GREATER_THAN,
-//  O_LESS_THAN_OR_EQ,
-//  O_GREATER_THAN_OR_EQ,
-//  O_NOT_EQ,
-//  O_EQ,
-//
-//  // logical operators
-//  O_LOGICAL_OR,
-//  O_LOGICAL_AND,
-//  O_LOGICAL_NOT,
-//
-//  // assignment operator
-//  O_ASSIGN,
-//
-//  // constants
-//  C_INT = kConstantStart,
-//  C_FLOAT,
-//  C_STRING,
-//
-//  // identifiers
-//  IDENTIFIER = kIdentifier,
-//
-//  // separators
-//  S_L_BRACE = kSeparatorStart,
-//  S_R_BRACE,
-//  S_L_BRACKET,
-//  S_R_BRACKET,
-//  S_L_PAREN,
-//  S_R_PAREN,
-//  S_SEMICOLON,
-//  S_COMMA,
-//  S_PERIOD,
-//
-//  ERROR,
-//
-//  kNumTokenType
-//};
 
 const std::map<std::string, yy::parser::token_type> kReservedWords = {
   {"return",  yy::parser::token::R_RETURN},
@@ -139,6 +73,10 @@ REGEX_IDENTIFIER           {LETTER}({DIGIT}|{LETTER}|_)*
 
 ERROR                      .
 
+%{
+  #define YY_USER_ACTION loc.columns(yyleng);
+%}
+
 %%
 
 %{
@@ -201,11 +139,10 @@ ERROR                      .
 {REGEX_S_COMMA}              { RETURN_TOKEN(S_COMMA); }
 {REGEX_S_PERIOD}             { RETURN_TOKEN(S_PERIOD); }
 
-{NEWLINE}                    { /*linenumber += 1;*/ loc.lines(yyleng); }
+{NEWLINE}                    { /*loc.lines(1); loc.step()*/ }
 {COMMENT}                    {
       comments.push_back(yytext);
-      //linenumber += std::count(comments.back().begin(), comments.back().end(), '\n');
-      loc.lines(yyleng);
+      //loc.lines(std::count(comments.back().begin(), comments.back().end(), '\n')); //?
 #ifdef DEBUG
       printf("Get comment: [%s]\n", yytext);
 #endif
@@ -217,8 +154,6 @@ ERROR                      .
       if (reserved_it != kReservedWords.end()) {
         RETURN_RESERVED(reserved_it->second);
       }
-      auto it = symtab.insert({text, {yyleng, 0}});
-      it.first->second.counter++;
 #ifdef DEBUG
       printf("Get identifier: [%s]\n", yytext);
 #endif
@@ -234,12 +169,6 @@ ERROR                      .
 <<EOF>>    return yy::parser::make_END(loc);
 
 %%
-
-//int yyerror(char* mesg) {
-//  printf("%s\t%d\t%s\t%s\n", "Error found in Line ", linenumber,
-//          "next token: ", yytext);
-//  exit(1);
-//}
 
 void Driver::scan_begin() {
   if (file.empty () || file == "-") {

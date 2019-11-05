@@ -22,7 +22,6 @@
 
 #include "gv.h"
 #include "header.h"
-#include "header_lex.h"
 #include "driver.h"
 
 int linenumber = 1;
@@ -31,6 +30,7 @@ AstNode *prog;
 namespace {
 
 DataType GetDataType(AstNode *a, AstNode *b) {
+  if (a->data_type == UNKNOWN_TYPE && b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
   return FLOAT_TYPE;
 }
@@ -39,8 +39,7 @@ DataType GetTypedefValue(const std::string &s) {
   if (s == "int") return INT_TYPE;
   if (s == "float") return FLOAT_TYPE;
   if (s == "void") return VOID_TYPE;
-  // TODO: return the typedef value of s. Report an error if s does not name a
-  // type.
+  return UNKNOWN_TYPE;
 }
 
 AstNode *MakeTypeNode(DataType type) {
@@ -140,7 +139,7 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum
 
 %}
 
-// TODO: constant folding, typedef, symbol table
+// TODO: constant folding -> move to sematics??
 
 %token <std::string> IDENTIFIER
 %token <AstNode*> CONST
@@ -240,18 +239,22 @@ param_list: param_list S_COMMA param { $$ = MakeSibling($1, $3); }
 
 /* Function parameter */
 param: IDENTIFIER IDENTIFIER {
-         /* e.g., int a, float b, my_type c */
-         $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
-         MakeFamily($$, {MakeTypeNode(GetTypedefValue($1)), MakeIDNode($2, NORMAL_ID)});
-       }
-     | IDENTIFIER IDENTIFIER dim_fn {
-         /* e.g., int a[3], float b[][5], my_type c[][12][34] */
-         $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
-         AstNode *identifier = MakeIDNode($2, ARRAY_ID);
-         MakeChild(identifier, $3);
-         MakeFamily($$, {MakeTypeNode(GetTypedefValue($1)), identifier});
-       }
-     ;
+        /* e.g., int a, float b, my_type c */
+        $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
+        DataType type = GetTypedefValue($1);
+        if (type == VOID_TYPE) {
+          throw yy::parser::syntax_error(@$, "variable cannot be declared void");
+        }
+        MakeFamily($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID)});
+      }
+    | IDENTIFIER IDENTIFIER dim_fn {
+        /* e.g., int a[3], float b[][5], my_type c[][12][34] */
+        $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL);
+        AstNode *identifier = MakeIDNode($2, ARRAY_ID);
+        MakeChild(identifier, $3);
+        MakeFamily($$, {MakeTypeNode(GetTypedefValue($1)), identifier});
+      }
+    ;
 
 dim_fn: S_L_BRACKET expr_null S_R_BRACKET { $$ = $2; }
       | dim_fn S_L_BRACKET expr S_R_BRACKET { $$ = MakeSibling($1, $3); }
@@ -523,28 +526,6 @@ dim_list: dim_list S_L_BRACKET expr S_R_BRACKET { $$ = MakeSibling($1, $3); }
 
 
 %%
-
-//#include "lex.yy.cc"
-//
-//
-//int main(int argc, char* argv[]) {
-//  /*yyFlexLexer* lexer;
-//  std::ifstream input;
-//  if (argc > 1) {
-//    input.open(argv[1]);
-//    lexer = new yyFlexLexer(&input, &std::cout);
-//  } else {
-//    lexer = new yyFlexLexer();
-//  }
-//  while (lexer->yylex() != 0);
-//  delete lexer;
-//  PrintStrings(comments);
-//  PrintSymTab(symtab);*/
-//  yyin = fopen(argv[1], "r");
-//  yyparse();
-//  printf("%s\n", "Parsing completed. No errors found.");
-//  printGV(prog, NULL);
-//}
 
 void yy::parser::error (const location_type& l, const std::string& m) {
   std::cerr << l << ": " << m << '\n';

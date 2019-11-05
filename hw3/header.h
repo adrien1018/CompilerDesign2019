@@ -4,6 +4,7 @@
 #define MAX_ARRAY_DIMENSION 7
 
 #include <string>
+#include <vector>
 
 enum DataType {
   INT_TYPE,
@@ -15,7 +16,7 @@ enum DataType {
   NONE_TYPE,          // for nodes like PROGRAM_NODE which has no type
   FUNCTION_RETURN_TYPE,
   VARIABLE_TYPE,
-  ERROR_TYPE
+  UNKNOWN_TYPE        // typedef; leave it to sematics stage
 };
 
 enum IdentifierKind {

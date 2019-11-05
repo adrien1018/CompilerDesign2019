@@ -67,6 +67,9 @@ void PrintLabelString(std::ofstream &ofs, AstNode *node) {
         case VOID_TYPE:
           ofs << "VOID_TYPE";
           break;
+        case UNKNOWN_TYPE:
+          ofs << "UNKNOWN_TYPE";
+          break;
         default:
           break;
       }
