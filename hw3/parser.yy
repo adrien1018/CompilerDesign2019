@@ -43,7 +43,7 @@ DataType GetTypedefValue(const std::string &s) {
 }
 
 AstNode *MakeTypeNode(DataType type) {
-  AstNode *type_node = Allocate(TYPE_NODE);
+  AstNode *type_node = new AstNode(TYPE_NODE);
   type_node->data_type = type;
   return type_node;
 }
@@ -97,7 +97,7 @@ AstNode* MakeFamily(AstNode* parent, const std::vector<AstNode*>& children) {
 }
 
 AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
-  AstNode* identifier = Allocate(IDENTIFIER_NODE);
+  AstNode* identifier = new AstNode(IDENTIFIER_NODE);
   identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
   identifier->semantic_value.identifier_semantic_value.kind = id_kind;
   identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
@@ -105,19 +105,19 @@ AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind) {
 }
 
 AstNode* MakeStmtNode(StmtKind stmt_kind) {
-  AstNode* stmt_node = Allocate(STMT_NODE);
+  AstNode* stmt_node = new AstNode(STMT_NODE);
   stmt_node->semantic_value.stmt_semantic_value.kind = stmt_kind;
   return stmt_node;
 }
 
 AstNode* MakeDeclNode(DeclKind decl_kind) {
-  AstNode* decl_node = Allocate(DECLARATION_NODE);
+  AstNode* decl_node = new AstNode(DECLARATION_NODE);
   decl_node->semantic_value.decl_semantic_value.kind = decl_kind;
   return decl_node;
 }
 
 AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum_value) {
-  AstNode* expr_node = Allocate(EXPR_NODE);
+  AstNode* expr_node = new AstNode(EXPR_NODE);
   expr_node->data_type = data_type;
   expr_node->semantic_value.expr_semantic_value.is_const_eval = 0;
   expr_node->semantic_value.expr_semantic_value.kind = expr_kind;
@@ -203,13 +203,13 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type, int operation_enum
 
 program:
   global_decl_list {
-    $$ = Allocate(PROGRAM_NODE);
+    $$ = new AstNode(PROGRAM_NODE);
     MakeChild($$, $1);
     prog = $$;
     PrintGV(prog, "");
   } |
   /* null */ {
-    $$ = Allocate(PROGRAM_NODE);
+    $$ = new AstNode(PROGRAM_NODE);
     prog = $$;
     PrintGV(prog, "");
   };
@@ -224,7 +224,7 @@ global_decl_list:
 
 global_decl:
   decl_list function_decl {
-    $$ = MakeSibling(MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1), $2);
+    $$ = MakeSibling(MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE), $1), $2);
   } |
   function_decl {
     $$ = $1;
@@ -235,7 +235,7 @@ function_decl:
   IDENTIFIER IDENTIFIER S_L_PAREN param_list S_R_PAREN S_L_BRACE block S_R_BRACE {
     /* e.g., int f(float a, int b) {} / my_type g(int k[]) {} */
     $$ = MakeDeclNode(FUNCTION_DECL);
-    AstNode *param = Allocate(PARAM_LIST_NODE);
+    AstNode *param = new AstNode(PARAM_LIST_NODE);
     MakeChild(param, $4);
     DataType type = GetTypedefValue($1);
     MakeFamily($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID), param, $7});
@@ -243,7 +243,7 @@ function_decl:
   IDENTIFIER IDENTIFIER S_L_PAREN S_R_PAREN S_L_BRACE block S_R_BRACE {
     /* e.g., int f() {} / my_type g() {} */
     $$ = MakeDeclNode(FUNCTION_DECL);
-    AstNode *empty_param = Allocate(PARAM_LIST_NODE);
+    AstNode *empty_param = new AstNode(PARAM_LIST_NODE);
     DataType type = GetTypedefValue($1);
     MakeFamily($$, {MakeTypeNode(type), MakeIDNode($2, NORMAL_ID), empty_param, $6});
   };
@@ -292,22 +292,22 @@ expr_null:
 
 block:
   decl_list stmt_list {
-    $$ = Allocate(BLOCK_NODE);
-    AstNode *decl = MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1);
-    AstNode *stmt = MakeChild(Allocate(STMT_LIST_NODE), $2);
+    $$ = new AstNode(BLOCK_NODE);
+    AstNode *decl = MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE), $1);
+    AstNode *stmt = MakeChild(new AstNode(STMT_LIST_NODE), $2);
     MakeFamily($$, {decl, stmt});
   } |
   stmt_list {
-    $$ = Allocate(BLOCK_NODE);
-    MakeChild($$, MakeChild(Allocate(STMT_LIST_NODE), $1));
+    $$ = new AstNode(BLOCK_NODE);
+    MakeChild($$, MakeChild(new AstNode(STMT_LIST_NODE), $1));
   } |
   decl_list {
-    $$ = Allocate(BLOCK_NODE);
-    MakeChild($$, MakeChild(Allocate(VARIABLE_DECL_LIST_NODE), $1));
+    $$ = new AstNode(BLOCK_NODE);
+    MakeChild($$, MakeChild(new AstNode(VARIABLE_DECL_LIST_NODE), $1));
   } |
   /* null */ {
-    $$ = Allocate(BLOCK_NODE);
-    //MakeChild($$, Allocate(NULL_NODE));
+    $$ = new AstNode(BLOCK_NODE);
+    //MakeChild($$, new AstNode(NULL_NODE));
   };
 
 decl_list:
@@ -456,7 +456,7 @@ stmt:
     MakeFamily($$, {MakeIDNode($1, NORMAL_ID), $3});
   } |
   S_SEMICOLON {
-    $$ = Allocate(NULL_NODE);
+    $$ = new AstNode(NULL_NODE);
   } |
   R_RETURN S_SEMICOLON {
     $$ = MakeStmtNode(RETURN_STMT);
@@ -468,11 +468,11 @@ stmt:
 
 assign_expr_list:
   nonempty_assign_expr_list {
-    $$ = Allocate(NONEMPTY_ASSIGN_EXPR_LIST_NODE);
+    $$ = new AstNode(NONEMPTY_ASSIGN_EXPR_LIST_NODE);
     MakeChild($$, $1);
   } |
   /* null */ {
-    $$ = Allocate(NULL_NODE);
+    $$ = new AstNode(NULL_NODE);
   };
 
 nonempty_assign_expr_list:
@@ -539,11 +539,11 @@ rel_op:
 
 relop_expr_list:
   nonempty_relop_expr_list {
-    $$ = Allocate(NONEMPTY_RELOP_EXPR_LIST_NODE);
+    $$ = new AstNode(NONEMPTY_RELOP_EXPR_LIST_NODE);
     MakeChild($$, $1);
   } |
   /* null */ {
-    $$ = Allocate(NULL_NODE);
+    $$ = new AstNode(NULL_NODE);
   };
 
 nonempty_relop_expr_list:

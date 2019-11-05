@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+extern int linenumber;
+
 enum DataType {
   INT_TYPE,
   FLOAT_TYPE,
@@ -151,9 +153,22 @@ struct AstNode {
     ExprSemanticValue expr_semantic_value;
     ConstType *const1;
   } semantic_value;
+
+  AstNode()
+      : child(nullptr),
+        parent(nullptr),
+        right_sibling(nullptr),
+        leftmost_sibling(nullptr) {}
+
+  AstNode(AstType type)
+      : child(nullptr),
+        parent(nullptr),
+        right_sibling(nullptr),
+        leftmost_sibling(this),
+        node_type(type),
+        linenumber(::linenumber) {}
 };
 
-AstNode *Allocate(AstType type);
 void semanticAnalysis(AstNode *root);
 
 #endif  // HEADER_H_
