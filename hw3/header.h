@@ -166,6 +166,7 @@ struct AstNode {
         right_sibling(nullptr),
         leftmost_sibling(this),
         node_type(type),
+        data_type(NONE_TYPE),
         linenumber(::linenumber) {}
 };
 
