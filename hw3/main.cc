@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
   for (int i = 1; i < argc; ++i) {
     if (!drv.parse(argv[i])) {
       PrintGV(drv.prog);
-      std::cout << drv.result << '\n';
+      // std::cout << drv.result << '\n';
     } else {
       res = 1;
     }

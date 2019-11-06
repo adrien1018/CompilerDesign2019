@@ -294,6 +294,10 @@ type_decl:
 var_decl:
   IDENTIFIER init_id_list S_SEMICOLON {
     $$ = MakeDeclNode(VARIABLE_DECL, @$);
+    DataType type = GetTypedefValue($1);
+    if (type == VOID_TYPE) {
+      throw yy::parser::syntax_error(@$, "variable cannot be declared void");
+    }
     $2.push_front(MakeTypeNode(GetTypedefValue($1), @1));
     MakeChild($$, std::move($2));
   };
