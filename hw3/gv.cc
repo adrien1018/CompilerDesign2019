@@ -167,7 +167,6 @@ void Debug(AstNode* x) {
 }  // namespace
 
 void PrintGV(AstNode *root, std::string filename) {
-  if (filename == "") filename = "AST_Graph.gv";
   std::ofstream ofs(filename);
   if (!ofs) {
     std::cout << "Cannot open file \"" << filename << "\"" << std::endl;

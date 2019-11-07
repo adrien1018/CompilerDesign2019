@@ -6,6 +6,7 @@ parser.hh
 scanner.cc
 location.hh
 calc++/
+testcase/
 *.gv
 *.png
 tags

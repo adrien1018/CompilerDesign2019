@@ -1,4 +1,4 @@
-%option noyywrap nounput noinput batch debug
+%option noyywrap nounput noinput batch
 %{
 #include <map>
 #include <fstream>
@@ -15,6 +15,18 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
   {"while",   yy::parser::token::R_WHILE},
 };
 
+inline void Step(yy::location& loc, const char* yytext, int yyleng) {
+  size_t x = std::count(yytext, yytext + yyleng, '\n');
+  if (x == 0) {
+    loc.columns(yyleng);
+  } else {
+    loc.lines(x);
+    int h = 0;
+    for (int x = yyleng - 1; x >= 0 && yytext[x] != '\n'; x--, h++);
+    loc.columns(h);
+  }
+}
+
 #ifdef DEBUG
 #define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, yytext); return yy::parser::make_##x(loc)
 #define RETURN_RESERVED(x) printf("Get reserved word: [%s]\n", yytext); return yy::parser::make##x(loc)
@@ -30,7 +42,7 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
 LETTER                     [A-Za-z]
 DIGIT                      [0-9]
 WHITE_SPACE                [ \t]+
-NEWLINE                    "\n"
+NEWLINE                    \n|\r|\r\n
 COMMENT                    \/\*([^*]|\*[^/])*\*\/
 
 /*** constants ***/
@@ -75,7 +87,7 @@ ERROR                      .
 /* --------- End regexp --------- */
 
 %{
-  #define YY_USER_ACTION loc.columns(yyleng);
+  #define YY_USER_ACTION Step(loc, yytext, yyleng);
 %}
 
 %%
@@ -142,12 +154,9 @@ ERROR                      .
 {REGEX_S_COMMA}              { RETURN_TOKEN(S_COMMA); }
 {REGEX_S_PERIOD}             { RETURN_TOKEN(S_PERIOD); }
 
-{NEWLINE}                    { loc.lines(1); loc.step(); }
+{NEWLINE}                    { loc.step(); }
 {COMMENT} {
-  loc.lines(std::count(yytext, yytext + yyleng, '\n'));
-  int h = 0;
-  for (int x = yyleng - 1; x >= 0 && yytext[x] != '\n'; x--, h++);
-  loc.columns(h);
+  loc.step();
 #ifdef DEBUG
   printf("Get comment: [%s]\n", yytext);
 #endif

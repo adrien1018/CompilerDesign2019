@@ -5,6 +5,6 @@
 
 #include "header.h"
 
-void PrintGV(AstNode *root, std::string filename = "");
+void PrintGV(AstNode *root, std::string filename);
 
 #endif  // GV_H_

@@ -2,6 +2,7 @@
 %language "c++"
 %define api.token.constructor
 %define api.value.type variant
+%define parse.error verbose
 %defines
 %code requires {
   #include <string>

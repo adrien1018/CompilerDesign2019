@@ -2,8 +2,8 @@ TARGET = parser
 INTERMEDIATE = parser.cc scanner.cc
 OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o
 LEX = flex
-YACC = bison -v -Lc++
-YACCFLAGS = -d
+YACC = bison
+YACCFLAGS = -v -t -d -Lc++
 CXXFLAGS = -O3 -Wall
 
 $(TARGET): $(OBJS)

@@ -12,18 +12,18 @@ YY_DECL;
 class Driver {
  public:
   Driver() {}
-  int result;
   std::string file;
   yy::location location;
   AstNode* prog;
   void scan_begin();
   void scan_end();
-  int parse(const std::string& f) {
+  int parse(const std::string& f, bool debug = false) {
     file = f;
     location.initialize(&file);
     scan_begin();
-    yy::parser parse(*this);
-    int res = parse();
+    yy::parser parser(*this);
+    if (debug) parser.set_debug_level(1);
+    int res = parser();
     scan_end();
     return res;
   }
