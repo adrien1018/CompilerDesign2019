@@ -236,7 +236,7 @@ param:
   };
 
 dim_fn:
-  S_L_BRACKET S_R_BRACKET {
+  S_L_BRACKET S_R_BRACKET { /* the first dimension can be empty */
     $$ = {new AstNode(NULL_NODE, @$)};
   } |
   S_L_BRACKET cexpr S_R_BRACKET {
