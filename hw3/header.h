@@ -1,13 +1,11 @@
 #ifndef HEADER_H_
 #define HEADER_H_
 
-#define MAX_ARRAY_DIMENSION 7
-
-#include <string>
+#include <cstring>
 #include <list>
-#include "location.hh"
+#include <string>
 
-extern int linenumber;
+#include "location.hh"
 
 enum DataType {
   INT_TYPE,
@@ -138,8 +136,8 @@ struct ConstType {
 };
 
 struct AstNode {
-  std::list<AstNode*> child;
-  AstNode* parent;
+  std::list<AstNode *> child;
+  AstNode *parent;
   AstType node_type;
   DataType data_type;
   yy::location loc;
@@ -152,10 +150,8 @@ struct AstNode {
   } semantic_value;
 
   AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
-  AstNode(AstType type, const yy::location& loc) :
-      parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
+  AstNode(AstType type, const yy::location &loc)
+      : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
-
-void semanticAnalysis(AstNode *root);
 
 #endif  // HEADER_H_

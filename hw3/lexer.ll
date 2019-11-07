@@ -1,8 +1,9 @@
 %option noyywrap nounput noinput batch
 %{
-#include <map>
-#include <fstream>
 #include <algorithm>
+#include <fstream>
+#include <map>
+
 #include "header.h"
 #include "driver.h"
 
@@ -25,6 +26,27 @@ inline void Step(yy::location& loc, const char* yytext, int yyleng) {
     for (int x = yyleng - 1; x >= 0 && yytext[x] != '\n'; x--, h++);
     loc.columns(h);
   }
+}
+
+AstNode *MakeConstNode(const yy::location &loc, CType const_type, const char *text) {
+  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
+  node->semantic_value.const1 = new ConstType();
+  node->semantic_value.const1->const_type = const_type;
+  switch (const_type) {
+    case INTEGERC:
+      node->semantic_value.const1->const_u.intval = atoi(text);
+      node->data_type = INT_TYPE;
+      break;
+    case FLOATC:
+      node->semantic_value.const1->const_u.fval = atof(text);
+      node->data_type = FLOAT_TYPE;
+      break;
+    case STRINGC:
+      node->semantic_value.const1->const_u.sc = strdup(text);
+      node->data_type = CONST_STRING_TYPE;
+      break;
+  }
+  return node;
 }
 
 #ifdef DEBUG
@@ -100,29 +122,17 @@ ERROR                      .
 {WHITE_SPACE}  { loc.step(); }
 
 {REGEX_C_INT} {
-  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
-  node->semantic_value.const1 = new ConstType();
-  node->semantic_value.const1->const_type = INTEGERC;
-  node->semantic_value.const1->const_u.intval = atoi(yytext);
-  node->data_type = INT_TYPE;
+  AstNode *node = MakeConstNode(loc, INTEGERC, yytext);
   return yy::parser::make_CONST(node, loc);
 }
 
 {REGEX_C_FLOAT} {
-  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
-  node->semantic_value.const1 = new ConstType();
-  node->semantic_value.const1->const_type = FLOATC;
-  node->semantic_value.const1->const_u.fval = atof(yytext);
-  node->data_type = FLOAT_TYPE;
+  AstNode *node = MakeConstNode(loc, FLOATC, yytext);
   return yy::parser::make_CONST(node, loc);
 }
 
 {REGEX_C_STRING} {
-  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
-  node->semantic_value.const1 = new ConstType();
-  node->semantic_value.const1->const_type = STRINGC;
-  node->semantic_value.const1->const_u.sc = strdup(yytext);
-  node->data_type = CONST_STRING_TYPE;
+  AstNode *node = MakeConstNode(loc, STRINGC, yytext);
   return yy::parser::make_CONST(node, loc);
 }
 

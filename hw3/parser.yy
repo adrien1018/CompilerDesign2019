@@ -27,7 +27,7 @@
 namespace {
 
 DataType GetDataType(AstNode *a, AstNode *b) {
-  if (a->data_type == UNKNOWN_TYPE && b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
+  if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
   return FLOAT_TYPE;
 }
