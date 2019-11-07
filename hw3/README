@@ -23,9 +23,10 @@ Some grammar rules are simplified:
   (2) Factor out several nonterminals, such as `param_list` and `unifact`.
 
 Note there is still some inconsistency with standard C:
-  (1) In C, == and != have lower precedence than <, >, <=, >=
+  (1) In C, `==` and `!=` have lower precedence than `<`, `>`, `<=`, `>=`
   (2) In C, `if`, `for` and `while` allow arbitrary expressions in all fields
       inside the parentheses (including assign expression, expressions separated
       by commas, etc.)
       (The sample tree graph indicates that `while` and `if` does not allow
       expression lists.)
+  (3) In C, declaring variable after an expression is allowed.
