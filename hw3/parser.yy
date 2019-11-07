@@ -223,7 +223,7 @@ param:
     $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL, @$);
     DataType type = GetTypedefValue($1);
     if (type == VOID_TYPE) {
-      throw yy::parser::syntax_error(@$, "variable cannot be declared void");
+      throw yy::parser::syntax_error(@$, "parameter \'" + $2 + "\' has incomplete type");
     }
     MakeChild($$, {MakeTypeNode(type, @1), MakeIDNode($2, NORMAL_ID, @2)});
   } |
@@ -297,7 +297,9 @@ var_decl:
     $$ = MakeDeclNode(VARIABLE_DECL, @$);
     DataType type = GetTypedefValue($1);
     if (type == VOID_TYPE) {
-      throw yy::parser::syntax_error(@$, "variable cannot be declared void");
+      AstNode *var = *$2.begin();
+      const std::string &identifier_name = var->semantic_value.identifier_semantic_value.identifier_name;
+      throw yy::parser::syntax_error(@$, "variable or field \'" + identifier_name + "\' declared void");
     }
     $2.push_front(MakeTypeNode(GetTypedefValue($1), @1));
     MakeChild($$, std::move($2));
