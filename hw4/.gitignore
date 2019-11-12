@@ -10,3 +10,4 @@ testcase/
 *.gv
 *.png
 tags
+test*
