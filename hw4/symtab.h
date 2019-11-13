@@ -6,30 +6,28 @@
 
 template <class EntryType> class SymTab {
  public:
-  struct Position {
-    size_t id, scope;
-  };
   struct Entry {
-    const Position pos;
+    const size_t pos;
     EntryType val;
   };
  private:
   struct Node_ {
     Node_* parent;
     int depth, refcount;
-    Position pos;
+    size_t begin, end;
     std::unordered_map<std::string, Entry> map;
-    Node_(Position pos) : parent(nullptr), depth(0),
-        refcount(0), pos(pos) {}
-    Node_(Node_* nxt, Position pos) : parent(nxt), depth(nxt->depth + 1),
-        refcount(0), pos(pos) {
+    Node_(size_t pos) : parent(nullptr), depth(0),
+        refcount(0), begin(pos), end(pos) {}
+    Node_(Node_* nxt, size_t pos) : parent(nxt), depth(nxt->depth + 1),
+        refcount(0), begin(pos), end(pos) {
       parent->refcount++;
     }
     ~Node_() { if (parent) parent->refcount--; }
   };
   std::vector<Node_*> scopes_;
-  Position cur_pos_;
-  Node_* CurNode_() const { return scopes_[cur_pos_.scope]; }
+  std::vector<size_t> scopemap_;
+  size_t cur_;
+  Node_* CurNode_() const { return scopes_[scopemap_[cur_]]; }
 
  public:
   class EntryPtr {
@@ -45,52 +43,98 @@ template <class EntryType> class SymTab {
     bool operator!=(const EntryPtr& ptr) const { return ptr.it_ != it_; }
     friend class SymTab<EntryType>;
   };
+  class ConstEntryPtr {
+    typename std::unordered_map<std::string, Entry>::const_pointer it_;
+    ConstEntryPtr(decltype(it_) it) : it_(it) {}
+   public:
+    ConstEntryPtr() : it_(nullptr) {}
+    bool Valid() const { return it_; }
+    const std::string& Name() const { return it_->first; }
+    const Entry& operator*() const { return it_->second; }
+    const Entry* operator->() const { return &it_->second; }
+    bool operator==(const EntryPtr& ptr) const { return ptr.it_ == it_; }
+    bool operator!=(const EntryPtr& ptr) const { return ptr.it_ != it_; }
+    friend class SymTab<EntryType>;
+  };
 
-  SymTab() : cur_pos_{0, 0} {
-    scopes_.emplace_back(new Node_(cur_pos_));
+  SymTab() : cur_(0) {
+    scopemap_.push_back(0);
+    scopes_.emplace_back(new Node_(cur_));
   }
   ~SymTab() {
     for (; scopes_.size(); scopes_.pop_back()) delete scopes_.back();
   }
   void PushScope() {
     Node_* tmp = CurNode_();
-    cur_pos_ = {cur_pos_.id + 1, scopes_.size()};
-    scopes_.emplace_back(new Node_(tmp, cur_pos_));
+    scopemap_.push_back(scopes_.size());
+    scopes_.emplace_back(new Node_(tmp, ++cur_));
   }
   void PopScope() {
-    cur_pos_ = {cur_pos_.id + 1, CurNode_()->parent->pos.scope};
+    Node_* pa = CurNode_()->parent;
+    if (!pa) return;
+    scopemap_.push_back(scopemap_[pa->begin]);
+    pa->end = ++cur_;
   }
   EntryPtr Query(const std::string& name) {
     for (Node_* nd = CurNode_(); nd; nd = nd->parent) {
       auto it = nd->map.find(name);
-      if (it != nd->map.end()) return EntryPtr(&*it);
+      if (it != nd->map.end() && it->second.pos <= cur_) return &*it;
     }
     return EntryPtr();
   }
+  ConstEntryPtr Query(const std::string& name) const {
+    for (Node_* nd = CurNode_(); nd; nd = nd->parent) {
+      auto it = nd->map.find(name);
+      if (it != nd->map.end() && it->second.pos <= cur_) return &*it;
+    }
+    return ConstEntryPtr();
+  }
   EntryPtr QueryScope(const std::string& name) {
     auto it = CurNode_()->map.find(name);
-    if (it != CurNode_()->map.end()) return EntryPtr(&*it);
+    if (it != CurNode_()->map.end() && it->second.pos <= cur_) return &*it;
     return EntryPtr();
   }
+  ConstEntryPtr QueryScope(const std::string& name) const {
+    auto it = CurNode_()->map.find(name);
+    if (it != CurNode_()->map.end() && it->second.pos <= cur_) return &*it;
+    return ConstEntryPtr();
+  }
   EntryPtr Insert(const std::string& name, const EntryType& val) {
-    cur_pos_.id++;
-    auto it = CurNode_()->map.insert({name, {cur_pos_, val}});
+    if (scopemap_.size() != cur_ + 1) return EntryPtr();
+    Node_* ptr = CurNode_();
+    auto it = ptr->map.insert({name, {cur_ + 1, val}});
     if (!it.second) return EntryPtr();
+    scopemap_.push_back(scopemap_.back());
+    ptr->end = ++cur_;
     return EntryPtr(&*it.first);
   }
   EntryPtr Insert(const std::string& name, EntryType&& val) {
-    cur_pos_.id++;
-    auto it = CurNode_()->map.insert({name, {cur_pos_, std::move(val)}});
+    if (scopemap_.size() != cur_ + 1) return EntryPtr();
+    Node_* ptr = CurNode_();
+    auto it = ptr->map.insert({name, {cur_ + 1, std::move(val)}});
     if (!it.second) return EntryPtr();
+    scopemap_.push_back(scopemap_.back());
+    ptr->end = ++cur_;
     return EntryPtr(&*it.first);
   }
-  void MoveToScope(size_t scope) {
-    cur_pos_ = scopes_[scope]->pos;
+  void MoveToScopeStart() { cur_ = CurNode_()->begin; }
+  void MoveToScopeEnd() { cur_ = CurNode_()->end; }
+  void MoveToScopeStart(size_t scope) {
+    if (scope >= scopes_.size()) return;
+    cur_ = scopes_[scope]->begin;
   }
-  void MoveToPosition(Position pos) {
-    cur_pos_ = pos;
+  void MoveToScopeEnd(size_t scope) {
+    if (scope >= scopes_.size()) return;
+    cur_ = scopes_[scope]->end;
   }
-  Position GetPosition() const { return cur_pos_; }
+  void MoveToPosition(size_t pos) {
+    if (pos >= scopemap_.size()) return;
+    cur_ = pos;
+  }
+  size_t GetPosition() const { return cur_; }
+  size_t GetScope() const { return scopemap_[cur_]; }
+  size_t ScopeCount() const { return scopes_.size(); }
+  size_t PositionCount() const { return scopemap_.size(); }
 };
 
 #endif
