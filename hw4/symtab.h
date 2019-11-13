@@ -13,16 +13,11 @@ template <class EntryType> class SymTab {
  private:
   struct Node_ {
     Node_* parent;
-    int depth, refcount;
-    size_t begin, end;
+    size_t depth, begin, end;
     std::unordered_map<std::string, Entry> map;
-    Node_(size_t pos) : parent(nullptr), depth(0),
-        refcount(0), begin(pos), end(pos) {}
+    Node_(size_t pos) : parent(nullptr), depth(0), begin(pos), end(pos) {}
     Node_(Node_* nxt, size_t pos) : parent(nxt), depth(nxt->depth + 1),
-        refcount(0), begin(pos), end(pos) {
-      parent->refcount++;
-    }
-    ~Node_() { if (parent) parent->refcount--; }
+        begin(pos), end(pos) {}
   };
   std::vector<Node_*> scopes_;
   std::vector<size_t> scopemap_;
@@ -52,8 +47,8 @@ template <class EntryType> class SymTab {
     const std::string& Name() const { return it_->first; }
     const Entry& operator*() const { return it_->second; }
     const Entry* operator->() const { return &it_->second; }
-    bool operator==(const EntryPtr& ptr) const { return ptr.it_ == it_; }
-    bool operator!=(const EntryPtr& ptr) const { return ptr.it_ != it_; }
+    bool operator==(const ConstEntryPtr& ptr) const { return ptr.it_ == it_; }
+    bool operator!=(const ConstEntryPtr& ptr) const { return ptr.it_ != it_; }
     friend class SymTab<EntryType>;
   };
 
@@ -135,6 +130,11 @@ template <class EntryType> class SymTab {
   size_t GetScope() const { return scopemap_[cur_]; }
   size_t ScopeCount() const { return scopes_.size(); }
   size_t PositionCount() const { return scopemap_.size(); }
+  size_t GetParentScope() const {
+    if (!CurNode_()->parent) return 0;
+    return scopemap_[CurNode_()->parent->begin];
+  }
+  size_t GetScopeDepth() const { return CurNode_()->depth; }
 };
 
 #endif
