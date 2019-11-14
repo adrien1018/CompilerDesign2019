@@ -40,6 +40,57 @@ DataType GetTypedefValue(const std::string &s) {
   return UNKNOWN_TYPE;
 }
 
+template <typename T, typename U>
+struct Wider {
+  using type = typename std::conditional<sizeof(T) >= sizeof(U), T, U>::type;
+};
+
+template <typename T, typename U>
+typename Wider<T, U>::type DoOperation(BinaryOperator op, T x, U y) {
+  using ReturnType = typename Wider<T, U>::type;
+  switch (op) {
+    case BINARY_OP_ADD:
+      return ReturnType(x) + ReturnType(y);
+    case BINARY_OP_SUB:
+      return ReturnType(x) - ReturnType(y);
+    case BINARY_OP_MUL:
+      return ReturnType(x) * ReturnType(y);
+    case BINARY_OP_DIV:
+      return ReturnType(x) / ReturnType(y);
+  }
+}
+
+AstNode *MergeConstNode(BinaryOperator op, AstNode *lhs, AstNode *rhs, const Location &loc) {
+
+  DataType ltype = lhs->data_type;
+  DataType rtype = rhs->data_type;
+  if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE) throw yy::parser::syntax_error(loc, "");
+  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
+  node->data_type = GetDataType(lhs, rhs);
+  if (lhs->data_type == INT_TYPE) {
+    if (rhs->data_type == INT_TYPE) {
+      node->semantic_value.const1->const_u.intval =
+          DoOperation(op, lhs->semantic_value.const1->const_u.intval,
+                      rhs->semantic_value.const1->const_u.intval);
+    } else {
+      node->semantic_value.const1->const_u.fval =
+          DoOperation(op, lhs->semantic_value.const1->const_u.intval,
+                      rhs->semantic_value.const1->const_u.fval);
+    }
+  } else {
+    if (rhs->data_type == INT_TYPE) {
+      node->semantic_value.const1->const_u.fval =
+          DoOperation(op, lhs->semantic_value.const1->const_u.fval,
+                      rhs->semantic_value.const1->const_u.intval);
+    } else {
+      node->semantic_value.const1->const_u.fval =
+          DoOperation(op, lhs->semantic_value.const1->const_u.fval,
+                      rhs->semantic_value.const1->const_u.fval);
+    }
+  }
+  return node;
+}
+
 AstNode *MakeTypeNode(DataType type, const Location& loc) {
   AstNode *type_node = new AstNode(TYPE_NODE, loc);
   type_node->data_type = type;
@@ -160,7 +211,7 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 
 %type <AstNode*> program function_decl block decl var_decl init_id stmt
 %type <AstNode*> relop_expr var_ref
-%type <AstNode*> param cexpr assign_expr assign_expr_list
+%type <AstNode*> param assign_expr cexpr assign_expr_list
 %type <AstNode*> type_decl id_item relop_expr_list unifact
 %type <std::list<AstNode*>> global_decl_list stmt_list decl_list init_id_list
 %type <std::list<AstNode*>> param_list id_list dim_list
@@ -340,16 +391,20 @@ dim_decl:
 
 cexpr:
   cexpr O_ADDITION cexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3});
+    $$ = MergeConstNode(BINARY_OP_ADD, $1, $3, @$);
+    /* $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3}); */
   } |
   cexpr O_SUBTRACTION cexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
+    $$ = MergeConstNode(BINARY_OP_SUB, $1, $3, @$);
+    // $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
   } |
   cexpr O_MULTIPLICATION cexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
+    $$ = MergeConstNode(BINARY_OP_MUL, $1, $3, @$);
+    // $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
   } |
   cexpr O_DIVISION cexpr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
+    $$ = MergeConstNode(BINARY_OP_DIV, $1, $3, @$);
+    // $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
   } |
   CONST {
     $$ = $1;

@@ -29,22 +29,19 @@ inline void Step(Location& loc, const char* yytext, int yyleng) {
   }
 }
 
-AstNode *MakeConstNode(const Location &loc, CType const_type, const char *text) {
+AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
   AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
+  node->data_type = type;
   node->semantic_value.const1 = new ConstType();
-  node->semantic_value.const1->const_type = const_type;
-  switch (const_type) {
-    case INTEGERC:
+  switch (type) {
+    case INT_TYPE:
       node->semantic_value.const1->const_u.intval = atoi(text);
-      node->data_type = INT_TYPE;
       break;
-    case FLOATC:
+    case FLOAT_TYPE:
       node->semantic_value.const1->const_u.fval = atof(text);
-      node->data_type = FLOAT_TYPE;
       break;
-    case STRINGC:
+    case CONST_STRING_TYPE:
       node->semantic_value.const1->const_u.sc = strdup(text);
-      node->data_type = CONST_STRING_TYPE;
       break;
   }
   return node;
@@ -123,17 +120,17 @@ ERROR                      .
 {WHITE_SPACE}  { loc.step(); }
 
 {REGEX_C_INT} {
-  AstNode *node = MakeConstNode(loc, INTEGERC, YYText());
+  AstNode *node = MakeConstNode(loc, INT_TYPE, YYText());
   return yy::parser::make_CONST(node, loc);
 }
 
 {REGEX_C_FLOAT} {
-  AstNode *node = MakeConstNode(loc, FLOATC, YYText());
+  AstNode *node = MakeConstNode(loc, FLOAT_TYPE, YYText());
   return yy::parser::make_CONST(node, loc);
 }
 
 {REGEX_C_STRING} {
-  AstNode *node = MakeConstNode(loc, STRINGC, YYText());
+  AstNode *node = MakeConstNode(loc, CONST_STRING_TYPE, YYText());
   return yy::parser::make_CONST(node, loc);
 }
 

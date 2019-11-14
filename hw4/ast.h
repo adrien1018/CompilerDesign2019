@@ -148,7 +148,6 @@ struct TypeSpecSemanticValue {
 
 // don't modify or lexer may break
 struct ConstType {
-  CType const_type;
   union {
     int intval;
     double fval;
