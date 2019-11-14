@@ -57,8 +57,6 @@ class Driver : public yyFlexLexer {
   AstNode* prog;
   bool color_output;
 
-  void scan_begin();
-  void scan_end();
   int Parse(bool debug = false);
 
   void PrintError(const Location& l, const std::string& m);

@@ -4,11 +4,9 @@
 #include <iomanip>
 
 int Driver::Parse(bool debug) {
-  scan_begin();
   yy::parser parser(*this);
   if (debug) parser.set_debug_level(1);
   int res = parser();
-  scan_end();
   return res;
 }
 
