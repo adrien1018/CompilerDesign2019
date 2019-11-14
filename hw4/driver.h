@@ -21,8 +21,6 @@
 #endif
 
 #define YY_DECL yy::parser::symbol_type Driver::yylex_a()
-// ... and declare it for the parser's sake.
-//YY_DECL;
 
 class Driver : public yyFlexLexer {
   void SetColor_() {
@@ -66,7 +64,6 @@ class Driver : public yyFlexLexer {
   void PrintError(const Location& l, const std::string& m);
   yy::parser::symbol_type yylex_a();
 };
-#pragma GCC diagnostic pop
 
 inline yy::parser::symbol_type yylex(Driver& drv) {
   return drv.yylex_a();
