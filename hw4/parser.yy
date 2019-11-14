@@ -549,6 +549,6 @@ dim_list:
 
 %%
 
-void yy::parser::error (const location_type& l, const std::string& m) {
-  std::cerr << l << ": " << m << '\n';
+void yy::parser::error(const location_type& l, const std::string& m) {
+  drv.PrintError(l, m);
 }

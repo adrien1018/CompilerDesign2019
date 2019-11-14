@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
       outfile = argv[i];
     } else {
       Driver drv;
-      if (drv.parse(argv[i], debug) == 0) {
+      if (drv.Parse(argv[i], debug) == 0) {
         PrintGV(drv.prog, outfile);
         return 0;
       } else {
