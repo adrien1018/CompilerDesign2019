@@ -2,6 +2,7 @@
 %language "c++"
 %define api.token.constructor
 %define api.value.type variant
+%define api.location.type {Location}
 %define parse.error verbose
 %defines
 %code requires {
@@ -39,11 +40,12 @@ DataType GetTypedefValue(const std::string &s) {
   return UNKNOWN_TYPE;
 }
 
-AstNode *MakeTypeNode(DataType type, const yy::location& loc) {
+AstNode *MakeTypeNode(DataType type, const Location& loc) {
   AstNode *type_node = new AstNode(TYPE_NODE, loc);
   type_node->data_type = type;
   if (type == UNKNOWN_TYPE) {
-    type_node.semantic_value.identifier_semantic_value.identifier_name;
+    // type_node->semantic_value.identifier_semantic_value.identifier_name;
+    // TODO
   }
   return type_node;
 }
@@ -64,28 +66,29 @@ AstNode* MakeChild(AstNode* parent, std::list<AstNode*>& children) {
 }
 
 AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind,
-                    const yy::location& loc) {
+                    const Location& loc) {
   AstNode* identifier = new AstNode(IDENTIFIER_NODE, loc);
   identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
   identifier->semantic_value.identifier_semantic_value.kind = id_kind;
-  identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
+  //identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
+  // TODO
   return identifier;
 }
 
-AstNode* MakeStmtNode(StmtKind stmt_kind, const yy::location& loc) {
+AstNode* MakeStmtNode(StmtKind stmt_kind, const Location& loc) {
   AstNode* stmt_node = new AstNode(STMT_NODE, loc);
   stmt_node->semantic_value.stmt_semantic_value.kind = stmt_kind;
   return stmt_node;
 }
 
-AstNode* MakeDeclNode(DeclKind decl_kind, const yy::location& loc) {
+AstNode* MakeDeclNode(DeclKind decl_kind, const Location& loc) {
   AstNode* decl_node = new AstNode(DECLARATION_NODE, loc);
   decl_node->semantic_value.decl_semantic_value.kind = decl_kind;
   return decl_node;
 }
 
 AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
-                      int operation_enum_value, const yy::location& loc,
+                      int operation_enum_value, const Location& loc,
                       std::list<AstNode*>&& ch) {
   AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
@@ -552,6 +555,6 @@ dim_list:
 
 %%
 
-void yy::parser::error(const location_type& l, const std::string& m) {
+void yy::parser::error(const Location& l, const std::string& m) {
   drv.PrintError(l, m);
 }

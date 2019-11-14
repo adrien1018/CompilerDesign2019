@@ -10,7 +10,7 @@ $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 scanner.cc: lexer.ll parser.cc
-	$(LEX) -o $@ $<
+	$(LEX) -+ -o $@ $<
 
 parser.cc: parser.yy
 	$(YACC) -o $@ $(YACCFLAGS) $<
@@ -18,6 +18,7 @@ parser.cc: parser.yy
 $(OBJS): %.o: %.cc
 
 main.o: parser.cc
+driver.o: parser.cc
 
 clean:
-	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output location.hh
+	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output

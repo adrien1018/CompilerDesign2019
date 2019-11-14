@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include "driver.h"
 #include "gv.h"
 
@@ -31,8 +32,8 @@ int main(int argc, char *argv[]) {
       }
       outfile = argv[i];
     } else {
-      Driver drv;
-      if (drv.Parse(argv[i], debug) == 0) {
+      Driver drv(argv[i]);
+      if (drv.Parse(debug) == 0) {
         PrintGV(drv.prog, outfile);
         return 0;
       } else {

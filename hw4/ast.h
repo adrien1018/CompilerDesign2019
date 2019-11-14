@@ -5,7 +5,29 @@
 #include <list>
 #include <string>
 
-#include "location.hh"
+struct Location {
+  struct Position {
+    size_t line, column, offset;
+    Position() : line(1), column(1), offset(0) {}
+  } begin, end;
+  void step() { begin = end; }
+};
+
+template <typename YYChar> std::basic_ostream<YYChar>&
+operator<<(std::basic_ostream<YYChar>& ostr, const Location::Position& pos) {
+  return ostr << pos.line << '.' << pos.column;
+}
+template <typename YYChar> std::basic_ostream<YYChar>&
+operator<< (std::basic_ostream<YYChar>& ostr, const Location& loc) {
+  unsigned end_col = 0 < loc.end.column ? loc.end.column - 1 : 0;
+  ostr << loc.begin;
+  if (loc.begin.line < loc.end.line) {
+    ostr << '-' << loc.end.line << '.' << end_col;
+  } else if (loc.begin.column < end_col) {
+    ostr << '-' << end_col;
+  }
+  return ostr;
+}
 
 enum DataType {
   INT_TYPE,
@@ -139,7 +161,7 @@ struct AstNode {
   AstNode *parent;
   AstType node_type;
   DataType data_type;
-  yy::location loc;
+  Location loc;
   struct {
     IdentifierSemanticValue identifier_semantic_value;
     StmtSemanticValue stmt_semantic_value;
@@ -149,7 +171,7 @@ struct AstNode {
   } semantic_value;
 
   AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
-  AstNode(AstType type, const yy::location &loc)
+  AstNode(AstType type, const Location &loc)
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
 

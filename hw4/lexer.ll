@@ -16,19 +16,20 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
   {"while",   yy::parser::token::R_WHILE},
 };
 
-inline void Step(yy::location& loc, const char* yytext, int yyleng) {
+inline void Step(Location& loc, const char* yytext, int yyleng) {
+  loc.end.offset += yyleng;
   size_t x = std::count(yytext, yytext + yyleng, '\n');
   if (x == 0) {
-    loc.columns(yyleng);
+    loc.end.column += yyleng;
   } else {
-    loc.lines(x);
-    int h = 0;
+    loc.end.line += x;
+    int h = 1;
     for (int x = yyleng - 1; x >= 0 && yytext[x] != '\n'; x--, h++);
-    loc.columns(h);
+    loc.end.column = h;
   }
 }
 
-AstNode *MakeConstNode(const yy::location &loc, CType const_type, const char *text) {
+AstNode *MakeConstNode(const Location &loc, CType const_type, const char *text) {
   AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
   node->semantic_value.const1 = new ConstType();
   node->semantic_value.const1->const_type = const_type;
@@ -50,8 +51,8 @@ AstNode *MakeConstNode(const yy::location &loc, CType const_type, const char *te
 }
 
 #ifdef DEBUG
-#define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, yytext); return yy::parser::make_##x(loc)
-#define RETURN_RESERVED(x) printf("Get reserved word: [%s]\n", yytext); return yy::parser::make##x(loc)
+#define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, YYText()); return yy::parser::make_##x(loc)
+#define RETURN_RESERVED(x) printf("Get reserved word: [%s]\n", YYText()); return yy::parser::make##x(loc)
 #else
 #define RETURN_TOKEN(x) return yy::parser::make_##x(loc)
 #define RETURN_RESERVED(x) return yy::parser::symbol_type(x, loc)
@@ -109,30 +110,30 @@ ERROR                      .
 /* --------- End regexp --------- */
 
 %{
-  #define YY_USER_ACTION Step(loc, yytext, yyleng);
+  #define YY_USER_ACTION Step(loc, YYText(), YYLeng());
 %}
 
 %%
 
 %{
-  yy::location& loc = drv.location;
+  Location& loc = location;
   loc.step();
 %}
 
 {WHITE_SPACE}  { loc.step(); }
 
 {REGEX_C_INT} {
-  AstNode *node = MakeConstNode(loc, INTEGERC, yytext);
+  AstNode *node = MakeConstNode(loc, INTEGERC, YYText());
   return yy::parser::make_CONST(node, loc);
 }
 
 {REGEX_C_FLOAT} {
-  AstNode *node = MakeConstNode(loc, FLOATC, yytext);
+  AstNode *node = MakeConstNode(loc, FLOATC, YYText());
   return yy::parser::make_CONST(node, loc);
 }
 
 {REGEX_C_STRING} {
-  AstNode *node = MakeConstNode(loc, STRINGC, yytext);
+  AstNode *node = MakeConstNode(loc, STRINGC, YYText());
   return yy::parser::make_CONST(node, loc);
 }
 
@@ -168,25 +169,25 @@ ERROR                      .
 {COMMENT} {
   loc.step();
 #ifdef DEBUG
-  printf("Get comment: [%s]\n", yytext);
+  printf("Get comment: [%s]\n", YYText());
 #endif
 }
 
 {REGEX_IDENTIFIER} {
-  std::string text = yytext;
+  std::string text = YYText();
   auto reserved_it = kReservedWords.find(text);
   if (reserved_it != kReservedWords.end()) {
     RETURN_RESERVED(reserved_it->second);
   }
 #ifdef DEBUG
-  printf("Get identifier: [%s]\n", yytext);
+  printf("Get identifier: [%s]\n", YYText());
 #endif
-  return yy::parser::make_IDENTIFIER(yytext, loc);
+  return yy::parser::make_IDENTIFIER(YYText(), loc);
 }
 
 {ERROR} {
   throw yy::parser::syntax_error(loc,
-      "invalid character: " + std::string(yytext));
+      "invalid character: " + std::string(YYText()));
 }
 
 <<EOF>> {
@@ -196,12 +197,14 @@ ERROR                      .
 %%
 
 void Driver::scan_begin() {
-  if (file.empty () || file == "-") {
-    yyin = stdin;
-  } else if (!(yyin = fopen(file.c_str(), "r"))) {
-    std::cerr << "cannot open " << file << ": " << strerror(errno) << '\n';
-    exit(EXIT_FAILURE);
-  }
+  //if (file.empty () || file == "-") {
+  //  yyin = stdin;
+  //} else if (!(yyin = fopen(file.c_str(), "r"))) {
+  //  std::cerr << "cannot open " << file << ": " << strerror(errno) << '\n';
+  //  exit(EXIT_FAILURE);
+  //}
 }
 
-void Driver::scan_end() { fclose(yyin); }
+void Driver::scan_end() {
+  //fclose(yyin);
+}
