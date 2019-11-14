@@ -1,5 +1,5 @@
-#ifndef HEADER_H_
-#define HEADER_H_
+#ifndef AST_H_
+#define AST_H_
 
 #include <cstring>
 #include <list>
@@ -117,7 +117,6 @@ struct SymbolAttribute;
 
 struct IdentifierSemanticValue {
   std::string identifier_name;
-  struct SymbolTableEntry *symboltable_entry;
   IdentifierKind kind;
 };
 
@@ -154,4 +153,4 @@ struct AstNode {
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
 
-#endif  // HEADER_H_
+#endif  // AST_H_

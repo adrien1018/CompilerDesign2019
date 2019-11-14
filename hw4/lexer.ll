@@ -4,7 +4,7 @@
 #include <fstream>
 #include <map>
 
-#include "header.h"
+#include "ast.h"
 #include "driver.h"
 
 const std::map<std::string, yy::parser::token_type> kReservedWords = {

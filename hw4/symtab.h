@@ -72,23 +72,25 @@
  *   Get the scope depth of the given/current scope.
  */
 
-#include <vector>
 #include <unordered_map>
+#include <vector>
 
-template <class KeyType, class EntryType> class SymTab {
+template <class KeyType, class EntryType>
+class SymTab {
  public:
   struct Entry {
     const size_t pos;
     EntryType val;
   };
+
  private:
   struct Node_ {
     Node_* parent;
     size_t depth, begin, end;
     std::unordered_map<KeyType, Entry> map;
     Node_(size_t pos) : parent(nullptr), depth(0), begin(pos), end(pos) {}
-    Node_(Node_* nxt, size_t pos) : parent(nxt), depth(nxt->depth + 1),
-        begin(pos), end(pos) {}
+    Node_(Node_* nxt, size_t pos)
+        : parent(nxt), depth(nxt->depth + 1), begin(pos), end(pos) {}
   };
   std::vector<Node_*> scope_;
   std::vector<size_t> scopemap_;
@@ -98,6 +100,7 @@ template <class KeyType, class EntryType> class SymTab {
   class EntryPtr {
     typename std::unordered_map<KeyType, Entry>::pointer it_;
     EntryPtr(decltype(it_) it) : it_(it) {}
+
    public:
     EntryPtr() : it_(nullptr) {}
     bool Valid() const { return it_; }
@@ -111,6 +114,7 @@ template <class KeyType, class EntryType> class SymTab {
   class ConstEntryPtr {
     typename std::unordered_map<KeyType, Entry>::const_pointer it_;
     ConstEntryPtr(decltype(it_) it) : it_(it) {}
+
    public:
     ConstEntryPtr() : it_(nullptr) {}
     bool Valid() const { return it_; }
@@ -219,4 +223,4 @@ template <class KeyType, class EntryType> class SymTab {
   size_t GetScopeDepth() const { return GetScopeDepth(GetScope()); }
 };
 
-#endif
+#endif  // SYMTAB_H_

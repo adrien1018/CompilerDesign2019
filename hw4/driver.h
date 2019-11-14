@@ -2,7 +2,7 @@
 #define DRIVER_H_
 
 #include <string>
-#include "header.h"
+#include "ast.h"
 #include "parser.hh"
 
 #define YY_DECL yy::parser::symbol_type yylex(Driver& drv)

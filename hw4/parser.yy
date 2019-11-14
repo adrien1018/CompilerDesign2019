@@ -21,7 +21,7 @@
 #include <cstdarg>
 #include <vector>
 
-#include "header.h"
+#include "ast.h"
 #include "driver.h"
 
 namespace {
@@ -42,6 +42,9 @@ DataType GetTypedefValue(const std::string &s) {
 AstNode *MakeTypeNode(DataType type, const yy::location& loc) {
   AstNode *type_node = new AstNode(TYPE_NODE, loc);
   type_node->data_type = type;
+  if (type == UNKNOWN_TYPE) {
+    type_node.semantic_value.identifier_semantic_value.identifier_name;
+  }
   return type_node;
 }
 

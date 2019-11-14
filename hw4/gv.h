@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "header.h"
+#include "ast.h"
 
 void PrintGV(AstNode *root, std::string filename);
 
