@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdarg>
+#include <variant>
 #include <vector>
 
 #include "ast.h"
@@ -57,37 +58,50 @@ typename Wider<T, U>::type DoOperation(BinaryOperator op, T x, U y) {
       return ReturnType(x) * ReturnType(y);
     case BINARY_OP_DIV:
       return ReturnType(x) / ReturnType(y);
+    case BINARY_OP_EQ:
+      return ReturnType(x) == ReturnType(y);
+    case BINARY_OP_GE:
+      return ReturnType(x) >= ReturnType(y);
+    case BINARY_OP_LE:
+      return ReturnType(x) <= ReturnType(y);
+    case BINARY_OP_NE:
+      return ReturnType(x) != ReturnType(y);
+    case BINARY_OP_GT:
+      return ReturnType(x) > ReturnType(y);
+    case BINARY_OP_LT:
+      return ReturnType(x) < ReturnType(y);
+    case BINARY_OP_AND:
+      return ReturnType(x) && ReturnType(y);
+    case BINARY_OP_OR:
+      return ReturnType(x) || ReturnType(y);
   }
 }
 
-AstNode *MergeConstNode(BinaryOperator op, AstNode *lhs, AstNode *rhs, const Location &loc) {
-
+AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
+                        const Location& loc) {
   DataType ltype = lhs->data_type;
   DataType rtype = rhs->data_type;
-  if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE) throw yy::parser::syntax_error(loc, "");
-  AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
+  if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE)
+    throw yy::parser::syntax_error(loc, "");
+  AstNode* node = new AstNode(CONST_VALUE_NODE, loc);
   node->data_type = GetDataType(lhs, rhs);
+  ConstValue& lcv = std::get<ConstValue>(lhs->semantic_value);
+  ConstValue& rcv = std::get<ConstValue>(rhs->semantic_value);
+  ConstValue cv{};
   if (lhs->data_type == INT_TYPE) {
     if (rhs->data_type == INT_TYPE) {
-      node->semantic_value.const1->const_u.intval =
-          DoOperation(op, lhs->semantic_value.const1->const_u.intval,
-                      rhs->semantic_value.const1->const_u.intval);
+      cv = DoOperation(op, std::get<int>(lcv), std::get<int>(rcv));
     } else {
-      node->semantic_value.const1->const_u.fval =
-          DoOperation(op, lhs->semantic_value.const1->const_u.intval,
-                      rhs->semantic_value.const1->const_u.fval);
+      cv = DoOperation(op, std::get<int>(lcv), std::get<double>(rcv));
     }
   } else {
     if (rhs->data_type == INT_TYPE) {
-      node->semantic_value.const1->const_u.fval =
-          DoOperation(op, lhs->semantic_value.const1->const_u.fval,
-                      rhs->semantic_value.const1->const_u.intval);
+      cv = DoOperation(op, std::get<double>(lcv), std::get<int>(rcv));
     } else {
-      node->semantic_value.const1->const_u.fval =
-          DoOperation(op, lhs->semantic_value.const1->const_u.fval,
-                      rhs->semantic_value.const1->const_u.fval);
+      cv = DoOperation(op, std::get<double>(lcv), std::get<double>(rcv));
     }
   }
+  node->semantic_value = cv;
   return node;
 }
 
@@ -119,8 +133,7 @@ AstNode* MakeChild(AstNode* parent, std::list<AstNode*>& children) {
 AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind,
                     const Location& loc) {
   AstNode* identifier = new AstNode(IDENTIFIER_NODE, loc);
-  identifier->semantic_value.identifier_semantic_value.identifier_name = lexeme;
-  identifier->semantic_value.identifier_semantic_value.kind = id_kind;
+  identifier->semantic_value = IdentifierSemanticValue{lexeme, id_kind};
   //identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
   // TODO
   return identifier;
@@ -128,13 +141,13 @@ AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind,
 
 AstNode* MakeStmtNode(StmtKind stmt_kind, const Location& loc) {
   AstNode* stmt_node = new AstNode(STMT_NODE, loc);
-  stmt_node->semantic_value.stmt_semantic_value.kind = stmt_kind;
+  stmt_node->semantic_value = StmtSemanticValue{stmt_kind};
   return stmt_node;
 }
 
 AstNode* MakeDeclNode(DeclKind decl_kind, const Location& loc) {
   AstNode* decl_node = new AstNode(DECLARATION_NODE, loc);
-  decl_node->semantic_value.decl_semantic_value.kind = decl_kind;
+  decl_node->semantic_value = DeclSemanticValue{decl_kind};
   return decl_node;
 }
 
@@ -143,19 +156,13 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
                       std::list<AstNode*>&& ch) {
   AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
-  expr_node->semantic_value.expr_semantic_value.is_const_eval = 0;
-  expr_node->semantic_value.expr_semantic_value.kind = expr_kind;
+  expr_node->semantic_value = ExprSemanticValue{expr_kind, 0};
   MakeChild(expr_node, ch);
+  auto &op = std::get<ExprSemanticValue>(expr_node->semantic_value).op;
   if (expr_kind == BINARY_OPERATION) {
-    expr_node->semantic_value.expr_semantic_value.op.binary_op =
-        BinaryOperator(operation_enum_value);
-  } else if (expr_kind == UNARY_OPERATION) {
-    expr_node->semantic_value.expr_semantic_value.op.unary_op =
-        UnaryOperator(operation_enum_value);
+    op = BinaryOperator(operation_enum_value);
   } else {
-    printf(
-        "Error in static inline AstNode* MakeExprNode(EXPR_KIND exprKind, int "
-        "operationEnumValue)\n");
+    op = UnaryOperator(operation_enum_value);
   }
   return expr_node;
 }
@@ -168,7 +175,6 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 
 %token <std::string> IDENTIFIER
 %token <AstNode*> CONST
-//%token <ConstType*> CONST
 
 %token END 0
 
@@ -355,7 +361,7 @@ var_decl:
     DataType type = GetTypedefValue($1);
     if (type == VOID_TYPE) {
       AstNode *var = *$2.begin();
-      const std::string &identifier_name = var->semantic_value.identifier_semantic_value.identifier_name;
+      const std::string &identifier_name = std::get<IdentifierSemanticValue>(var->semantic_value).identifier_name;
       throw yy::parser::syntax_error(@$, "variable or field \'" + identifier_name + "\' declared void");
     }
     $2.push_front(MakeTypeNode(GetTypedefValue($1), @1));

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <list>
 #include <string>
+#include <variant>
 
 struct Location {
   struct Position {
@@ -13,12 +14,15 @@ struct Location {
   void step() { begin = end; }
 };
 
-template <typename YYChar> std::basic_ostream<YYChar>&
-operator<<(std::basic_ostream<YYChar>& ostr, const Location::Position& pos) {
+template <typename YYChar>
+std::basic_ostream<YYChar>& operator<<(std::basic_ostream<YYChar>& ostr,
+                                       const Location::Position& pos) {
   return ostr << pos.line << '.' << pos.column;
 }
-template <typename YYChar> std::basic_ostream<YYChar>&
-operator<< (std::basic_ostream<YYChar>& ostr, const Location& loc) {
+
+template <typename YYChar>
+std::basic_ostream<YYChar>& operator<<(std::basic_ostream<YYChar>& ostr,
+                                       const Location& loc) {
   unsigned end_col = 0 < loc.end.column ? loc.end.column - 1 : 0;
   ostr << loc.begin;
   if (loc.begin.line < loc.end.line) {
@@ -67,10 +71,6 @@ enum UnaryOperator {
   UNARY_OP_LOGICAL_NEGATION
 };
 
-// C_type = type of constant ex: 1, 3.3, "const string"
-// do not modify, or lexer might break
-enum CType { INTEGERC, FLOATC, STRINGC };
-
 enum StmtKind {
   WHILE_STMT,
   FOR_STMT,
@@ -117,18 +117,9 @@ struct StmtSemanticValue {
 
 struct ExprSemanticValue {
   ExprKind kind;
-
   int is_const_eval;
-
-  union {
-    int ivalue;
-    float fvalue;
-  } const_eval_value;
-
-  union {
-    BinaryOperator binary_op;
-    UnaryOperator unary_op;
-  } op;
+  std::variant<BinaryOperator, UnaryOperator> op;
+  std::variant<int, double> const_eval;
 };
 
 struct DeclSemanticValue {
@@ -143,34 +134,23 @@ struct IdentifierSemanticValue {
 };
 
 struct TypeSpecSemanticValue {
-  char *typeName;
+  std::string type_name;
 };
 
-// don't modify or lexer may break
-struct ConstType {
-  union {
-    int intval;
-    double fval;
-    char *sc;
-  } const_u;
-};
+using ConstValue = std::variant<int, double, std::string>;
 
 struct AstNode {
-  std::list<AstNode *> child;
-  AstNode *parent;
+  std::list<AstNode*> child;
+  AstNode* parent;
   AstType node_type;
   DataType data_type;
   Location loc;
-  struct {
-    IdentifierSemanticValue identifier_semantic_value;
-    StmtSemanticValue stmt_semantic_value;
-    DeclSemanticValue decl_semantic_value;
-    ExprSemanticValue expr_semantic_value;
-    ConstType *const1;
-  } semantic_value;
+  std::variant<IdentifierSemanticValue, StmtSemanticValue, DeclSemanticValue,
+               ExprSemanticValue, ConstValue>
+      semantic_value;
 
   AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
-  AstNode(AstType type, const Location &loc)
+  AstNode(AstType type, const Location& loc)
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
 
