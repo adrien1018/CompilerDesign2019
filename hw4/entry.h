@@ -44,23 +44,29 @@ class TableEntry {
  public:
   TableEntry() = default;
   TableEntry(EntryType type) : type_(type) {}
-
-  template <class... Param>
-  TableEntry(EntryType type, Param &&... param) : type_(type) {
-    if (type == VARIABLE || type == ARRAY)
-      value_ = VariableType(std::forward<Param>(param)...);
-    else if (type == FUNCTION)
-      value_ = AliasType(std::forward<Param>(param)...);
-    else if (type == TYPE_ALIAS)
-      value_ = FunctionType(std::forward<Param>(param)...);
-  }
-
   EntryType GetType() const noexcept { return type_; }
 
   template <class T>
   T &GetValue() {
     return std::get<T>(value_);
   }
+
+  template <class T, class... Param>
+  void SetValue(Param &&... param) {
+    value_ = T(std::forward<Param>(param)...);
+  }
 };
+
+template <EntryType T, class... Param>
+TableEntry BuildEntry(Param &&... param) {
+  TableEntry entry(T);
+  if constexpr (T == VARIABLE || T == ARRAY)
+    entry.SetValue<VariableType>(std::forward<Param>(param)...);
+  else if constexpr (T == TYPE_ALIAS)
+    entry.SetValue<AliasType>(std::forward<Param>(param)...);
+  else if constexpr (T == FUNCTION)
+    entry.SetValue<FunctionType>(std::forward<Param>(param)...);
+  return entry;
+}
 
 #endif  // ENTRY_H_
