@@ -103,16 +103,17 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
       cv = DoOperation(op, std::get<double>(lcv), std::get<double>(rcv));
     }
   }
+  delete lhs;
+  delete rhs;
   node->semantic_value = cv;
   return node;
 }
 
-AstNode *MakeTypeNode(DataType type, const Location& loc) {
-  AstNode *type_node = new AstNode(TYPE_NODE, loc);
+AstNode* MakeTypeNode(DataType type, std::string&& s, const Location& loc) {
+  AstNode* type_node = new AstNode(TYPE_NODE, loc);
   type_node->data_type = type;
   if (type == UNKNOWN_TYPE) {
-    // type_node->semantic_value.identifier_semantic_value.identifier_name;
-    // TODO
+    type_node->semantic_value = TypeSpecSemanticValue{s};
   }
   return type_node;
 }
@@ -267,7 +268,7 @@ function_decl:
     $$ = MakeDeclNode(FUNCTION_DECL, @$);
     AstNode *param = MakeChild(new AstNode(PARAM_LIST_NODE, @4), $4);
     DataType type = GetTypedefValue($1);
-    MakeChild($$, {MakeTypeNode(type, @1), MakeIDNode($2, NORMAL_ID, @2), param, $7});
+    MakeChild($$, {MakeTypeNode(type, std::move($1), @1), MakeIDNode($2, NORMAL_ID, @2), param, $7});
   };
 
 param_list:
@@ -290,14 +291,14 @@ param:
     if (type == VOID_TYPE) {
       throw yy::parser::syntax_error(@$, "parameter \'" + $2 + "\' has incomplete type");
     }
-    MakeChild($$, {MakeTypeNode(type, @1), MakeIDNode($2, NORMAL_ID, @2)});
+    MakeChild($$, {MakeTypeNode(type, std::move($1), @1), MakeIDNode($2, NORMAL_ID, @2)});
   } |
   IDENTIFIER IDENTIFIER dim_fn {
     /* e.g., int a[3], float b[][5], my_type c[][12][34] */
     $$ = MakeDeclNode(FUNCTION_PARAMETER_DECL, @$);
     AstNode *identifier = MakeIDNode($2, ARRAY_ID, @2);
     MakeChild(identifier, $3);
-    MakeChild($$, {MakeTypeNode(GetTypedefValue($1), @1), identifier});
+    MakeChild($$, {MakeTypeNode(GetTypedefValue($1), std::move($1), @1), identifier});
   };
 
 dim_fn:
@@ -353,7 +354,7 @@ decl:
 type_decl:
   R_TYPEDEF IDENTIFIER id_list S_SEMICOLON {
     $$ = MakeDeclNode(TYPE_DECL, @$);
-    $3.push_front(MakeTypeNode(GetTypedefValue($2), @2));
+    $3.push_front(MakeTypeNode(GetTypedefValue($2), std::move($2), @2));
     MakeChild($$, std::move($3));
   };
 
@@ -362,11 +363,14 @@ var_decl:
     $$ = MakeDeclNode(VARIABLE_DECL, @$);
     DataType type = GetTypedefValue($1);
     if (type == VOID_TYPE) {
-      AstNode *var = *$2.begin();
-      const std::string &identifier_name = std::get<IdentifierSemanticValue>(var->semantic_value).identifier_name;
-      throw yy::parser::syntax_error(@$, "variable or field \'" + identifier_name + "\' declared void");
+      AstNode* var = *$2.begin();
+      const std::string& identifier_name =
+          std::get<IdentifierSemanticValue>(var->semantic_value)
+              .identifier_name;
+      throw yy::parser::syntax_error(
+          @$, "variable or field \'" + identifier_name + "\' declared void");
     }
-    $2.push_front(MakeTypeNode(GetTypedefValue($1), @1));
+    $2.push_front(MakeTypeNode(GetTypedefValue($1), std::move($1), @1));
     MakeChild($$, std::move($2));
   };
 

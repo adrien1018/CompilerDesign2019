@@ -146,7 +146,7 @@ struct AstNode {
   DataType data_type;
   Location loc;
   std::variant<IdentifierSemanticValue, StmtSemanticValue, DeclSemanticValue,
-               ExprSemanticValue, ConstValue>
+               ExprSemanticValue, ConstValue, TypeSpecSemanticValue>
       semantic_value;
 
   AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
