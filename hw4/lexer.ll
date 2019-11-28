@@ -45,6 +45,8 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
       case CONST_STRING_TYPE:
         std::get<std::string>(cv) = std::string(text);
         break;
+      default:
+        throw std::invalid_argument("type");
     }
     return node;
   } catch (...) {
@@ -53,12 +55,16 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
 }
 
 #ifdef DEBUG
-#define RETURN_TOKEN(x) printf("Get %s: [%s]\n", #x, YYText()); return yy::parser::make_##x(loc)
-#define RETURN_RESERVED(x) printf("Get reserved word: [%s]\n", YYText()); return yy::parser::make##x(loc)
+#define RETURN_TOKEN(x)                   \
+  printf("Get %s: [%s]\n", #x, YYText()); \
+  return yy::parser::make_##x(loc)
+#define RETURN_RESERVED(x)                       \
+  printf("Get reserved word: [%s]\n", YYText()); \
+  return yy::parser::make##x(loc)
 #else
 #define RETURN_TOKEN(x) return yy::parser::make_##x(loc)
 #define RETURN_RESERVED(x) return yy::parser::symbol_type(x, loc)
-#endif
+#endif  // DEBUG
 
 %}
 

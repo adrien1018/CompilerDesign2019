@@ -28,15 +28,19 @@ static const std::unordered_map<AstType, std::string> kNodeTypeMap = {
     MD_PAIR(CONST_VALUE_NODE),
     MD_PAIR(NONEMPTY_ASSIGN_EXPR_LIST_NODE),
     MD_PAIR(NONEMPTY_RELOP_EXPR_LIST_NODE)};
+
 static const std::unordered_map<DeclKind, std::string> kDeclTypeMap = {
     MD_PAIR(VARIABLE_DECL), MD_PAIR(TYPE_DECL), MD_PAIR(FUNCTION_DECL),
     MD_PAIR(FUNCTION_PARAMETER_DECL)};
+
 static const std::unordered_map<IdentifierKind, std::string> kIdTypeMap = {
     MD_PAIR(NORMAL_ID), MD_PAIR(ARRAY_ID), MD_PAIR(WITH_INIT_ID)};
+
 static const std::unordered_map<DataType, std::string> kDataTypeMap = {
     MD_PAIR(INT_TYPE),     MD_PAIR(FLOAT_TYPE),     MD_PAIR(VOID_TYPE),
     MD_PAIR(INT_PTR_TYPE), MD_PAIR(FLOAT_PTR_TYPE), MD_PAIR(CONST_STRING_TYPE),
     MD_PAIR(NONE_TYPE),    MD_PAIR(UNKNOWN_TYPE)};
+
 static const std::unordered_map<StmtKind, std::string> kStmtTypeMap = {
     MD_PAIR(WHILE_STMT), MD_PAIR(FOR_STMT),     MD_PAIR(ASSIGN_STMT),
     MD_PAIR(IF_STMT),    MD_PAIR(IF_ELSE_STMT), MD_PAIR(FUNCTION_CALL_STMT),
@@ -66,16 +70,13 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
                  std::get<IdentifierSemanticValue>(node->semantic_value).kind);
       break;
     case PARAM_LIST_NODE:
-      break;
     case NULL_NODE:
       break;
     case TYPE_NODE:
       ofs << ' ' << kDataTypeMap.at(node->data_type);
       break;
     case BLOCK_NODE:
-      break;
     case VARIABLE_DECL_LIST_NODE:
-      break;
     case STMT_LIST_NODE:
       break;
     case STMT_NODE:
@@ -109,11 +110,12 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
         case CONST_STRING_TYPE:
           ofs << "\\\"" << std::get<std::string>(cv) << "\\\"";
           break;
+        default:
+          throw std::invalid_argument("node->data_type");
       }
       break;
     }
     case NONEMPTY_ASSIGN_EXPR_LIST_NODE:
-      break;
     case NONEMPTY_RELOP_EXPR_LIST_NODE:
       break;
     default:
@@ -131,7 +133,7 @@ int PrintGVNode(
   PrintLabelString(ofs, node);
   ofs << "\"]\n";
   ++count;
-  if (node->child.size()) {
+  if (!node->child.empty()) {
     int tmp = count;
     count = PrintGVNode(ofs, *node->child.begin(), count, node->child.begin());
     ofs << "node" << current_node_count << " -> node" << tmp
@@ -148,6 +150,8 @@ int PrintGVNode(
   return count;
 }
 
+#ifdef DEBUG
+
 void Debug(AstNode *x) {
   PrintLabelString(std::cout, x);
   if (!x->child.size()) return;
@@ -158,6 +162,8 @@ void Debug(AstNode *x) {
   }
   std::cout << ')';
 }
+
+#endif  // DEBUG
 
 }  // namespace
 

@@ -28,13 +28,13 @@
 
 namespace {
 
-DataType GetDataType(AstNode *a, AstNode *b) {
+DataType GetDataType(AstNode *a, AstNode *b) noexcept {
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
   return FLOAT_TYPE;
 }
 
-DataType GetTypedefValue(const std::string &s) {
+DataType GetTypedefValue(const std::string &s) noexcept {
   if (s == "int") return INT_TYPE;
   if (s == "float") return FLOAT_TYPE;
   if (s == "void") return VOID_TYPE;
@@ -49,32 +49,34 @@ struct Wider {
 template <typename T, typename U>
 typename Wider<T, U>::type DoOperation(BinaryOperator op, T x, U y) {
   using ReturnType = typename Wider<T, U>::type;
+  ReturnType lhs(x), rhs(y);
   switch (op) {
     case BINARY_OP_ADD:
-      return ReturnType(x) + ReturnType(y);
+      return lhs + rhs;
     case BINARY_OP_SUB:
-      return ReturnType(x) - ReturnType(y);
+      return lhs - rhs;
     case BINARY_OP_MUL:
-      return ReturnType(x) * ReturnType(y);
+      return lhs * rhs;
     case BINARY_OP_DIV:
-      return ReturnType(x) / ReturnType(y);
+      return lhs / rhs;
     case BINARY_OP_EQ:
-      return ReturnType(x) == ReturnType(y);
+      return lhs == rhs;
     case BINARY_OP_GE:
-      return ReturnType(x) >= ReturnType(y);
+      return lhs >= rhs;
     case BINARY_OP_LE:
-      return ReturnType(x) <= ReturnType(y);
+      return lhs <= rhs;
     case BINARY_OP_NE:
-      return ReturnType(x) != ReturnType(y);
+      return lhs != rhs;
     case BINARY_OP_GT:
-      return ReturnType(x) > ReturnType(y);
+      return lhs > rhs;
     case BINARY_OP_LT:
-      return ReturnType(x) < ReturnType(y);
+      return lhs < rhs;
     case BINARY_OP_AND:
-      return ReturnType(x) && ReturnType(y);
+      return lhs && rhs;
     case BINARY_OP_OR:
-      return ReturnType(x) || ReturnType(y);
+      return lhs || rhs;
   }
+  return 0;
 }
 
 AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
