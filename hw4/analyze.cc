@@ -8,6 +8,18 @@
 
 namespace {
 
+void BuildBlock(AstNode *block, SymbolTable *tab);
+void BuildVariableDecl(AstNode *var_decl, SymbolTable *tab);
+void BuildInitID(AstNode *init_id, DataType type, SymbolTable *tab);
+void BuildTypedefID(AstNode *id_item, DataType type);
+void BuildTypeDecl(AstNode *type_decl, SymbolTable *tab);
+void BuildStatement(AstNode *stmt, SymbolTable *tab);
+void BuildStmtList(AstNode *stmt_list, SymbolTable *tab);
+void BuildDeclList(AstNode *decl_list, SymbolTable *tab);
+void BuildFunctionDecl(AstNode *func_decl, SymbolTable *tab);
+void BuildGlobalDecl(AstNode *decl, SymbolTable *tab);
+void BuildProgram(AstNode *prog, SymbolTable *tab);
+
 std::vector<size_t> ParseDimDecl(const std::list<AstNode *> &dim_decl) {
   std::vector<size_t> dims;
   for (auto cexpr : dim_decl) {
@@ -86,6 +98,66 @@ VariableType ParseParam(AstNode *param, SymbolTabol *tab) {
   return VariableType(type, std::move(dims));
 }
 
+void BuildStatement(AstNode *stmt, SymbolTable *tab) {
+  if (stmt->node_type == STMT_NODE) {
+    auto &value = std::get<StmtSemanticValue>(stmt->semantic_value);
+    AstNode *sub_stmt = nullptr;
+    switch (value.kind) {
+      case WHILE_STMT:
+      case FOR_STMT:
+      case IF_STMT:
+        sub_stmt = *std::prev(stmt->child.end());
+        BuildStatement(sub_stmt, tab);
+        break;
+      case IF_ELSE_STMT:
+        sub_stmt = *std::prev(std::prev(stmt->child.end()));
+        BuildStatement(sub_stmt, tab);
+        sub_stmt = *std::prev(stmt->child.end());
+        BuildStatement(sub_stmt, tab);
+        break;
+      case ASSIGN_STMT:
+      case FUNCTION_CALL_STMT:
+      case RETURN_STMT:
+        break;
+    }
+  } else {
+    if (stmt->node_type == BLOCK_NODE) BuildBlock(stmt, tab);
+  }
+}
+
+void BuildStmtList(AstNode *stmt_list, SymbolTable *tab) {
+  for (AstNode *stmt : stmt_list->child) BuildStatement(stmt, tab);
+}
+
+void BuildBlock(AstNode *block, SymbolTable *tab) {
+  // TODO: Push scope
+  for (AstNode *node : block->child) {
+    if (node->node_type == STMT_LIST_NODE) BuildStmtList(node, tab);
+    if (node->node_type == VARIABLE_DECL_LIST_NODE) BuildDeclList(node, tab);
+  }
+  // TODO: Pop scope
+}
+
+void BuildDeclList(AstNode *decl_list, SymbolTable *tab) {
+  for (auto it = decl_list->child.begin(); it != decl_list->child.end(); ++it) {
+    AstNode *child = *it;
+    try {
+      DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
+      if (kind == VARIABLE_DECL) {
+        BuildVariableDecl(child, tab);
+      } else if (kind == TYPE_DECL) {
+        BuildTypeDecl(child, tab);
+      } else {
+        throw std::invalid_argument(
+            "Function parameter declaration or function declaration in decl "
+            "list");
+      }
+    } catch (...) {
+      throw;
+    }
+  }
+}
+
 void BuildFunctionDecl(AstNode *func_decl, SymbolTable *tab) {
   auto it = func_decl->child.begin();
   AstNode *type_node = *it++;
@@ -100,6 +172,7 @@ void BuildFunctionDecl(AstNode *func_decl, SymbolTable *tab) {
     param_list.push_back(ParseParam(param, tab));
   }
   // TODO: insert function declaration into the symbol table
+  BuildBlock(*std::prev(func_decl->child.end()), tab);
 }
 
 void BuildGlobalDecl(AstNode *decl, SymbolTable *tab) {
