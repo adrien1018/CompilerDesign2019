@@ -370,8 +370,8 @@ var_decl:
     if (type == VOID_TYPE) {
       AstNode* var = *$2.begin();
       const std::string& identifier_name =
-          std::get<IdentifierSemanticValue>(var->semantic_value)
-              .identifier_name;
+          std::get<std::string>(std::get<IdentifierSemanticValue>(var->semantic_value)
+              .identifier);
       throw yy::parser::syntax_error(
           @$, "variable or field \'" + identifier_name + "\' declared void");
     }

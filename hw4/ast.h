@@ -127,12 +127,12 @@ struct DeclSemanticValue {
 struct SymbolAttribute;
 
 struct IdentifierSemanticValue {
-  std::string identifier_name;
+  std::variant<std::string, size_t> identifier;
   IdentifierKind kind;
 };
 
 struct TypeSpecSemanticValue {
-  std::string type_name;
+  std::variant<std::string, DataType> type;
 };
 
 using ConstValue = std::variant<int, FloatType, std::string>;
@@ -150,6 +150,14 @@ struct AstNode {
   AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
   AstNode(AstType type, const Location& loc)
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
+};
+
+struct SemanticError {
+  enum ErrorType {
+    VAR_REDECL
+  };
+  Location loc1, loc2;
+  std::string infor; // ?
 };
 
 #endif  // AST_H_

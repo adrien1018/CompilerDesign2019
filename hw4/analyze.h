@@ -1,8 +1,10 @@
 #ifndef ANALYZE_H_
 #define ANALYZE_H_
 
-#include "ast.h"
+#include "entry.h"
+#include "symtab.h"
 
-SymbolTable *BuildSymbolTable(AstNode *prog);
+std::pair<std::vector<TableEntry>, std::vector<SemanticError>>
+    BuildSymbolTable(AstNode* prog);
 
 #endif  // ANALYZE_H_

@@ -31,10 +31,16 @@ struct FunctionType {
   DataType return_type;
   std::vector<VariableType> params;
 
+  FunctionType() = default;
+  FunctionType(DataType type, std::vector<VariableType>&& params)
+      : return_type(type), params(params) {}
+
   DataType GetReturnType() const noexcept { return return_type; }
 };
 
 enum EntryType { VARIABLE, ARRAY, FUNCTION, TYPE_ALIAS };
+
+// TODO: Simplify code here
 
 class TableEntry {
  private:
@@ -46,8 +52,10 @@ class TableEntry {
   TableEntry(EntryType type) : type_(type) {}
   EntryType GetType() const noexcept { return type_; }
 
-  template <class T>
-  T &GetValue() {
+  template <class T> T& GetValue() {
+    return std::get<T>(value_);
+  }
+  template <class T> const T& GetValue() const {
     return std::get<T>(value_);
   }
 

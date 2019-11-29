@@ -63,8 +63,8 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
       break;
     case IDENTIFIER_NODE:
       ofs << ' '
-          << std::get<IdentifierSemanticValue>(node->semantic_value)
-                 .identifier_name
+          << std::get<std::string>(std::get<IdentifierSemanticValue>(
+                  node->semantic_value).identifier)
           << ' '
           << kIdTypeMap.at(
                  std::get<IdentifierSemanticValue>(node->semantic_value).kind);
