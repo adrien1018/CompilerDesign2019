@@ -40,7 +40,7 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
         std::get<int>(cv) = atoi(text);
         break;
       case FLOAT_TYPE:
-        std::get<double>(cv) = atof(text);
+        std::get<FloatType>(cv) = atof(text);
         break;
       case CONST_STRING_TYPE:
         std::get<std::string>(cv) = std::string(text);

@@ -43,7 +43,12 @@ DataType GetTypedefValue(const std::string &s) noexcept {
 
 template <typename T, typename U>
 struct Wider {
-  using type = typename std::conditional<sizeof(T) >= sizeof(U), T, U>::type;
+  using type = FloatType;
+};
+
+template <>
+struct Wider<int, int> {
+  using type = int;
 };
 
 template <typename T, typename U>
@@ -94,13 +99,13 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
     if (rhs->data_type == INT_TYPE) {
       cv = DoOperation(op, std::get<int>(lcv), std::get<int>(rcv));
     } else {
-      cv = DoOperation(op, std::get<int>(lcv), std::get<double>(rcv));
+      cv = DoOperation(op, std::get<int>(lcv), std::get<FloatType>(rcv));
     }
   } else {
     if (rhs->data_type == INT_TYPE) {
-      cv = DoOperation(op, std::get<double>(lcv), std::get<int>(rcv));
+      cv = DoOperation(op, std::get<FloatType>(lcv), std::get<int>(rcv));
     } else {
-      cv = DoOperation(op, std::get<double>(lcv), std::get<double>(rcv));
+      cv = DoOperation(op, std::get<FloatType>(lcv), std::get<FloatType>(rcv));
     }
   }
   delete lhs;

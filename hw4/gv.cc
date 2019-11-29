@@ -105,7 +105,7 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
           ofs << std::get<int>(cv);
           break;
         case FLOAT_TYPE:
-          ofs << std::get<double>(cv);
+          ofs << std::get<FloatType>(cv);
           break;
         case CONST_STRING_TYPE:
           ofs << "\\\"" << std::get<std::string>(cv) << "\\\"";

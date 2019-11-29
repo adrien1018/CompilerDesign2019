@@ -6,6 +6,8 @@
 #include <string>
 #include <variant>
 
+using FloatType = double;
+
 struct Location {
   struct Position {
     size_t line, column, offset;
@@ -107,19 +109,15 @@ enum AstType {
   NONEMPTY_RELOP_EXPR_LIST_NODE
 };
 
-//*************************
-// AstNode's semantic value
-//*************************
-
 struct StmtSemanticValue {
   StmtKind kind;
 };
 
 struct ExprSemanticValue {
   ExprKind kind;
-  int is_const_eval;
+  bool is_const_eval;
   std::variant<BinaryOperator, UnaryOperator> op;
-  std::variant<int, double> const_eval;
+  std::variant<int, FloatType> const_eval;
 };
 
 struct DeclSemanticValue {
@@ -137,7 +135,7 @@ struct TypeSpecSemanticValue {
   std::string type_name;
 };
 
-using ConstValue = std::variant<int, double, std::string>;
+using ConstValue = std::variant<int, FloatType, std::string>;
 
 struct AstNode {
   std::list<AstNode*> child;
