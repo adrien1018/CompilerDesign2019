@@ -28,7 +28,7 @@
 
 namespace {
 
-DataType GetDataType(AstNode *a, AstNode *b) noexcept {
+DataType MixDataType(AstNode *a, AstNode *b) noexcept {
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
   return FLOAT_TYPE;
@@ -91,7 +91,7 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
   if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE)
     throw yy::parser::syntax_error(loc, "");
   AstNode* node = new AstNode(CONST_VALUE_NODE, loc);
-  node->data_type = GetDataType(lhs, rhs);
+  node->data_type = MixDataType(lhs, rhs);
   ConstValue& lcv = std::get<ConstValue>(lhs->semantic_value);
   ConstValue& rcv = std::get<ConstValue>(rhs->semantic_value);
   ConstValue cv{};
@@ -409,19 +409,19 @@ dim_decl:
 cexpr:
   cexpr O_ADDITION cexpr {
     $$ = MergeConstNode(BINARY_OP_ADD, $1, $3, @$);
-    /* $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3}); */
+    /* $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3}); */
   } |
   cexpr O_SUBTRACTION cexpr {
     $$ = MergeConstNode(BINARY_OP_SUB, $1, $3, @$);
-    // $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
+    // $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
   } |
   cexpr O_MULTIPLICATION cexpr {
     $$ = MergeConstNode(BINARY_OP_MUL, $1, $3, @$);
-    // $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
+    // $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
   } |
   cexpr O_DIVISION cexpr {
     $$ = MergeConstNode(BINARY_OP_DIV, $1, $3, @$);
-    // $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
+    // $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
   } |
   CONST {
     $$ = $1;
@@ -553,16 +553,16 @@ relop_expr:
     $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_NE, @$, {$1, $3});
   } |
   relop_expr O_ADDITION relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_ADD, @$, {$1, $3});
   } |
   relop_expr O_SUBTRACTION relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_SUB, @$, {$1, $3});
   } |
   relop_expr O_MULTIPLICATION relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_MUL, @$, {$1, $3});
   } |
   relop_expr O_DIVISION relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, GetDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, MixDataType($1, $3), BINARY_OP_DIV, @$, {$1, $3});
   } |
   unifact {
     $$ = $1;
