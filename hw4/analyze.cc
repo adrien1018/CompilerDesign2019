@@ -2,10 +2,13 @@
 
 #include <cassert>
 #include <stdexcept>
+#include <utility>
 
 namespace {
 
 void BuildBlock(AstNode* block, SymTab& tab, SymMap& mp, ErrList& err);
+void BuildRelopExpr(AstNode* expr, SymTab& tab, SymMap& mp, ErrList& err);
+void BuildStatement(AstNode* stmt, SymTab& tab, SymMap& mp, ErrList& err);
 
 // TODO: Parse all assignment to convert identifier name to ID
 // Note that in initialized declaration, value must be parsed before declaration
@@ -22,7 +25,7 @@ inline DataType QueryType(AstNode* nd, const SymTab& tab, const SymMap& mp,
   }
 }
 
-inline void InsertSymTab(std::variant<std::string, size_t> id,
+inline void InsertSymTab(std::variant<std::string, size_t>& id,
                          TableEntry&& entry, SymTab& tab, SymMap& mp,
                          ErrList& err) {
   auto id_num = mp.Insert(std::move(std::get<std::string>(id)));
@@ -113,27 +116,142 @@ VariableType ParseParam(AstNode* param, SymTab& tab, SymMap& mp, ErrList& err) {
   return VariableType(type, std::move(dims));
 }
 
+std::optional<SemanticError> CheckVarRef(AstNode* node, SymTab& tab,
+                                         SymMap& mp) {
+  auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
+  const std::string& name = std::get<std::string>(value.identifier);
+  size_t id = mp.Query(name);
+  if (id == SymMap::npos) {
+    // TODO: Error - `name` undeclared.
+  } else {
+    const TableEntry& entry = tab[id];
+    if (entry.GetType() != VARIABLE) {
+      // TODO: Error - `name` should be declared as variable.
+    }
+    const VariableType& var = entry.GetValue<VariableType>();
+    if (value.kind == NORMAL_ID) {
+      if (var.IsArray()) {
+        // TODO: Error
+      }
+    } else {
+      if (node->child.size() != var.GetDimension()) {
+        // TODO: Error
+      }
+    }
+    value.identifier = id;
+  }
+  return {};
+}
+
+std::optional<SemanticError> CheckFunctionCall(AstNode* node, SymTab& tab,
+                                               SymMap& mp) {
+  assert(node->node_type == STMT_NODE);
+  AstNode* id_node = *node->child.begin();
+  auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
+  const std::string& name = std::get<std::string>(value.identifier);
+  size_t id = mp.Query(name);
+  if (id == SymMap::npos) {
+    // TODO: Error - `name` undeclared.
+  }
+  const TableEntry& entry = tab[id];
+  if (entry.GetType() != FUNCTION) {
+    // TODO: Error - `name` should be declared as function.
+  }
+  const FunctionType& func = entry.GetValue<FunctionType>();
+  AstNode* relop_expr_list = *std::next(node->child.begin());
+  return {};
+}
+
+void BuildRelopExpr(AstNode* expr, SymTab& tab, SymMap& mp, ErrList& err) {
+  switch (expr->node_type) {
+    case EXPR_NODE: {
+      for (AstNode* operand : expr->child) {
+        BuildRelopExpr(operand, tab, mp, err);
+      }
+      break;
+    }
+    case IDENTIFIER_NODE: {
+      std::optional<SemanticError> error = CheckVarRef(expr, tab, mp);
+      if (error.has_value()) {
+        err.push_back(std::move(error.value()));
+        // TODO: Should we skip analyzing the dimensions of the array?
+      }
+      for (AstNode* dim : expr->child) BuildRelopExpr(dim, tab, mp, err);
+      break;
+    }
+    case STMT_NODE: {
+      BuildStatement(expr, tab, mp, err);
+      break;
+    }
+  }
+}
+
+void BuildAssignExpr(AstNode* expr, SymTab& tab, SymMap& mp, ErrList& err) {
+  if (expr->node_type == STMT_NODE &&
+      std::get<StmtSemanticValue>(expr->semantic_value).kind == ASSIGN_STMT) {
+    AstNode* id_node = *expr->child.begin();
+    std::optional<SemanticError> error = CheckVarRef(id_node, tab, mp);
+    if (error.has_value()) err.push_back(std::move(error.value()));
+    BuildRelopExpr(*std::next(expr->child.begin()), tab, mp, err);
+  } else {
+    BuildRelopExpr(expr, tab, mp, err);
+  }
+}
+
+void BuildRelopExprList(AstNode* relop_expr_list, SymTab& tab, SymMap& mp,
+                        ErrList& err) {
+  for (AstNode* expr : relop_expr_list->child) {
+    BuildRelopExpr(expr, tab, mp, err);
+  }
+}
+
+void BuildAssignExprList(AstNode* assign_expr_list, SymTab& tab, SymMap& mp,
+                         ErrList& err) {
+  for (AstNode* expr : assign_expr_list->child) {
+    BuildAssignExpr(expr, tab, mp, err);
+  }
+}
+
 void BuildStatement(AstNode* stmt, SymTab& tab, SymMap& mp, ErrList& err) {
   if (stmt->node_type == STMT_NODE) {
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
-    AstNode* sub_stmt = nullptr;
     switch (value.kind) {
       case WHILE_STMT:
-      case FOR_STMT:
-      case IF_STMT:
-        sub_stmt = *std::prev(stmt->child.end());
+      case IF_STMT: {
+        AstNode* relop_expr = *stmt->child.begin();
+        BuildRelopExpr(relop_expr, tab, mp, err);
+        AstNode* sub_stmt = *std::next(stmt->child.begin());
         BuildStatement(sub_stmt, tab, mp, err);
         break;
-      case IF_ELSE_STMT:
-        sub_stmt = *std::prev(std::prev(stmt->child.end()));
-        BuildStatement(sub_stmt, tab, mp, err);
-        sub_stmt = *std::prev(stmt->child.end());
-        BuildStatement(sub_stmt, tab, mp, err);
+      }
+      case FOR_STMT: {
+        auto it = stmt->child.begin();
+        BuildAssignExprList(*it++, tab, mp, err);
+        BuildRelopExprList(*it++, tab, mp, err);
+        BuildAssignExprList(*it++, tab, mp, err);
+        BuildStatement(*it++, tab, mp, err);
         break;
-      case ASSIGN_STMT:
-      case FUNCTION_CALL_STMT:
-      case RETURN_STMT:
+      }
+      case IF_ELSE_STMT: {
+        auto it = stmt->child.begin();
+        BuildRelopExpr(*it++, tab, mp, err);
+        BuildStatement(*it++, tab, mp, err);
+        BuildStatement(*it++, tab, mp, err);
         break;
+      }
+      case ASSIGN_STMT: {
+        BuildAssignExpr(stmt, tab, mp, err);
+        break;
+      }
+      case FUNCTION_CALL_STMT: {
+        std::optional<SemanticError> error = CheckFunctionCall(stmt, tab, mp);
+        if (error.has_value()) err.push_back(std::move(error.value()));
+        break;
+      }
+      case RETURN_STMT: {
+        BuildRelopExpr(*stmt->child.begin(), tab, mp, err);
+        break;
+      }
     }
   } else {
     if (stmt->node_type == BLOCK_NODE) BuildBlock(stmt, tab, mp, err);
@@ -215,12 +333,21 @@ void BuildProgram(AstNode* prog, SymTab& tab, SymMap& mp, ErrList& err) {
 
 void AnalyzeBlock(AstNode* block, const SymTab& tab, ErrList& err);
 void AnalyzeStatement(AstNode* stmt, const SymTab& tab, ErrList& err);
+void AnalyzeRelopExpr(AstNode* expr, const SymTab& tab, ErrList& err);
 
 void AnalyzeVarRef(AstNode* var, const SymTab& tab, ErrList& err) {
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
   switch (value.kind) {
     case NORMAL_ID:
-    case ARRAY_ID:
+    case ARRAY_ID: {
+      for (AstNode* expr : var->child) {
+        AnalyzeRelopExpr(expr, tab, err);
+        if (expr->data_type != INT_TYPE) {
+          // TODO: Error - array subscript is not an integer.
+        }
+      }
+      break;
+    }
   }
 }
 
@@ -256,26 +383,28 @@ void AnalyzeWhileStmt(AstNode* stmt, const SymTab& tab, ErrList& err) {
   AnalyzeStatement(*std::next(stmt->child.begin()), tab, err);
 }
 
+void AnalyzeForStmt(AstNode* stmt, const SymTab& tab, ErrList& err) {}
+
 void AnalyzeStatement(AstNode* stmt, const SymTab& tab, ErrList& err) {
   if (stmt->node_type == STMT_NODE) {
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
     AstNode* sub_stmt = nullptr;
     switch (value.kind) {
       case WHILE_STMT:
-        AnalzeWhileStmt(stmt, tab, err);
+        AnalyzeWhileStmt(stmt, tab, err);
         break;
       case FOR_STMT:
-        AnalzeForStmt(stmt, tab, err);
+        AnalyzeForStmt(stmt, tab, err);
         break;
       case IF_STMT:
         sub_stmt = *std::prev(stmt->child.end());
-        BuildStatement(sub_stmt, tab, mp, err);
+        // BuildStatement(sub_stmt, tab, mp, err);
         break;
       case IF_ELSE_STMT:
         sub_stmt = *std::prev(std::prev(stmt->child.end()));
-        BuildStatement(sub_stmt, tab, mp, err);
+        // BuildStatement(sub_stmt, tab, mp, err);
         sub_stmt = *std::prev(stmt->child.end());
-        BuildStatement(sub_stmt, tab, mp, err);
+        // BuildStatement(sub_stmt, tab, mp, err);
         break;
       case ASSIGN_STMT:
       case FUNCTION_CALL_STMT:
@@ -283,13 +412,15 @@ void AnalyzeStatement(AstNode* stmt, const SymTab& tab, ErrList& err) {
         break;
     }
   } else {
-    if (stmt->node_type == BLOCK_NODE) AnalyzeBlock(stmt, tab, mp, err);
+    if (stmt->node_type == BLOCK_NODE) AnalyzeBlock(stmt, tab, err);
   }
 }
 
 void AnalyzeStmtList(AstNode* stmt_list, const SymTab& tab, ErrList& err) {
   for (AstNode* stmt : stmt_list->child) AnalyzeStatement(stmt, tab, err);
 }
+
+void AnalyzeDeclList(AstNode* decl_list, const SymTab& tab, ErrList& err) {}
 
 void AnalyzeBlock(AstNode* block, const SymTab& tab, ErrList& err) {
   for (AstNode* node : block->child) {

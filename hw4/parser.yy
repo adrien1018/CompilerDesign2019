@@ -617,11 +617,11 @@ var_ref:
   };
 
 dim_list:
-  dim_list S_L_BRACKET cexpr S_R_BRACKET {
+  dim_list S_L_BRACKET relop_expr S_R_BRACKET {
     $$ = std::move($1);
     $$.push_back($3);
   } |
-  S_L_BRACKET cexpr S_R_BRACKET {
+  S_L_BRACKET relop_expr S_R_BRACKET {
     $$ = {$2};
   };
 
