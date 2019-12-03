@@ -32,26 +32,20 @@ inline void Step(Location& loc, const char* yytext, int yyleng) {
 AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
   AstNode *node = new AstNode(CONST_VALUE_NODE, loc);
   node->data_type = type;
-  node->semantic_value = ConstValue();
-  try {
-    ConstValue &cv = std::get<ConstValue>(node->semantic_value);
-    switch (type) {
-      case INT_TYPE:
-        std::get<int>(cv) = atoi(text);
-        break;
-      case FLOAT_TYPE:
-        std::get<FloatType>(cv) = atof(text);
-        break;
-      case CONST_STRING_TYPE:
-        std::get<std::string>(cv) = std::string(text);
-        break;
-      default:
-        throw std::invalid_argument("type");
-    }
-    return node;
-  } catch (...) {
-    throw;
+  ConstValue cv;
+  switch (type) {
+    case INT_TYPE:
+      cv = atoi(text);
+      break;
+    case FLOAT_TYPE:
+      cv = FloatType(atof(text));
+      break;
+    case CONST_STRING_TYPE:
+      cv = std::string(text);
+      break;
   }
+  node->semantic_value = cv;
+  return node;
 }
 
 #ifdef DEBUG

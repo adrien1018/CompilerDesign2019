@@ -5,6 +5,24 @@
 #include <stdexcept>
 #include <utility>
 
+/*** Note
+ * Errors being caught in the first pass:
+ *  - 1.a ID <name> undeclared.
+ *  - 1.b ID <name> redeclared.
+ *  - 2.a too few (many) arguments to function <name>
+ *  - 3.a Incompatible array dimensions.
+ *
+ * Errors that should be caught in the second pass:
+ *  - 2.b Incompatible return type (warning).
+ *  - 3.b Array subscript is not an integer
+ *  - 3.c Array <name> passed to scalar parameter <name>. / Scalar <name> passed
+ * to array parameter <name>.
+ */
+
+// TODO: Catch errors in the second pass.
+// TODO: Catch more errors that requested in the spec.
+// TODO: Under what conditions shall we ignore the errors and keep analyzing?
+
 namespace {
 
 void BuildBlock(AstNode* block, SymTab& tab, SymMap& mp, ErrList& err);
@@ -19,9 +37,10 @@ inline DataType QueryType(AstNode* nd, const SymTab& tab, const SymMap& mp,
                           ErrList& err) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
   try {
-    std::string type_name;
-    size_t id = mp.Query(std::get<std::string>(value.type));
+    std::string type_name = std::get<std::string>(value.type);
+    size_t id = mp.Query(type_name);
     if (id == SymMap::npos) {
+      std::cerr << "[Error] type " << type_name << " undeclared" << std::endl;
       err.emplace_back(/* TODO: undeclared */);
       return UNKNOWN_TYPE;
     } else {
@@ -72,9 +91,14 @@ std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl,
 
 void BuildInitID(AstNode* init_id, DataType type, SymTab& tab, SymMap& mp,
                  ErrList& err) {
+  std::cerr << "BuildInitID" << std::endl;
   assert(init_id->node_type == IDENTIFIER_NODE);
   auto& value = std::get<IdentifierSemanticValue>(init_id->semantic_value);
   if (value.kind == NORMAL_ID || value.kind == WITH_INIT_ID) {
+    if (value.kind == WITH_INIT_ID) {
+      AstNode* init_val = *init_id->child.begin();
+      BuildRelopExpr(init_val, tab, mp, err);
+    }
     InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type), tab, mp, err);
   } else {
     std::vector<size_t> dims = ParseDimDecl(init_id->child, err);
@@ -85,6 +109,7 @@ void BuildInitID(AstNode* init_id, DataType type, SymTab& tab, SymMap& mp,
 
 void BuildVariableDecl(AstNode* var_decl, SymTab& tab, SymMap& mp,
                        ErrList& err) {
+  std::cerr << "BuildVariableDecl" << std::endl;
   assert(!var_decl->child.empty());
   AstNode* type_node = *var_decl->child.begin();
   DataType type = QueryType(type_node, tab, mp, err);
@@ -133,6 +158,7 @@ VariableType ParseParam(AstNode* param, SymTab& tab, SymMap& mp, ErrList& err) {
 }
 
 void BuildVarRef(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
+  std::cerr << "BuildVarRef" << std::endl;
   auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
   size_t id = mp.Query(name);
@@ -148,7 +174,10 @@ void BuildVarRef(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
     }
     const VariableType& var = entry.GetValue<VariableType>();
     if (node->child.size() != var.GetDimension()) {
-    std::cerr << "[Error] " << name << " undeclared" << std::endl;
+      if (var.IsArray())
+        std::cerr << "[Error] Incompatible array dimensions" << std::endl;
+      else
+        std::cerr << "[Error] " << name << " undeclared" << std::endl;
       // TODO: Error
     }
     value.identifier = id;
@@ -157,6 +186,7 @@ void BuildVarRef(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
 }
 
 void BuildFunctionCall(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
+  std::cerr << "BuildFunctionCall" << std::endl;
   assert(node->node_type == STMT_NODE);
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
@@ -174,6 +204,18 @@ void BuildFunctionCall(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
   }
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
+  if (size_t num_param = relop_expr_list->child.size();
+      num_param != func.NumParam()) {
+    if (num_param > func.NumParam()) {
+      std::cerr << "[Error] too many arguments to function " << name
+                << std::endl;
+      // TODO: Error - too many arguments to function `name`
+    } else {
+      std::cerr << "[Error] too few arguments to function " << name
+                << std::endl;
+      // TODO: Error - too few arguments to function `name`
+    }
+  }
   BuildRelopExprList(relop_expr_list, tab, mp, err);
 }
 
@@ -222,6 +264,7 @@ void BuildStatement(AstNode* stmt, SymTab& tab, SymMap& mp, ErrList& err) {
     (args(*it++, tab, mp, err), ...);
   };
 
+  std::cerr << "BuildStatement" << std::endl;
   if (stmt->node_type == STMT_NODE) {
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
     switch (value.kind) {
@@ -258,6 +301,7 @@ void BuildStmtList(AstNode* stmt_list, SymTab& tab, SymMap& mp, ErrList& err) {
 }
 
 void BuildDeclList(AstNode* decl_list, SymTab& tab, SymMap& mp, ErrList& err) {
+  std::cerr << "BuildDeclList" << std::endl;
   for (AstNode* child : decl_list->child) {
     DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
     if (kind == VARIABLE_DECL) {
@@ -269,6 +313,7 @@ void BuildDeclList(AstNode* decl_list, SymTab& tab, SymMap& mp, ErrList& err) {
 }
 
 void BuildBlock(AstNode* block, SymTab& tab, SymMap& mp, ErrList& err) {
+  std::cerr << "BuildBlock" << std::endl;
   mp.PushScope();
   for (AstNode* node : block->child) {
     switch (node->node_type) {
@@ -297,45 +342,47 @@ void BuildFunctionDecl(AstNode* func_decl, SymTab& tab, SymMap& mp,
   std::cerr << "func_name = " << std::get<std::string>(func_name) << std::endl;
   std::vector<VariableType> param_list;
   mp.PushScope();  // push scope for the function parameters
-  AstNode *param_list_node = *it++;
+  AstNode* param_list_node = *it++;
   for (AstNode* param : param_list_node->child) {
     std::cerr << "ParseParam" << std::endl;
     param_list.push_back(ParseParam(param, tab, mp, err));
   }
-  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)),
-               tab, mp, err);
   BuildBlock(*it, tab, mp, err);
   mp.PopScope();  // pop scope
+  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)),
+               tab, mp, err);
 }
 
 void BuildGlobalDecl(AstNode* decl, SymTab& tab, SymMap& mp, ErrList& err) {
   std::cerr << "BuildGlobalDecl" << std::endl;
-  for (AstNode* child : decl->child) {
-    assert(child->node_type == DECLARATION_NODE);
-    DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
-    switch (kind) {
-      case VARIABLE_DECL:
-        std::cerr << "VARIABLE_DECL" << std::endl;
-        BuildVariableDecl(child, tab, mp, err);
-        break;
-      case TYPE_DECL:
-        std::cerr << "TYPE_DECL" << std::endl;
-        BuildTypeDecl(child, tab, mp, err);
-        break;
-      case FUNCTION_DECL:
-        std::cerr << "FUNCTION_DECL" << std::endl;
-        BuildFunctionDecl(child, tab, mp, err);
-        break;
-      default:
-        std::cerr << "Wtf" << std::endl;
-        exit(1);
-    }
+  if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
+    for (AstNode* child : decl->child) BuildGlobalDecl(child, tab, mp, err);
+    return;
+  }
+  assert(decl->node_type == DECLARATION_NODE);
+  DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
+  switch (kind) {
+    case VARIABLE_DECL:
+      std::cerr << "VARIABLE_DECL" << std::endl;
+      BuildVariableDecl(decl, tab, mp, err);
+      break;
+    case TYPE_DECL:
+      std::cerr << "TYPE_DECL" << std::endl;
+      BuildTypeDecl(decl, tab, mp, err);
+      break;
+    case FUNCTION_DECL:
+      std::cerr << "FUNCTION_DECL" << std::endl;
+      BuildFunctionDecl(decl, tab, mp, err);
+      break;
+    default:
+      std::cerr << "Wtf" << std::endl;
+      exit(1);
   }
 }
 
 void BuildProgram(AstNode* prog, SymTab& tab, SymMap& mp, ErrList& err) {
   assert(prog->node_type == PROGRAM_NODE);
-  BuildGlobalDecl(prog, tab, mp, err);
+  for (AstNode* decl : prog->child) BuildGlobalDecl(decl, tab, mp, err);
   /* if (!prog->child.empty()) {
     AstNode* decl_list = *prog->child.begin();
     for (AstNode* decl : prog->child) BuildGlobalDecl(decl, tab, mp, err);
@@ -484,6 +531,6 @@ std::pair<SymTab, ErrList> BuildSymbolTable(AstNode* prog) {
   return std::make_pair(std::move(tab), std::move(err));
 }
 
-void SemanticAnalyze(AstNode* prog, const SymTab& tab, ErrList& err) {
+void SemanticAnalysis(AstNode* prog, const SymTab& tab, ErrList& err) {
   AnalyzeProgram(prog, tab, err);
 }

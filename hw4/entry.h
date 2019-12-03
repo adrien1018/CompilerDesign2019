@@ -42,6 +42,7 @@ struct FunctionType {
       : return_type(type), params(params) {}
 
   DataType GetReturnType() const noexcept { return return_type; }
+  size_t NumParam() const noexcept { return params.size(); }
 };
 
 enum EntryType { VARIABLE, ARRAY, FUNCTION, TYPE_ALIAS };
