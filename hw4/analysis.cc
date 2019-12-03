@@ -1,4 +1,4 @@
-#include "analyze.h"
+#include "analysis.h"
 
 #include <cassert>
 #include <stdexcept>
@@ -37,7 +37,8 @@ inline void InsertSymTab(std::variant<std::string, size_t>& id,
   }
 }
 
-std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl) {
+std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl,
+                                 ErrList& err) {
   std::vector<size_t> dims;
   for (auto cexpr : dim_decl) {
     if (cexpr->node_type == NULL_NODE) {
@@ -65,7 +66,7 @@ void BuildInitID(AstNode* init_id, DataType type, SymTab& tab, SymMap& mp,
   if (value.kind == NORMAL_ID || value.kind == WITH_INIT_ID) {
     InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type), tab, mp, err);
   } else {
-    std::vector<size_t> dims = ParseDimDecl(init_id->child);
+    std::vector<size_t> dims = ParseDimDecl(init_id->child, err);
     InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type, std::move(dims)),
                  tab, mp, err);
   }
@@ -108,12 +109,16 @@ void BuildTypeDecl(AstNode* type_decl, SymTab& tab, SymMap& mp, ErrList& err) {
 VariableType ParseParam(AstNode* param, SymTab& tab, SymMap& mp, ErrList& err) {
   DataType type = QueryType(*param->child.begin(), tab, mp, err);
   AstNode* identifier = *std::next(param->child.begin());
-  if (std::get<IdentifierSemanticValue>(identifier->semantic_value).kind ==
-      NORMAL_ID) {
+  auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
+  if (value.kind == NORMAL_ID) {
+    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type), tab, mp, err);
     return VariableType(type);
+  } else {
+    auto dims = ParseDimDecl(identifier->child, err);
+    VariableType res(type, std::move(dims));
+    InsertSymTab(value.identifier, BuildEntry<ARRAY>(res), tab, mp, err);
+    return res;
   }
-  auto dims = ParseDimDecl(identifier->child);
-  return VariableType(type, std::move(dims));
 }
 
 std::optional<SemanticError> CheckVarRef(AstNode* node, SymTab& tab,
@@ -125,18 +130,12 @@ std::optional<SemanticError> CheckVarRef(AstNode* node, SymTab& tab,
     // TODO: Error - `name` undeclared.
   } else {
     const TableEntry& entry = tab[id];
-    if (entry.GetType() != VARIABLE) {
+    if (entry.GetType() != VARIABLE || entry.GetType() != ARRAY) {
       // TODO: Error - `name` should be declared as variable.
     }
     const VariableType& var = entry.GetValue<VariableType>();
-    if (value.kind == NORMAL_ID) {
-      if (var.IsArray()) {
-        // TODO: Error
-      }
-    } else {
-      if (node->child.size() != var.GetDimension()) {
-        // TODO: Error
-      }
+    if (node->child.size() != var.GetDimension()) {
+      // TODO: Error
     }
     value.identifier = id;
   }
@@ -213,30 +212,25 @@ void BuildAssignExprList(AstNode* assign_expr_list, SymTab& tab, SymMap& mp,
 }
 
 void BuildStatement(AstNode* stmt, SymTab& tab, SymMap& mp, ErrList& err) {
+  auto BuildStatementImpl = [&tab, &mp, &err](auto it, auto&... args) {
+    (args(*it++, tab, mp, err), ...);
+  };
+
   if (stmt->node_type == STMT_NODE) {
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
     switch (value.kind) {
       case WHILE_STMT:
-      case IF_STMT: {
-        AstNode* relop_expr = *stmt->child.begin();
-        BuildRelopExpr(relop_expr, tab, mp, err);
-        AstNode* sub_stmt = *std::next(stmt->child.begin());
-        BuildStatement(sub_stmt, tab, mp, err);
+      case IF_STMT:
+        BuildStatementImpl(stmt->child.begin(), BuildRelopExpr, BuildStatement);
         break;
-      }
-      case FOR_STMT: {
-        auto it = stmt->child.begin();
-        BuildAssignExprList(*it++, tab, mp, err);
-        BuildRelopExprList(*it++, tab, mp, err);
-        BuildAssignExprList(*it++, tab, mp, err);
-        BuildStatement(*it++, tab, mp, err);
+      case FOR_STMT:
+        BuildStatementImpl(stmt->child.begin(), BuildAssignExprList,
+                           BuildRelopExprList, BuildAssignExprList,
+                           BuildStatement);
         break;
-      }
       case IF_ELSE_STMT: {
-        auto it = stmt->child.begin();
-        BuildRelopExpr(*it++, tab, mp, err);
-        BuildStatement(*it++, tab, mp, err);
-        BuildStatement(*it++, tab, mp, err);
+        BuildStatementImpl(stmt->child.begin(), BuildRelopExpr, BuildStatement,
+                           BuildStatement);
         break;
       }
       case ASSIGN_STMT: {
@@ -298,17 +292,18 @@ void BuildFunctionDecl(AstNode* func_decl, SymTab& tab, SymMap& mp,
   auto& func_name =
       std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
   std::vector<VariableType> param_list;
+  mp.PushScope();  // push scope for the function parameters
   for (; it != std::prev(func_decl->child.end()); ++it) {
     param_list.push_back(ParseParam(*it, tab, mp, err));
   }
   InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)),
                tab, mp, err);
   BuildBlock(*it, tab, mp, err);
+  mp.PopScope();  // pop scope
 }
 
 void BuildGlobalDecl(AstNode* decl, SymTab& tab, SymMap& mp, ErrList& err) {
-  for (auto it = decl->child.begin(); it != decl->child.end(); ++it) {
-    AstNode* child = *it;
+  for (AstNode* child : decl->child) {
     DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
     switch (kind) {
       case VARIABLE_DECL:

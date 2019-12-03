@@ -1,5 +1,5 @@
-#ifndef ANALYZE_H_
-#define ANALYZE_H_
+#ifndef ANALYSIS_H_
+#define ANALYSIS_H_
 
 #include <utility>
 #include <vector>
@@ -14,6 +14,6 @@ using ErrList = std::vector<SemanticError>;
 std::pair<std::vector<TableEntry>, std::vector<SemanticError>> BuildSymbolTable(
     AstNode *prog);
 
-void SemanticAnalyze(AstNode *prog, const SymTab &tab, ErrList &err);
+void SemanticAnalysis(AstNode *prog, const SymTab &tab, ErrList &err);
 
-#endif  // ANALYZE_H_
+#endif  // ANALYSIS_H_

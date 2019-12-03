@@ -153,11 +153,9 @@ struct AstNode {
 };
 
 struct SemanticError {
-  enum ErrorType {
-    VAR_REDECL
-  };
+  enum ErrorType { VAR_REDECL };
   Location loc1, loc2;
-  std::string infor; // ?
+  std::string infor;  // ?
 };
 
 #endif  // AST_H_
