@@ -20,7 +20,7 @@ struct VariableType {
   DataType GetType() const noexcept { return data_type; }
 };
 
-bool Convertible(const VariableType &a, const VariableType &b) {
+inline bool Convertible(const VariableType &a, const VariableType &b) {
   // Check whether `b` can be implicitly converted to `a`.
   // TODO
   return true;

@@ -1,5 +1,7 @@
-#include <iostream>
 #include <fstream>
+#include <iostream>
+
+#include "analysis.h"
 #include "driver.h"
 #include "gv.h"
 
@@ -10,7 +12,7 @@ void PrintUsage(const char* name) {
             << "       " << name << " [--debug] [-o out_gv] file\n";
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   if (argc < 2) {
     PrintUsage(argc ? argv[0] : "./parser");
     return 1;
@@ -34,6 +36,9 @@ int main(int argc, char *argv[]) {
     } else {
       Driver drv(argv[i]);
       if (drv.Parse(debug) == 0) {
+        if (debug) {
+          auto [tab, err] = BuildSymbolTable(drv.prog);
+        }
         PrintGV(drv.prog, outfile);
         return 0;
       } else {

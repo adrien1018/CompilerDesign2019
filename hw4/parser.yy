@@ -119,6 +119,8 @@ AstNode* MakeTypeNode(DataType type, std::string&& s, const Location& loc) {
   type_node->data_type = type;
   if (type == UNKNOWN_TYPE) {
     type_node->semantic_value = TypeSpecSemanticValue{s};
+  } else {
+    type_node->semantic_value = TypeSpecSemanticValue{type};
   }
   return type_node;
 }
@@ -142,8 +144,6 @@ AstNode* MakeIDNode(const std::string& lexeme, IdentifierKind id_kind,
                     const Location& loc) {
   AstNode* identifier = new AstNode(IDENTIFIER_NODE, loc);
   identifier->semantic_value = IdentifierSemanticValue{lexeme, id_kind};
-  //identifier->semantic_value.identifier_semantic_value.symboltable_entry = NULL;
-  // TODO
   return identifier;
 }
 

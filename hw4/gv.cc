@@ -62,10 +62,15 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
                  std::get<DeclSemanticValue>(node->semantic_value).kind);
       break;
     case IDENTIFIER_NODE:
+      ofs << ' ';
+      try {
+        ofs << std::get<std::string>(
+            std::get<IdentifierSemanticValue>(node->semantic_value).identifier);
+      } catch (const std::bad_variant_access &) {
+        ofs << std::get<size_t>(
+            std::get<IdentifierSemanticValue>(node->semantic_value).identifier);
+      }
       ofs << ' '
-          << std::get<std::string>(std::get<IdentifierSemanticValue>(
-                  node->semantic_value).identifier)
-          << ' '
           << kIdTypeMap.at(
                  std::get<IdentifierSemanticValue>(node->semantic_value).kind);
       break;

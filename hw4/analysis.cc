@@ -1,6 +1,7 @@
 #include "analysis.h"
 
 #include <cassert>
+#include <iostream>
 #include <stdexcept>
 #include <utility>
 
@@ -9,19 +10,26 @@ namespace {
 void BuildBlock(AstNode* block, SymTab& tab, SymMap& mp, ErrList& err);
 void BuildRelopExpr(AstNode* expr, SymTab& tab, SymMap& mp, ErrList& err);
 void BuildStatement(AstNode* stmt, SymTab& tab, SymMap& mp, ErrList& err);
+void BuildRelopExprList(AstNode* relop_expr_list, SymTab& tab, SymMap& mp,
+                        ErrList& err);
 
 // TODO: Parse all assignment to convert identifier name to ID
-// Note that in initialized declaration, value must be parsed before declaration
 
 inline DataType QueryType(AstNode* nd, const SymTab& tab, const SymMap& mp,
                           ErrList& err) {
-  size_t id = mp.Query(std::get<std::string>(
-      std::get<TypeSpecSemanticValue>(nd->semantic_value).type));
-  if (id == SymMap::npos) {
-    err.emplace_back(/* TODO: undeclared */);
-    return UNKNOWN_TYPE;
-  } else {
-    return tab[id].GetValue<AliasType>().canonical_type;
+  auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
+  try {
+    std::string type_name;
+    size_t id = mp.Query(std::get<std::string>(value.type));
+    if (id == SymMap::npos) {
+      err.emplace_back(/* TODO: undeclared */);
+      return UNKNOWN_TYPE;
+    } else {
+      value.type = tab[id].GetValue<AliasType>().canonical_type;
+      return std::get<DataType>(value.type);
+    }
+  } catch (const std::bad_variant_access& e) {
+    return std::get<DataType>(value.type);
   }
 }
 
@@ -33,6 +41,7 @@ inline void InsertSymTab(std::variant<std::string, size_t>& id,
     tab.emplace_back(std::move(entry));
     id = id_num.first;
   } else {
+    std::cerr << "[Error] Redeclaration" << std::endl;
     err.emplace_back(/* TODO: redeclared error */);
   }
 }
@@ -47,11 +56,13 @@ std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl,
     }
     assert(cexpr->node_type == CONST_VALUE_NODE);
     if (cexpr->data_type != INT_TYPE) {
+      std::cerr << "[Error] size of array has non-integer type" << std::endl;
       // TODO: Throw error - size of array has non-integer type.
     }
     ConstValue& cv = std::get<ConstValue>(cexpr->semantic_value);
     int size = std::get<int>(cv);
     if (size < 0) {
+      std::cerr << "[Error] size of array is negative" << std::endl;
       // TODO: Throw error - size of array is negative.
     }
     dims.push_back(size);
@@ -121,67 +132,64 @@ VariableType ParseParam(AstNode* param, SymTab& tab, SymMap& mp, ErrList& err) {
   }
 }
 
-std::optional<SemanticError> CheckVarRef(AstNode* node, SymTab& tab,
-                                         SymMap& mp) {
+void BuildVarRef(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
   auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
   size_t id = mp.Query(name);
   if (id == SymMap::npos) {
+    std::cerr << "[Error] " << name << " undeclared" << std::endl;
     // TODO: Error - `name` undeclared.
   } else {
     const TableEntry& entry = tab[id];
-    if (entry.GetType() != VARIABLE || entry.GetType() != ARRAY) {
+    if (entry.GetType() != VARIABLE && entry.GetType() != ARRAY) {
+      std::cerr << "[Error] " << name << " should be declared as variable"
+                << std::endl;
       // TODO: Error - `name` should be declared as variable.
     }
     const VariableType& var = entry.GetValue<VariableType>();
     if (node->child.size() != var.GetDimension()) {
+    std::cerr << "[Error] " << name << " undeclared" << std::endl;
       // TODO: Error
     }
     value.identifier = id;
   }
-  return {};
+  for (AstNode* dim : node->child) BuildRelopExpr(dim, tab, mp, err);
 }
 
-std::optional<SemanticError> CheckFunctionCall(AstNode* node, SymTab& tab,
-                                               SymMap& mp) {
+void BuildFunctionCall(AstNode* node, SymTab& tab, SymMap& mp, ErrList& err) {
   assert(node->node_type == STMT_NODE);
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
   size_t id = mp.Query(name);
   if (id == SymMap::npos) {
+    std::cerr << "[Error] " << name << " undeclared" << std::endl;
     // TODO: Error - `name` undeclared.
   }
   const TableEntry& entry = tab[id];
   if (entry.GetType() != FUNCTION) {
+    std::cerr << "[Error] " << name << " should be declared as function"
+              << std::endl;
     // TODO: Error - `name` should be declared as function.
   }
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
-  return {};
+  BuildRelopExprList(relop_expr_list, tab, mp, err);
 }
 
 void BuildRelopExpr(AstNode* expr, SymTab& tab, SymMap& mp, ErrList& err) {
   switch (expr->node_type) {
-    case EXPR_NODE: {
+    case EXPR_NODE:
       for (AstNode* operand : expr->child) {
         BuildRelopExpr(operand, tab, mp, err);
       }
       break;
-    }
-    case IDENTIFIER_NODE: {
-      std::optional<SemanticError> error = CheckVarRef(expr, tab, mp);
-      if (error.has_value()) {
-        err.push_back(std::move(error.value()));
-        // TODO: Should we skip analyzing the dimensions of the array?
-      }
-      for (AstNode* dim : expr->child) BuildRelopExpr(dim, tab, mp, err);
+    case IDENTIFIER_NODE:
+      BuildVarRef(expr, tab, mp, err);
       break;
-    }
-    case STMT_NODE: {
+    case STMT_NODE:
       BuildStatement(expr, tab, mp, err);
       break;
-    }
   }
 }
 
@@ -189,9 +197,7 @@ void BuildAssignExpr(AstNode* expr, SymTab& tab, SymMap& mp, ErrList& err) {
   if (expr->node_type == STMT_NODE &&
       std::get<StmtSemanticValue>(expr->semantic_value).kind == ASSIGN_STMT) {
     AstNode* id_node = *expr->child.begin();
-    std::optional<SemanticError> error = CheckVarRef(id_node, tab, mp);
-    if (error.has_value()) err.push_back(std::move(error.value()));
-    BuildRelopExpr(*std::next(expr->child.begin()), tab, mp, err);
+    BuildVarRef(id_node, tab, mp, err);
   } else {
     BuildRelopExpr(expr, tab, mp, err);
   }
@@ -228,24 +234,19 @@ void BuildStatement(AstNode* stmt, SymTab& tab, SymMap& mp, ErrList& err) {
                            BuildRelopExprList, BuildAssignExprList,
                            BuildStatement);
         break;
-      case IF_ELSE_STMT: {
+      case IF_ELSE_STMT:
         BuildStatementImpl(stmt->child.begin(), BuildRelopExpr, BuildStatement,
                            BuildStatement);
         break;
-      }
-      case ASSIGN_STMT: {
+      case ASSIGN_STMT:
         BuildAssignExpr(stmt, tab, mp, err);
         break;
-      }
-      case FUNCTION_CALL_STMT: {
-        std::optional<SemanticError> error = CheckFunctionCall(stmt, tab, mp);
-        if (error.has_value()) err.push_back(std::move(error.value()));
-        break;
-      }
-      case RETURN_STMT: {
+      case RETURN_STMT:
         BuildRelopExpr(*stmt->child.begin(), tab, mp, err);
         break;
-      }
+      case FUNCTION_CALL_STMT:
+        BuildFunctionCall(stmt, tab, mp, err);
+        break;
     }
   } else {
     if (stmt->node_type == BLOCK_NODE) BuildBlock(stmt, tab, mp, err);
@@ -285,16 +286,21 @@ void BuildBlock(AstNode* block, SymTab& tab, SymMap& mp, ErrList& err) {
 
 void BuildFunctionDecl(AstNode* func_decl, SymTab& tab, SymMap& mp,
                        ErrList& err) {
+  std::cerr << "BuildFunctionDecl" << std::endl;
   auto it = func_decl->child.begin();
   AstNode* type_node = *it++;
   DataType type = QueryType(type_node, tab, mp, err);
   AstNode* id_node = *it++;
+  assert(id_node && id_node->node_type == IDENTIFIER_NODE);
   auto& func_name =
       std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
+  std::cerr << "func_name = " << std::get<std::string>(func_name) << std::endl;
   std::vector<VariableType> param_list;
   mp.PushScope();  // push scope for the function parameters
-  for (; it != std::prev(func_decl->child.end()); ++it) {
-    param_list.push_back(ParseParam(*it, tab, mp, err));
+  AstNode *param_list_node = *it++;
+  for (AstNode* param : param_list_node->child) {
+    std::cerr << "ParseParam" << std::endl;
+    param_list.push_back(ParseParam(param, tab, mp, err));
   }
   InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)),
                tab, mp, err);
@@ -303,27 +309,37 @@ void BuildFunctionDecl(AstNode* func_decl, SymTab& tab, SymMap& mp,
 }
 
 void BuildGlobalDecl(AstNode* decl, SymTab& tab, SymMap& mp, ErrList& err) {
+  std::cerr << "BuildGlobalDecl" << std::endl;
   for (AstNode* child : decl->child) {
+    assert(child->node_type == DECLARATION_NODE);
     DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
     switch (kind) {
       case VARIABLE_DECL:
+        std::cerr << "VARIABLE_DECL" << std::endl;
         BuildVariableDecl(child, tab, mp, err);
         break;
       case TYPE_DECL:
+        std::cerr << "TYPE_DECL" << std::endl;
         BuildTypeDecl(child, tab, mp, err);
         break;
       case FUNCTION_DECL:
+        std::cerr << "FUNCTION_DECL" << std::endl;
         BuildFunctionDecl(child, tab, mp, err);
         break;
-      default:;
+      default:
+        std::cerr << "Wtf" << std::endl;
+        exit(1);
     }
   }
 }
 
 void BuildProgram(AstNode* prog, SymTab& tab, SymMap& mp, ErrList& err) {
-  for (auto it = prog->child.begin(); it != prog->child.end(); ++it) {
-    BuildGlobalDecl(*it, tab, mp, err);
-  }
+  assert(prog->node_type == PROGRAM_NODE);
+  BuildGlobalDecl(prog, tab, mp, err);
+  /* if (!prog->child.empty()) {
+    AstNode* decl_list = *prog->child.begin();
+    for (AstNode* decl : prog->child) BuildGlobalDecl(decl, tab, mp, err);
+  } */
 }
 
 void AnalyzeBlock(AstNode* block, const SymTab& tab, ErrList& err);
@@ -338,6 +354,7 @@ void AnalyzeVarRef(AstNode* var, const SymTab& tab, ErrList& err) {
       for (AstNode* expr : var->child) {
         AnalyzeRelopExpr(expr, tab, err);
         if (expr->data_type != INT_TYPE) {
+          std::cerr << "[Error] array subscript is not an integer" << std::endl;
           // TODO: Error - array subscript is not an integer.
         }
       }
@@ -462,6 +479,7 @@ std::pair<SymTab, ErrList> BuildSymbolTable(AstNode* prog) {
   SymTab tab;
   SymMap mp;
   ErrList err;
+  std::cerr << "BuildSymbolTable" << std::endl;
   BuildProgram(prog, tab, mp, err);
   return std::make_pair(std::move(tab), std::move(err));
 }
