@@ -1,7 +1,7 @@
 #include "driver.h"
 
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 
 int Driver::Parse(bool debug) {
   yy::parser parser(*this);

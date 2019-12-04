@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
       Driver drv(argv[i]);
       if (drv.Parse(debug) == 0) {
         if (debug) {
-          auto [tab, err] = BuildSymbolTable(drv.prog);
+          drv.BuildSymbolTable();
         }
         PrintGV(drv.prog, outfile);
         return 0;

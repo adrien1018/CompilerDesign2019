@@ -3,6 +3,8 @@
 
 #include <fstream>
 #include <string>
+
+#include "analysis.h"
 #include "ast.h"
 #include "parser.hh"
 
@@ -23,6 +25,7 @@
 #define YY_DECL yy::parser::symbol_type Driver::yylex_a()
 
 class Driver : public yyFlexLexer {
+ private:
   void SetColor_() { color_output = DRIVER_ISATTY_(DRIVER_FILENO_(stderr)); }
   std::istream* InitStream_(const std::string& str) {
     stream_ = new std::ifstream(str);
@@ -31,6 +34,7 @@ class Driver : public yyFlexLexer {
   std::istream* stream_;
   bool stream_create_;
   std::string filename_;
+  Analyzer analyzer_;
 
  public:
   Driver()
@@ -71,6 +75,9 @@ class Driver : public yyFlexLexer {
 
   void PrintError(const Location& l, const std::string& m);
   yy::parser::symbol_type yylex_a();
+
+  void SemanticAnalysis() { analyzer_.SemanticAnalysis(prog); }
+  void BuildSymbolTable() { analyzer_.BuildSymbolTable(prog); }
 };
 
 inline yy::parser::symbol_type yylex(Driver& drv) { return drv.yylex_a(); }
