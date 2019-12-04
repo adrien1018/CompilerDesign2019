@@ -43,7 +43,6 @@ class Driver : public yyFlexLexer {
         stream_create_(false),
         filename_("<stdin>") {
     SetColor_();
-    filename_ = "<stdin>";
   }
   Driver(std::istream* i = 0, std::ostream* o = 0)
       : yyFlexLexer(i, o),
@@ -68,7 +67,7 @@ class Driver : public yyFlexLexer {
     if (stream_create_) delete stream_;
   }
   Location location;
-  AstNode* prog;
+  AstNode* prog = nullptr;
   bool color_output;
 
   int Parse(bool debug = false);
@@ -76,8 +75,8 @@ class Driver : public yyFlexLexer {
   void PrintError(const Location& l, const std::string& m);
   yy::parser::symbol_type yylex_a();
 
-  void SemanticAnalysis() { analyzer_.SemanticAnalysis(prog); }
   void BuildSymbolTable() { analyzer_.BuildSymbolTable(prog); }
+  void SemanticAnalysis() { analyzer_.SemanticAnalysis(prog); }
 };
 
 inline yy::parser::symbol_type yylex(Driver& drv) { return drv.yylex_a(); }

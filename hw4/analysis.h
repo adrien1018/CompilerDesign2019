@@ -1,11 +1,28 @@
 #ifndef ANALYSIS_H_
 #define ANALYSIS_H_
 
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "entry.h"
 #include "symtab.h"
+
+struct SemanticError {
+  enum ErrorType {
+    VAR_REDECL,          // redeclaration of variable
+    VAR_UNDECL,          // variable undeclared
+    INCOMPAT_ARRAY_DIM,  // incompatible array dimensions
+    TOO_FEW_ARGS,        // too few arguments
+    TOO_MANY_ARGS,       // too many arguments
+  } error;
+  Location loc1, loc2;
+  std::string msg;
+
+  SemanticError() = default;
+  SemanticError(ErrorType err) : error(err) {}
+  SemanticError(ErrorType err, std::string&& s) : error(err), msg(s) {}
+};
 
 class Analyzer {
  public:
@@ -16,6 +33,7 @@ class Analyzer {
   std::vector<SemanticError> err_;
   SymbolMap<std::string> mp_;
   std::vector<TableEntry> tab_;
+  DataType return_type_ = NONE_TYPE;
 
   void BuildProgram(AstNode* prog);
   void BuildGlobalDecl(AstNode* decl);
@@ -44,7 +62,6 @@ class Analyzer {
   void AnalyzeGlobalDecl(AstNode* decl);
   void AnalyzeFunctionDecl(AstNode* func);
   void AnalyzeBlock(AstNode* block);
-  void AnalyzeDeclList(AstNode* decl_list);
   void AnalyzeStmtList(AstNode* stmt_list);
   void AnalyzeStatement(AstNode* stmt);
   void AnalyzeIfStmt(AstNode* stmt);

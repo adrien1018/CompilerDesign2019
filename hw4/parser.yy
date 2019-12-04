@@ -519,9 +519,9 @@ nonempty_assign_expr_list:
   };
 
 assign_expr:
-  IDENTIFIER O_ASSIGN relop_expr {
+  var_ref O_ASSIGN relop_expr {
     $$ = MakeStmtNode(ASSIGN_STMT, @$);
-    MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
+    MakeChild($$, {$1, $3});
   } |
   relop_expr {
     $$ = $1;

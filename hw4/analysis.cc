@@ -30,7 +30,7 @@ DataType Analyzer::BuildType(AstNode* nd) {
     size_t id = mp_.Query(type_name);
     if (id == SymbolMap<std::string>::npos) {
       std::cerr << "[Error] type " << type_name << " undeclared" << std::endl;
-      err_.emplace_back(/* TODO: undeclared */);
+      err_.emplace_back(/* TODO */);
       return UNKNOWN_TYPE;
     } else {
       value.type = tab_[id].GetValue<AliasType>().canonical_type;
@@ -363,6 +363,7 @@ void Analyzer::BuildGlobalDecl(AstNode* decl) {
 }
 
 void Analyzer::BuildProgram(AstNode* prog) {
+  assert(prog);
   assert(prog->node_type == PROGRAM_NODE);
   for (AstNode* decl : prog->child) BuildGlobalDecl(decl);
 }
@@ -509,7 +510,13 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) {
         AnalyzeFunctionCall(stmt);
         break;
       case RETURN_STMT:
-        // TODO
+        DataType type = stmt->child.empty()
+                            ? VOID_TYPE
+                            : (*(stmt->child.begin()))->data_type;
+        if (return_type_ != NONE_TYPE && type != return_type_) {
+          std::cerr << "[Error] Incompatible return type" << std::endl;
+          // TODO: Error - Incompatible return type.
+        }
         break;
     }
   } else {
@@ -521,23 +528,19 @@ void Analyzer::AnalyzeStmtList(AstNode* stmt_list) {
   for (AstNode* stmt : stmt_list->child) AnalyzeStatement(stmt);
 }
 
-void Analyzer::AnalyzeDeclList(AstNode* decl_list) {}
-
 void Analyzer::AnalyzeBlock(AstNode* block) {
   for (AstNode* node : block->child) {
-    switch (node->node_type) {
-      case STMT_LIST_NODE:
-        AnalyzeStmtList(node);
-        break;
-      case VARIABLE_DECL_LIST_NODE:
-        AnalyzeDeclList(node);
-        break;
-    }
+    if (node->node_type == STMT_LIST_NODE) AnalyzeStmtList(node);
   }
 }
 
 void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
+  AstNode* type_node = *func->child.begin();
+  DataType type = std::get<DataType>(
+      std::get<TypeSpecSemanticValue>(type_node->semantic_value).type);
+  return_type_ = type;
   AnalyzeBlock(*std::prev(func->child.end()));
+  return_type_ = NONE_TYPE;
 }
 
 void Analyzer::AnalyzeGlobalDecl(AstNode* decl) {

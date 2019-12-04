@@ -152,10 +152,4 @@ struct AstNode {
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
 
-struct SemanticError {
-  enum ErrorType { VAR_REDECL };
-  Location loc1, loc2;
-  std::string infor;  // ?
-};
-
 #endif  // AST_H_

@@ -35,9 +35,11 @@ int main(int argc, char* argv[]) {
       outfile = argv[i];
     } else {
       Driver drv(argv[i]);
+      exit(0);
       if (drv.Parse(debug) == 0) {
         if (debug) {
           drv.BuildSymbolTable();
+          // drv.SemanticAnalysis();
         }
         PrintGV(drv.prog, outfile);
         return 0;
