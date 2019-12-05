@@ -4,6 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <utility>
+#include <functional>
 
 /*** Note
  * Errors being caught in the first pass:
@@ -249,28 +250,35 @@ void Analyzer::BuildAssignExprList(AstNode* assign_expr_list) {
 
 void Analyzer::BuildStatement(AstNode* stmt) {
   auto BuildStatementImpl = [this](auto it, auto&&... args) {
-    ((this->*args)(*it++), ...);
+    (args(*it++), ...);
   };
 
   std::cerr << "BuildStatement" << std::endl;
   if (stmt->node_type == STMT_NODE) {
+    using namespace std::placeholders;
+    auto Func = [this](auto x, auto&&... args) {
+      return std::bind(x, this, _1, args...);
+    };
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
     switch (value.kind) {
       case WHILE_STMT:
       case IF_STMT:
-        BuildStatementImpl(stmt->child.begin(), &Analyzer::BuildRelopExpr,
-                           &Analyzer::BuildStatement);
+        BuildStatementImpl(stmt->child.begin(),
+                           Func(&Analyzer::BuildRelopExpr, false),
+                           Func(&Analyzer::BuildStatement));
         break;
       case FOR_STMT:
-        BuildStatementImpl(stmt->child.begin(), &Analyzer::BuildAssignExprList,
-                           &Analyzer::BuildRelopExprList,
-                           &Analyzer::BuildAssignExprList,
-                           &Analyzer::BuildStatement);
+        BuildStatementImpl(stmt->child.begin(),
+                           Func(&Analyzer::BuildAssignExprList),
+                           Func(&Analyzer::BuildRelopExprList, false),
+                           Func(&Analyzer::BuildAssignExprList),
+                           Func(&Analyzer::BuildStatement));
         break;
       case IF_ELSE_STMT:
-        BuildStatementImpl(stmt->child.begin(), &Analyzer::BuildRelopExpr,
-                           &Analyzer::BuildStatement,
-                           &Analyzer::BuildStatement);
+        BuildStatementImpl(stmt->child.begin(),
+                           Func(&Analyzer::BuildRelopExpr, false),
+                           Func(&Analyzer::BuildStatement),
+                           Func(&Analyzer::BuildStatement));
         break;
       case ASSIGN_STMT:
         BuildAssignExpr(stmt);
