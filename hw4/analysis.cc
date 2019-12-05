@@ -388,18 +388,61 @@ void Analyzer::AnalyzeVarRef(AstNode* var) {
 
 void Analyzer::AnalyzeFunctionCall(AstNode* node) {}
 
+namespace {
+
+inline DataType MixDataType(DataType a, DataType b) noexcept {
+  if (a == INT_TYPE && b == INT_TYPE) return INT_TYPE;
+  return FLOAT_TYPE;
+}
+
+}  // namespace
+
 void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
   switch (expr->node_type) {
-    case EXPR_NODE:
+    case EXPR_NODE: {
+      std::vector<DataType> types;
       for (AstNode* operand : expr->child) {
         AnalyzeRelopExpr(operand);
+        types.push_back(operand->data_type);
+        assert(operand->data_type != UNKNOWN_TYPE);
         if (operand->data_type == VOID_TYPE) {
           std::cerr << "[Error] void value not ignored as it ought to be."
                     << std::endl;
           // TODO: void value not ignored as it ought to be.
         }
       }
+      auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
+      if (value.kind == BINARY_OPERATION) {
+        assert(types.size() == 2);
+        BinaryOperator op = std::get<BinaryOperator>(value.op);
+        switch (op) {
+          case BINARY_OP_OR:
+          case BINARY_OP_AND:
+          case BINARY_OP_LT:
+          case BINARY_OP_LE:
+          case BINARY_OP_GT:
+          case BINARY_OP_GE:
+          case BINARY_OP_EQ:
+          case BINARY_OP_NE:
+            expr->data_type = INT_TYPE;
+            break;
+          case BINARY_OP_ADD:
+          case BINARY_OP_SUB:
+          case BINARY_OP_MUL:
+          case BINARY_OP_DIV:
+            expr->data_type = MixDataType(types[0], types[1]);
+            break;
+        }
+      } else {
+        assert(types.size() == 1);
+        UnaryOperator op = std::get<UnaryOperator>(value.op);
+        if (op == UNARY_OP_NEGATIVE)
+          expr->data_type = types[0];
+        else
+          expr->data_type = INT_TYPE;
+      }
       break;
+    }
     case IDENTIFIER_NODE:
       AnalyzeVarRef(expr);
       break;

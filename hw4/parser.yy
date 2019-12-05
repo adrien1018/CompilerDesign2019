@@ -28,11 +28,13 @@
 
 namespace {
 
-DataType MixDataType(AstNode *a, AstNode *b) noexcept {
+inline DataType MixDataType(AstNode *a, AstNode *b) noexcept {
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
   return FLOAT_TYPE;
 }
+
+
 
 DataType GetTypedefValue(const std::string &s) noexcept {
   if (s == "int") return INT_TYPE;
