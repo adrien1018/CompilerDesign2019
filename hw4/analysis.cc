@@ -1,10 +1,10 @@
 #include "analysis.h"
 
 #include <cassert>
+#include <functional>
 #include <iostream>
 #include <stdexcept>
 #include <utility>
-#include <functional>
 
 /*** Note
  * Errors being caught in the first pass:
@@ -193,6 +193,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
               << std::endl;
     // TODO: Error - `name` should be declared as function.
   }
+  value.identifier = id;
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   if (size_t num_param = relop_expr_list->child.size();
@@ -207,6 +208,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
       // TODO: Error - too few arguments to function `name`
     }
   }
+  node->data_type = func.return_type;
   BuildRelopExprList(relop_expr_list, true);
 }
 
@@ -275,10 +277,9 @@ void Analyzer::BuildStatement(AstNode* stmt) {
                            Func(&Analyzer::BuildStatement));
         break;
       case IF_ELSE_STMT:
-        BuildStatementImpl(stmt->child.begin(),
-                           Func(&Analyzer::BuildRelopExpr, false),
-                           Func(&Analyzer::BuildStatement),
-                           Func(&Analyzer::BuildStatement));
+        BuildStatementImpl(
+            stmt->child.begin(), Func(&Analyzer::BuildRelopExpr, false),
+            Func(&Analyzer::BuildStatement), Func(&Analyzer::BuildStatement));
         break;
       case ASSIGN_STMT:
         BuildAssignExpr(stmt);
@@ -389,7 +390,11 @@ void Analyzer::BuildSymbolTable(AstNode* prog) {
 
 void Analyzer::AnalyzeVarRef(AstNode* var, bool is_function_arg) {
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
+  const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
+  const VariableType& var_type = entry.GetValue<VariableType>();
+  std::cerr << "AnalyzeVarRef" << std::endl;
   if (value.kind == ARRAY_ID) {
+    std::cerr << "AnalyzeVarRef: value.kind == ARRAY_ID" << std::endl;
     for (AstNode* expr : var->child) {
       AnalyzeRelopExpr(expr);
       if (expr->data_type != INT_TYPE) {
@@ -397,18 +402,28 @@ void Analyzer::AnalyzeVarRef(AstNode* var, bool is_function_arg) {
         // TODO: Error - array subscript is not an integer.
       }
     }
+    if (var->child.size() == var_type.GetDimension()) {
+      var->data_type = var_type.data_type;
+    } else {
+      assert(var->child.size() < var_type.GetDimension());
+      var->data_type = NONE_TYPE;
+    }
+  } else {
+    var->data_type = var_type.data_type;
   }
 }
 
 void Analyzer::AnalyzeFunctionCall(AstNode* node) {
+  std::cerr << "AnalyzeFunctionCall" << std::endl;
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   AnalyzeRelopExprList(relop_expr_list, true);
-  for (AstNode *param : relop_expr_list->child) {
-    if (!Convertible());
+  int i = 0;
+  for (AstNode* param : relop_expr_list->child) {
+    // if (!Convertible(func.params[i], ));
   }
 }
 
@@ -422,6 +437,7 @@ inline DataType MixDataType(DataType a, DataType b) noexcept {
 }  // namespace
 
 void Analyzer::AnalyzeRelopExpr(AstNode* expr, bool is_function_arg) {
+  std::cerr << "AnalyzeRelopExpr" << std::endl;
   switch (expr->node_type) {
     case EXPR_NODE: {
       std::vector<DataType> types;
@@ -477,6 +493,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr, bool is_function_arg) {
 }
 
 void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
+  std::cerr << "AnalyzeAssignExpr" << std::endl;
   if (expr->node_type == STMT_NODE &&
       std::get<StmtSemanticValue>(expr->semantic_value).kind == ASSIGN_STMT) {
     AstNode* id_node = *expr->child.begin();
@@ -557,6 +574,7 @@ void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) {
 }
 
 void Analyzer::AnalyzeStatement(AstNode* stmt) {
+  std::cerr << "AnalyzeStatement" << std::endl;
   if (stmt->node_type == STMT_NODE) {
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
     switch (value.kind) {
@@ -597,13 +615,55 @@ void Analyzer::AnalyzeStmtList(AstNode* stmt_list) {
   for (AstNode* stmt : stmt_list->child) AnalyzeStatement(stmt);
 }
 
+void Analyzer::AnalyzeInitID(AstNode* init_id) {
+  std::cerr << "AnalyzeInitID" << std::endl;
+  auto& value = std::get<IdentifierSemanticValue>(init_id->semantic_value);
+  if (value.kind == WITH_INIT_ID) {
+    AstNode* init_val = *init_id->child.begin();
+    AnalyzeRelopExpr(init_val);
+    if (init_val->data_type == VOID_TYPE) {
+      std::cerr << "[Error]: void value not ignored as it ought to be"
+                << std::endl;
+      // TODO
+    }
+  }
+}
+
+void Analyzer::AnalyzeVariableDecl(AstNode* var_decl) {
+  std::cerr << "AnalyzeVariableDecl" << std::endl;
+  AstNode* type_node = *var_decl->child.begin();
+  DataType type = BuildType(type_node);
+  for (auto it = std::next(var_decl->child.begin());
+       it != var_decl->child.end(); it++) {
+    AstNode* init_id = *it;
+    AnalyzeInitID(init_id);
+  }
+}
+
+void Analyzer::AnalyzeDeclList(AstNode* decl_list) {
+  std::cerr << "AnalyzeDeclList" << std::endl;
+  for (AstNode* child : decl_list->child) {
+    DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
+    if (kind == VARIABLE_DECL) {
+      AnalyzeVariableDecl(child);
+    } else if (kind == TYPE_DECL) {
+      BuildTypeDecl(child);
+    }
+  }
+}
+
 void Analyzer::AnalyzeBlock(AstNode* block) {
+  std::cerr << "AnalyzeBlock" << std::endl;
   for (AstNode* node : block->child) {
-    if (node->node_type == STMT_LIST_NODE) AnalyzeStmtList(node);
+    if (node->node_type == STMT_LIST_NODE)
+      AnalyzeStmtList(node);
+    else
+      AnalyzeDeclList(node);
   }
 }
 
 void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
+  std::cerr << "AnalyzeFunctionDecl" << std::endl;
   AstNode* type_node = *func->child.begin();
   DataType type = std::get<DataType>(
       std::get<TypeSpecSemanticValue>(type_node->semantic_value).type);
@@ -613,6 +673,7 @@ void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
 }
 
 void Analyzer::AnalyzeGlobalDecl(AstNode* decl) {
+  std::cerr << "AnalyzeGlobalDecl" << std::endl;
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
     for (AstNode* child : decl->child) AnalyzeGlobalDecl(child);
     return;
@@ -622,6 +683,7 @@ void Analyzer::AnalyzeGlobalDecl(AstNode* decl) {
 }
 
 void Analyzer::AnalyzeProgram(AstNode* prog) {
+  std::cerr << "AnalyzeProgram" << std::endl;
   for (AstNode* decl : prog->child) AnalyzeGlobalDecl(decl);
 }
 

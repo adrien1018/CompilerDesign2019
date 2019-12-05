@@ -64,6 +64,9 @@ class Analyzer {
   void AnalyzeFunctionDecl(AstNode* func);
   void AnalyzeBlock(AstNode* block);
   void AnalyzeStmtList(AstNode* stmt_list);
+  void AnalyzeDeclList(AstNode* decl_list);
+  void AnalyzeVariableDecl(AstNode* var_decl);
+  void AnalyzeInitID(AstNode* init_id);
   void AnalyzeStatement(AstNode* stmt);
   void AnalyzeIfStmt(AstNode* stmt);
   void AnalyzeIfElseStmt(AstNode* stmt);
