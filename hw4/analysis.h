@@ -43,11 +43,12 @@ class Analyzer {
   void BuildStmtList(AstNode* stmt_list);
   void BuildStatement(AstNode* stmt);
   void BuildAssignExprList(AstNode* assign_expr_list);
-  void BuildRelopExprList(AstNode* relop_expr_list);
+  void BuildRelopExprList(AstNode* relop_expr_list,
+                          bool is_function_arg = false);
   void BuildAssignExpr(AstNode* expr);
-  void BuildRelopExpr(AstNode* expr);
+  void BuildRelopExpr(AstNode* expr, bool is_function_arg = false);
   void BuildFunctionCall(AstNode* node);
-  void BuildVarRef(AstNode* node);
+  void BuildVarRef(AstNode* node, bool is_function_arg = false);
   void BuildTypeDecl(AstNode* type_decl);
   void BuildTypedefID(AstNode* id_item, DataType type);
   void BuildVariableDecl(AstNode* var_decl);
@@ -68,12 +69,12 @@ class Analyzer {
   void AnalyzeIfElseStmt(AstNode* stmt);
   void AnalyzeForStmt(AstNode* stmt);
   void AnalyzeWhileStmt(AstNode* stmt);
-  void AnalyzeRelopExprList(AstNode* relop_expr_list);
+  void AnalyzeRelopExprList(AstNode* relop_expr_list, bool is_function_arg = false);
   void AnalyzeAssignExprList(AstNode* assign_expr_list);
   void AnalyzeAssignExpr(AstNode* expr);
-  void AnalyzeRelopExpr(AstNode* expr);
+  void AnalyzeRelopExpr(AstNode* expr, bool is_function_arg = false);
   void AnalyzeFunctionCall(AstNode* node);
-  void AnalyzeVarRef(AstNode* var);
+  void AnalyzeVarRef(AstNode* var, bool is_function_arg = false);
 };
 
 #endif  // ANALYSIS_H_

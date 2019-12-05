@@ -143,7 +143,7 @@ VariableType Analyzer::BuildParam(AstNode* param) {
   }
 }
 
-void Analyzer::BuildVarRef(AstNode* node) {
+void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
   std::cerr << "BuildVarRef" << std::endl;
   auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
@@ -160,11 +160,15 @@ void Analyzer::BuildVarRef(AstNode* node) {
     }
     const VariableType& var = entry.GetValue<VariableType>();
     if (node->child.size() != var.GetDimension()) {
-      if (var.IsArray())
-        std::cerr << "[Error] Incompatible array dimensions" << std::endl;
-      else
+      if (var.IsArray()) {
+        if (!is_function_arg || node->child.size() > var.GetDimension()) {
+          std::cerr << "[Error] Incompatible array dimensions" << std::endl;
+          // TODO: Error
+        }
+      } else {
         std::cerr << "[Error] " << name << " undeclared" << std::endl;
-      // TODO: Error
+        // TODO: Error
+      }
     }
     value.identifier = id;
   }
@@ -202,10 +206,10 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
       // TODO: Error - too few arguments to function `name`
     }
   }
-  BuildRelopExprList(relop_expr_list);
+  BuildRelopExprList(relop_expr_list, true);
 }
 
-void Analyzer::BuildRelopExpr(AstNode* expr) {
+void Analyzer::BuildRelopExpr(AstNode* expr, bool is_function_arg) {
   switch (expr->node_type) {
     case EXPR_NODE:
       for (AstNode* operand : expr->child) {
@@ -213,7 +217,7 @@ void Analyzer::BuildRelopExpr(AstNode* expr) {
       }
       break;
     case IDENTIFIER_NODE:
-      BuildVarRef(expr);
+      BuildVarRef(expr, is_function_arg);
       break;
     case STMT_NODE:
       BuildStatement(expr);
@@ -233,8 +237,10 @@ void Analyzer::BuildAssignExpr(AstNode* expr) {
   }
 }
 
-void Analyzer::BuildRelopExprList(AstNode* relop_expr_list) {
-  for (AstNode* expr : relop_expr_list->child) BuildRelopExpr(expr);
+void Analyzer::BuildRelopExprList(AstNode* relop_expr_list,
+                                  bool is_function_arg) {
+  for (AstNode* expr : relop_expr_list->child)
+    BuildRelopExpr(expr, is_function_arg);
 }
 
 void Analyzer::BuildAssignExprList(AstNode* assign_expr_list) {
@@ -373,7 +379,7 @@ void Analyzer::BuildSymbolTable(AstNode* prog) {
   BuildProgram(prog);
 }
 
-void Analyzer::AnalyzeVarRef(AstNode* var) {
+void Analyzer::AnalyzeVarRef(AstNode* var, bool is_function_arg) {
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
   if (value.kind == ARRAY_ID) {
     for (AstNode* expr : var->child) {
@@ -386,7 +392,17 @@ void Analyzer::AnalyzeVarRef(AstNode* var) {
   }
 }
 
-void Analyzer::AnalyzeFunctionCall(AstNode* node) {}
+void Analyzer::AnalyzeFunctionCall(AstNode* node) {
+  AstNode* id_node = *node->child.begin();
+  auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
+  const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
+  const FunctionType& func = entry.GetValue<FunctionType>();
+  AstNode* relop_expr_list = *std::next(node->child.begin());
+  AnalyzeRelopExprList(relop_expr_list, true);
+  for (AstNode *param : relop_expr_list->child) {
+    if (!Convertible());
+  }
+}
 
 namespace {
 
@@ -397,7 +413,7 @@ inline DataType MixDataType(DataType a, DataType b) noexcept {
 
 }  // namespace
 
-void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
+void Analyzer::AnalyzeRelopExpr(AstNode* expr, bool is_function_arg) {
   switch (expr->node_type) {
     case EXPR_NODE: {
       std::vector<DataType> types;
@@ -444,7 +460,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
       break;
     }
     case IDENTIFIER_NODE:
-      AnalyzeVarRef(expr);
+      AnalyzeVarRef(expr, is_function_arg);
       break;
     case STMT_NODE:
       AnalyzeStatement(expr);
@@ -473,8 +489,10 @@ void Analyzer::AnalyzeAssignExprList(AstNode* assign_expr_list) {
   for (AstNode* expr : assign_expr_list->child) AnalyzeAssignExpr(expr);
 }
 
-void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list) {
-  for (AstNode* expr : relop_expr_list->child) AnalyzeRelopExpr(expr);
+void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list,
+                                    bool is_function_arg) {
+  for (AstNode* expr : relop_expr_list->child)
+    AnalyzeRelopExpr(expr, is_function_arg);
 }
 
 void Analyzer::AnalyzeWhileStmt(AstNode* stmt) {

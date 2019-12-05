@@ -15,14 +15,27 @@ struct VariableType {
   VariableType(DataType type, std::vector<size_t> &&dim)
       : data_type(type), dims(dim) {}
 
+  template <class Iterator>
+  VariableType(DataType type, Iterator bg, Iterator ed)
+      : data_type(type), dims(bg, ed) {}
+
   bool IsArray() const noexcept { return !dims.empty(); }
   size_t GetDimension() const noexcept { return dims.size(); }
   DataType GetType() const noexcept { return data_type; }
+
+  VariableType Slice(int dim) const noexcept {
+    return VariableType(data_type, dims.begin() + dim, dims.end());
+  }
 };
 
 inline bool Convertible(const VariableType &a, const VariableType &b) {
   // Check whether `b` can be implicitly converted to `a`.
-  // TODO
+  if (a.IsArray() != b.IsArray()) return false;
+  if (!a.IsArray()) return true;
+  if (a.GetDimension() != b.GetDimension()) return false;
+  for (size_t i = 0; i < a.dims.size(); ++i) {
+    if (a.dims[i] > 0 && b.dims[i] > 0 && a.dims[i] != b.dims[i]) return false;
+  }
   return true;
 }
 
@@ -38,7 +51,7 @@ struct FunctionType {
   std::vector<VariableType> params;
 
   FunctionType() = default;
-  FunctionType(DataType type, std::vector<VariableType>&& params)
+  FunctionType(DataType type, std::vector<VariableType> &&params)
       : return_type(type), params(params) {}
 
   DataType GetReturnType() const noexcept { return return_type; }
@@ -59,10 +72,12 @@ class TableEntry {
   TableEntry(EntryType type) : type_(type) {}
   EntryType GetType() const noexcept { return type_; }
 
-  template <class T> T& GetValue() {
+  template <class T>
+  T &GetValue() {
     return std::get<T>(value_);
   }
-  template <class T> const T& GetValue() const {
+  template <class T>
+  const T &GetValue() const {
     return std::get<T>(value_);
   }
 

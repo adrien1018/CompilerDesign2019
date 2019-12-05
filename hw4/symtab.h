@@ -50,7 +50,8 @@
 #include <unordered_set>
 #include <vector>
 
-template <class KeyType> class SymbolMap {
+template <class KeyType>
+class SymbolMap {
  private:
   std::unordered_map<std::string, std::vector<size_t>> map_;
   std::vector<size_t> scope_;
@@ -58,9 +59,7 @@ template <class KeyType> class SymbolMap {
 
  public:
   static const size_t npos;
-  void PushScope() {
-    scope_lst_.emplace_back();
-  }
+  void PushScope() { scope_lst_.emplace_back(); }
   void PopScope() {
     if (scope_lst_.empty()) return;
     for (auto& i : scope_lst_.back()) {
