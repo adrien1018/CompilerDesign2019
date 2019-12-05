@@ -23,21 +23,10 @@ struct VariableType {
   size_t GetDimension() const noexcept { return dims.size(); }
   DataType GetType() const noexcept { return data_type; }
 
-  VariableType Slice(int dim) const noexcept {
+  VariableType Slice(size_t dim) const noexcept {
     return VariableType(data_type, dims.begin() + dim, dims.end());
   }
 };
-
-inline bool Convertible(const VariableType &a, const VariableType &b) {
-  // Check whether `b` can be implicitly converted to `a`.
-  if (a.IsArray() != b.IsArray()) return false;
-  if (!a.IsArray()) return true;
-  if (a.GetDimension() != b.GetDimension()) return false;
-  for (size_t i = 0; i < a.dims.size(); ++i) {
-    if (a.dims[i] > 0 && b.dims[i] > 0 && a.dims[i] != b.dims[i]) return false;
-  }
-  return true;
-}
 
 struct AliasType {
   DataType canonical_type;

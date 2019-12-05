@@ -34,8 +34,6 @@ inline DataType MixDataType(AstNode *a, AstNode *b) noexcept {
   return FLOAT_TYPE;
 }
 
-
-
 DataType GetTypedefValue(const std::string &s) noexcept {
   if (s == "int") return INT_TYPE;
   if (s == "float") return FLOAT_TYPE;

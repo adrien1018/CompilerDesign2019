@@ -413,6 +413,50 @@ void Analyzer::AnalyzeVarRef(AstNode* var, bool is_function_arg) {
   }
 }
 
+namespace {
+
+inline VariableType GetPrototype(AstNode* expr,
+                                 const std::vector<TableEntry>& tab) {
+  if (expr->node_type == IDENTIFIER_NODE) {
+    auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
+    const TableEntry& entry = tab[std::get<size_t>(value.identifier)];
+    const VariableType& type = entry.GetValue<VariableType>();
+    return type.Slice(expr->child.size());
+  } else {
+    return VariableType(expr->data_type);
+  }
+}
+
+inline std::optional<SemanticError> CheckConvertibility(
+    const VariableType& proto, const VariableType& args) {
+  // Check whether `b` can be implicitly converted to `a`. Returns an error or
+  // a warning if incorrect conversion occurs.
+  if (proto.IsArray() && !args.IsArray()) {
+    // TODO: Error - Scalar <name> passed to array parameter <name>
+    return {};
+  }
+  if (!proto.IsArray() && args.IsArray()) {
+    // TODO: Error - Array <name> passed to scalar parameter <name>
+    return {};
+  }
+  if (proto.GetDimension() != args.GetDimension()) {
+    // TODO: Warning - passing argument <name> of <name> from incompatible
+    // pointer type
+    return {};
+  }
+  for (size_t i = 0; i < proto.dims.size(); ++i) {
+    if (proto.dims[i] > 0 && args.dims[i] > 0 &&
+        proto.dims[i] != args.dims[i]) {
+      // TODO: Warning - passing argument <name> of <name> from incompatible
+      // pointer type
+      return {};
+    }
+  }
+  return {};
+}
+
+}  // namespace
+
 void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   std::cerr << "AnalyzeFunctionCall" << std::endl;
   AstNode* id_node = *node->child.begin();
@@ -421,9 +465,13 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   AnalyzeRelopExprList(relop_expr_list, true);
-  int i = 0;
+  size_t i = 0;
   for (AstNode* param : relop_expr_list->child) {
-    // if (!Convertible(func.params[i], ));
+    auto err = CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
+    if (err.has_value()) {
+      std::cerr << "[Error] " << std::endl;
+      // TODO: Error
+    }
   }
 }
 
@@ -631,8 +679,6 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
 
 void Analyzer::AnalyzeVariableDecl(AstNode* var_decl) {
   std::cerr << "AnalyzeVariableDecl" << std::endl;
-  AstNode* type_node = *var_decl->child.begin();
-  DataType type = BuildType(type_node);
   for (auto it = std::next(var_decl->child.begin());
        it != var_decl->child.end(); it++) {
     AstNode* init_id = *it;
