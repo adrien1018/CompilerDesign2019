@@ -54,9 +54,10 @@ class Analyzer {
   void BuildVariableDecl(AstNode* var_decl);
   void BuildInitID(AstNode* init_id, DataType type);
 
-  VariableType BuildParam(AstNode* param);
+  std::pair<VariableType, TableEntry> BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl);
   void InsertSymTab(std::variant<std::string, size_t>& id, TableEntry&& entry);
+  void InsertParam(AstNode* param, TableEntry&& entry);
   DataType BuildType(AstNode* nd);
 
   void AnalyzeProgram(AstNode* prog);
@@ -72,12 +73,12 @@ class Analyzer {
   void AnalyzeIfElseStmt(AstNode* stmt);
   void AnalyzeForStmt(AstNode* stmt);
   void AnalyzeWhileStmt(AstNode* stmt);
-  void AnalyzeRelopExprList(AstNode* relop_expr_list, bool is_function_arg = false);
+  void AnalyzeRelopExprList(AstNode* relop_expr_list);
   void AnalyzeAssignExprList(AstNode* assign_expr_list);
   void AnalyzeAssignExpr(AstNode* expr);
-  void AnalyzeRelopExpr(AstNode* expr, bool is_function_arg = false);
+  void AnalyzeRelopExpr(AstNode* expr);
   void AnalyzeFunctionCall(AstNode* node);
-  void AnalyzeVarRef(AstNode* var, bool is_function_arg = false);
+  void AnalyzeVarRef(AstNode* var);
 };
 
 #endif  // ANALYSIS_H_

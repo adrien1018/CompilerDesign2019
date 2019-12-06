@@ -5,6 +5,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <utility>
+#include <variant>
 
 /*** Note
  * Errors being caught in the first pass:
@@ -129,19 +130,16 @@ void Analyzer::BuildTypeDecl(AstNode* type_decl) {
   }
 }
 
-VariableType Analyzer::BuildParam(AstNode* param) {
+std::pair<VariableType, TableEntry> Analyzer::BuildParam(AstNode* param) {
   DataType type = BuildType(*param->child.begin());
   AstNode* identifier = *std::next(param->child.begin());
   auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
   if (value.kind == NORMAL_ID) {
-    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type));
-    return VariableType(type);
-  } else {
-    auto dims = ParseDimDecl(identifier->child);
-    VariableType res(type, std::move(dims));
-    InsertSymTab(value.identifier, BuildEntry<ARRAY>(res));
-    return res;
+    return std::make_pair(VariableType(type), BuildEntry<VARIABLE>(type));
   }
+  auto dims = ParseDimDecl(identifier->child);
+  VariableType res(type, std::move(dims));
+  return std::make_pair(res, BuildEntry<ARRAY>(res));
 }
 
 void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
@@ -159,7 +157,7 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
                 << std::endl;
       // TODO: Error - `name` should be declared as variable.
     }
-    const VariableType& var = entry.GetValue<VariableType>();
+    const auto& var = entry.GetValue<VariableType>();
     if (node->child.size() != var.GetDimension()) {
       if (var.IsArray()) {
         if (!is_function_arg || node->child.size() > var.GetDimension()) {
@@ -194,7 +192,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
     // TODO: Error - `name` should be declared as function.
   }
   value.identifier = id;
-  const FunctionType& func = entry.GetValue<FunctionType>();
+  const auto& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   if (size_t num_param = relop_expr_list->child.size();
       num_param != func.NumParam()) {
@@ -328,6 +326,12 @@ void Analyzer::BuildBlock(AstNode* block) {
   mp_.PopScope();
 }
 
+void Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
+  AstNode* identifier = *std::next(param->child.begin());
+  auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
+  InsertSymTab(value.identifier, std::move(entry));
+}
+
 void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
   std::cerr << "BuildFunctionDecl" << std::endl;
   auto it = func_decl->child.begin();
@@ -339,15 +343,23 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
       std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
   std::cerr << "func_name = " << std::get<std::string>(func_name) << std::endl;
   std::vector<VariableType> param_list;
-  mp_.PushScope();  // push scope for the function parameters
+  std::vector<TableEntry> entries;
   AstNode* param_list_node = *it++;
   for (AstNode* param : param_list_node->child) {
     std::cerr << "BuildParam" << std::endl;
-    param_list.push_back(BuildParam(param));
+    auto res = BuildParam(param);
+    param_list.push_back(std::move(res.first));
+    entries.push_back(std::move(res.second));
+  }
+  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)));
+  mp_.PushScope();  // push scope for the function parameters
+  size_t i = 0;
+  for (AstNode* param : param_list_node->child) {
+    auto& entry = entries[i++];
+    InsertParam(param, std::move(entry));
   }
   BuildBlock(*it);
   mp_.PopScope();  // pop scope
-  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)));
 }
 
 void Analyzer::BuildGlobalDecl(AstNode* decl) {
@@ -388,7 +400,7 @@ void Analyzer::BuildSymbolTable(AstNode* prog) {
   BuildProgram(prog);
 }
 
-void Analyzer::AnalyzeVarRef(AstNode* var, bool is_function_arg) {
+void Analyzer::AnalyzeVarRef(AstNode* var) {
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
   const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
   const VariableType& var_type = entry.GetValue<VariableType>();
@@ -433,15 +445,22 @@ inline std::optional<SemanticError> CheckConvertibility(
   // a warning if incorrect conversion occurs.
   if (proto.IsArray() && !args.IsArray()) {
     // TODO: Error - Scalar <name> passed to array parameter <name>
+    std::cerr << "[Error] Scalar <name> passed to array parameter <name>"
+              << std::endl;
     return {};
   }
   if (!proto.IsArray() && args.IsArray()) {
     // TODO: Error - Array <name> passed to scalar parameter <name>
+    std::cerr << "[Error] Array <name> passed to scalar parameter <name>"
+              << std::endl;
     return {};
   }
   if (proto.GetDimension() != args.GetDimension()) {
     // TODO: Warning - passing argument <name> of <name> from incompatible
     // pointer type
+    std::cerr << "[Warning] passing argument <name> of <name> from "
+                 "incompatible pointer type"
+              << std::endl;
     return {};
   }
   for (size_t i = 0; i < proto.dims.size(); ++i) {
@@ -449,6 +468,9 @@ inline std::optional<SemanticError> CheckConvertibility(
         proto.dims[i] != args.dims[i]) {
       // TODO: Warning - passing argument <name> of <name> from incompatible
       // pointer type
+      std::cerr << "[Warning] passing argument <name> of <name> from "
+                   "incompatible pointer type"
+                << std::endl;
       return {};
     }
   }
@@ -464,7 +486,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
-  AnalyzeRelopExprList(relop_expr_list, true);
+  AnalyzeRelopExprList(relop_expr_list);
   size_t i = 0;
   for (AstNode* param : relop_expr_list->child) {
     auto err = CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
@@ -484,7 +506,7 @@ inline DataType MixDataType(DataType a, DataType b) noexcept {
 
 }  // namespace
 
-void Analyzer::AnalyzeRelopExpr(AstNode* expr, bool is_function_arg) {
+void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
   std::cerr << "AnalyzeRelopExpr" << std::endl;
   switch (expr->node_type) {
     case EXPR_NODE: {
@@ -532,7 +554,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr, bool is_function_arg) {
       break;
     }
     case IDENTIFIER_NODE:
-      AnalyzeVarRef(expr, is_function_arg);
+      AnalyzeVarRef(expr);
       break;
     case STMT_NODE:
       AnalyzeStatement(expr);
@@ -562,10 +584,8 @@ void Analyzer::AnalyzeAssignExprList(AstNode* assign_expr_list) {
   for (AstNode* expr : assign_expr_list->child) AnalyzeAssignExpr(expr);
 }
 
-void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list,
-                                    bool is_function_arg) {
-  for (AstNode* expr : relop_expr_list->child)
-    AnalyzeRelopExpr(expr, is_function_arg);
+void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list) {
+  for (AstNode* expr : relop_expr_list->child) AnalyzeRelopExpr(expr);
 }
 
 void Analyzer::AnalyzeWhileStmt(AstNode* stmt) {
