@@ -25,17 +25,25 @@
 // TODO: Under what conditions shall we ignore the errors and keep analyzing?
 // TODO: Store the identifier names to restore error messages in the second
 // pass.
+// TODO: Does C-- support something like "typedef int INT[3];"?
+// TODO: Support write()
 
 DataType Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
   try {
     std::string type_name = std::get<std::string>(value.type);
+    std::cerr << "type_name = " << type_name << std::endl;
     size_t id = mp_.Query(type_name);
     if (id == SymbolMap<std::string>::npos) {
       std::cerr << "[Error] type " << type_name << " undeclared" << std::endl;
       err_.emplace_back(/* TODO */);
       return UNKNOWN_TYPE;
     } else {
+      if (tab_[id].GetType() != TYPE_ALIAS) {
+        std::cerr << "[Error] " << type_name << " was not declared as type"
+                  << std::endl;
+        return UNKNOWN_TYPE;
+      }
       value.type = tab_[id].GetValue<AliasType>().canonical_type;
       return std::get<DataType>(value.type);
     }
