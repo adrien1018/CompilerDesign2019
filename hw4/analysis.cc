@@ -674,6 +674,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) {
         AnalyzeFunctionCall(stmt);
         break;
       case RETURN_STMT:
+        if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
         DataType type = stmt->child.empty()
                             ? VOID_TYPE
                             : (*(stmt->child.begin()))->data_type;
@@ -718,11 +719,10 @@ void Analyzer::AnalyzeVariableDecl(AstNode* var_decl) {
 void Analyzer::AnalyzeDeclList(AstNode* decl_list) {
   std::cerr << "AnalyzeDeclList" << std::endl;
   for (AstNode* child : decl_list->child) {
+    assert(child->node_type == DECLARATION_NODE);
     DeclKind kind = std::get<DeclSemanticValue>(child->semantic_value).kind;
     if (kind == VARIABLE_DECL) {
       AnalyzeVariableDecl(child);
-    } else if (kind == TYPE_DECL) {
-      BuildTypeDecl(child);
     }
   }
 }
@@ -730,10 +730,11 @@ void Analyzer::AnalyzeDeclList(AstNode* decl_list) {
 void Analyzer::AnalyzeBlock(AstNode* block) {
   std::cerr << "AnalyzeBlock" << std::endl;
   for (AstNode* node : block->child) {
-    if (node->node_type == STMT_LIST_NODE)
+    if (node->node_type == STMT_LIST_NODE) {
       AnalyzeStmtList(node);
-    else
+    } else {
       AnalyzeDeclList(node);
+    }
   }
 }
 

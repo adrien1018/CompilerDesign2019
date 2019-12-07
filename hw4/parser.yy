@@ -54,9 +54,16 @@ struct Wider<int, int> {
   using type = int;
 };
 
+// TODO: Optimize this stuff
+constexpr bool IsLogicalOp(BinaryOperator op) {
+  return op == BINARY_OP_EQ || op == BINARY_OP_GE || op == BINARY_OP_LE ||
+         op == BINARY_OP_NE || op == BINARY_OP_GT || op == BINARY_OP_LT ||
+         op == BINARY_OP_AND || op == BINARY_OP_OR;
+}
+
 // TODO: Change return type when op is a logical operation
 template <typename T, typename U>
-typename Wider<T, U>::type DoOperation(BinaryOperator op, T x, U y) {
+typename Wider<T, U>::type DoArithmaticOperation(BinaryOperator op, T x, U y) {
   using ReturnType = typename Wider<T, U>::type;
   ReturnType lhs(x), rhs(y);
   switch (op) {
@@ -68,24 +75,30 @@ typename Wider<T, U>::type DoOperation(BinaryOperator op, T x, U y) {
       return lhs * rhs;
     case BINARY_OP_DIV:
       return lhs / rhs;
-    case BINARY_OP_EQ:
-      return lhs == rhs;
-    case BINARY_OP_GE:
-      return lhs >= rhs;
-    case BINARY_OP_LE:
-      return lhs <= rhs;
-    case BINARY_OP_NE:
-      return lhs != rhs;
-    case BINARY_OP_GT:
-      return lhs > rhs;
-    case BINARY_OP_LT:
-      return lhs < rhs;
-    case BINARY_OP_AND:
-      return lhs && rhs;
-    case BINARY_OP_OR:
-      return lhs || rhs;
   }
   return 0;
+}
+
+template <typename T, typename U>
+int DoLogicalOperation(BinaryOperator op, T x, U y) {
+  switch (op) {
+    case BINARY_OP_EQ:
+      return x == y;
+    case BINARY_OP_GE:
+      return x >= y;
+    case BINARY_OP_LE:
+      return x <= y;
+    case BINARY_OP_NE:
+      return x != y;
+    case BINARY_OP_GT:
+      return x > y;
+    case BINARY_OP_LT:
+      return x < y;
+    case BINARY_OP_AND:
+      return x && y;
+    case BINARY_OP_OR:
+      return x || y;
+  }
 }
 
 AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
@@ -97,24 +110,47 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
   AstNode* node = new AstNode(CONST_VALUE_NODE, loc);
   try {
     node->data_type = MixDataType(lhs, rhs);
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     // TODO: Error messages
-    throw yy::parser::syntax_error(loc, ""); 
+    throw yy::parser::syntax_error(loc, "");
   }
   ConstValue& lcv = std::get<ConstValue>(lhs->semantic_value);
   ConstValue& rcv = std::get<ConstValue>(rhs->semantic_value);
   ConstValue cv{};
+  bool b = IsLogicalOp(op);
   if (lhs->data_type == INT_TYPE) {
     if (rhs->data_type == INT_TYPE) {
-      cv = DoOperation(op, std::get<int>(lcv), std::get<int>(rcv));
+      if (!b) {
+        cv = DoArithmaticOperation(op, std::get<int>(lcv), std::get<int>(rcv));
+      } else {
+        cv = DoLogicalOperation(op, std::get<int>(lcv), std::get<int>(rcv));
+      }
     } else {
-      cv = DoOperation(op, std::get<int>(lcv), std::get<FloatType>(rcv));
+      if (!b) {
+        cv = DoArithmaticOperation(op, std::get<int>(lcv),
+                                   std::get<FloatType>(rcv));
+      } else {
+        cv = DoLogicalOperation(op, std::get<int>(lcv),
+                                std::get<FloatType>(rcv));
+      }
     }
   } else {
     if (rhs->data_type == INT_TYPE) {
-      cv = DoOperation(op, std::get<FloatType>(lcv), std::get<int>(rcv));
+      if (!b) {
+        cv = DoArithmaticOperation(op, std::get<FloatType>(lcv),
+                                   std::get<int>(rcv));
+      } else {
+        cv = DoLogicalOperation(op, std::get<FloatType>(lcv),
+                                std::get<int>(rcv));
+      }
     } else {
-      cv = DoOperation(op, std::get<FloatType>(lcv), std::get<FloatType>(rcv));
+      if (!b) {
+        cv = DoArithmaticOperation(op, std::get<FloatType>(lcv),
+                                   std::get<FloatType>(rcv));
+      } else {
+        cv = DoLogicalOperation(op, std::get<FloatType>(lcv),
+                                std::get<FloatType>(rcv));
+      }
     }
   }
   delete lhs;
@@ -415,6 +451,7 @@ dim_decl:
     $$ = {$2};
   };
 
+/* TODO: Support logical operations and unary operations in cexpr */
 cexpr:
   cexpr O_ADDITION cexpr {
     $$ = MergeConstNode(BINARY_OP_ADD, $1, $3, @$);
@@ -428,21 +465,39 @@ cexpr:
   cexpr O_DIVISION cexpr {
     $$ = MergeConstNode(BINARY_OP_DIV, $1, $3, @$);
   } |
-  cexpr O_LOGICAL_AND cexpr {
-    $$ = MergeConstNode(BINARY_OP_AND, $1, $3, @$);
-  } |
-  cexpr O_LOGICAL_OR cexpr {
-    $$ = MergeConstNode(BINARY_OP_OR, $1, $3, @$);
-  }
-  O_SUBTRACTION cexpr {
-    $$ = ;
-  }
   CONST {
     $$ = $1;
   } |
   S_L_PAREN cexpr S_R_PAREN {
     $$ = $2;
   };
+  /* cexpr O_LOGICAL_AND cexpr {
+    $$ = MergeConstNode(BINARY_OP_AND, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_OR cexpr {
+    $$ = MergeConstNode(BINARY_OP_OR, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_EQ cexpr {
+    $$ = MergeConstNode(BINARY_OP_EQ, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_GE cexpr {
+    $$ = MergeConstNode(BINARY_OP_GE, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_LE cexpr {
+    $$ = MergeConstNode(BINARY_OP_LE, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_NE cexpr {
+    $$ = MergeConstNode(BINARY_OP_NE, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_LT cexpr {
+    $$ = MergeConstNode(BINARY_OP_LT, $1, $3, @$);
+  } |
+  cexpr O_LOGICAL_GT cexpr {
+    $$ = MergeConstNode(BINARY_OP_GT, $1, $3, @$);
+  } |
+  O_SUBTRACTION cexpr {
+    $$ = nullptr; 
+  } | */
 
 init_id_list:
   init_id {
