@@ -21,9 +21,10 @@
  * to array parameter <name>.
  */
 
-// TODO: Catch errors in the second pass.
 // TODO: Catch more errors than requested in the spec.
 // TODO: Under what conditions shall we ignore the errors and keep analyzing?
+// TODO: Store the identifier names to restore error messages in the second
+// pass.
 
 DataType Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
@@ -283,7 +284,7 @@ void Analyzer::BuildStatement(AstNode* stmt) {
         BuildAssignExpr(stmt);
         break;
       case RETURN_STMT:
-        BuildRelopExpr(*stmt->child.begin());
+        if (!stmt->child.empty()) BuildRelopExpr(*stmt->child.begin());
         break;
       case FUNCTION_CALL_STMT:
         BuildFunctionCall(stmt);
