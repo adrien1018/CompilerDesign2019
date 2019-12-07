@@ -26,7 +26,6 @@
 // TODO: Store the identifier names to restore error messages in the second
 // pass.
 // TODO: Does C-- support something like "typedef int INT[3];"?
-// TODO: Support write()
 
 DataType Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
@@ -183,12 +182,29 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
   for (AstNode* dim : node->child) BuildRelopExpr(dim);
 }
 
+void Analyzer::BuildWriteCall(AstNode* node) {
+  if (node->child.size() == 1) {
+    std::cerr << "[Error] too few arguments to function write" << std::endl;
+    // TODO: Error - too few arguments to function `name`
+    return;
+  }
+  if (node->child.size() != 2) {
+    std::cerr << "[Error] too many arguments to function write" << std::endl;
+    // TODO: Error - too many arguments to function `name`
+    return;
+  }
+  if ((*std::next(node->child.begin()))->data_type != CONST_STRING_TYPE) {
+    // TODO: Error - argument is not a string
+  }
+}
+
 void Analyzer::BuildFunctionCall(AstNode* node) {
   std::cerr << "BuildFunctionCall" << std::endl;
   assert(node->node_type == STMT_NODE);
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
+  if (name == "write") return BuildWriteCall(node);
   size_t id = mp_.Query(name);
   if (id == SymbolMap<std::string>::npos) {
     std::cerr << "[Error] " << name << " undeclared" << std::endl;
@@ -492,17 +508,22 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   std::cerr << "AnalyzeFunctionCall" << std::endl;
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
-  const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
-  const FunctionType& func = entry.GetValue<FunctionType>();
-  AstNode* relop_expr_list = *std::next(node->child.begin());
-  AnalyzeRelopExprList(relop_expr_list);
-  size_t i = 0;
-  for (AstNode* param : relop_expr_list->child) {
-    auto err = CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
-    if (err.has_value()) {
-      std::cerr << "[Error] " << std::endl;
-      // TODO: Error
+  try {
+    const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
+    const FunctionType& func = entry.GetValue<FunctionType>();
+    AstNode* relop_expr_list = *std::next(node->child.begin());
+    AnalyzeRelopExprList(relop_expr_list);
+    size_t i = 0;
+    for (AstNode* param : relop_expr_list->child) {
+      auto err =
+          CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
+      if (err.has_value()) {
+        std::cerr << "[Error] " << std::endl;
+        // TODO: Error
+      }
     }
+  } catch (...) {
+    std::cerr << "Calling write() function" << std::endl;
   }
 }
 

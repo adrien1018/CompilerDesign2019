@@ -61,7 +61,6 @@ constexpr bool IsLogicalOp(BinaryOperator op) {
          op == BINARY_OP_AND || op == BINARY_OP_OR;
 }
 
-// TODO: Change return type when op is a logical operation
 template <typename T, typename U>
 typename Wider<T, U>::type DoArithmaticOperation(BinaryOperator op, T x, U y) {
   using ReturnType = typename Wider<T, U>::type;

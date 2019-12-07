@@ -47,6 +47,7 @@ class Analyzer {
                           bool is_function_arg = false);
   void BuildAssignExpr(AstNode* expr);
   void BuildRelopExpr(AstNode* expr, bool is_function_arg = false);
+  void BuildWriteCall(AstNode* node);
   void BuildFunctionCall(AstNode* node);
   void BuildVarRef(AstNode* node, bool is_function_arg = false);
   void BuildTypeDecl(AstNode* type_decl);
