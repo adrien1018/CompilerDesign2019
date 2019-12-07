@@ -1,6 +1,6 @@
 TARGET = parser
 INTERMEDIATE = parser.cc scanner.cc
-OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o
+OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o error.o
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++

@@ -97,6 +97,7 @@ int DoLogicalOperation(BinaryOperator op, T x, U y) {
       return x && y;
     case BINARY_OP_OR:
       return x || y;
+    default: throw;
   }
 }
 
