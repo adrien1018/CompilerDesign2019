@@ -8,32 +8,25 @@
 #include "entry.h"
 #include "symtab.h"
 
-struct SemanticError {
-  enum ErrorType {
-    VAR_REDECL,          // redeclaration of variable
-    VAR_UNDECL,          // variable undeclared
-    INCOMPAT_ARRAY_DIM,  // incompatible array dimensions
-    TOO_FEW_ARGS,        // too few arguments
-    TOO_MANY_ARGS,       // too many arguments
-  } error;
-  Location loc1, loc2;
-  std::string msg;
-
-  SemanticError() = default;
-  SemanticError(ErrorType err) : error(err) {}
-  SemanticError(ErrorType err, std::string&& s) : error(err), msg(s) {}
-};
 
 class Analyzer {
  public:
+  Analyzer(const std::string& filename, std::istream* stream, bool color_output)
+      : filename_(filename), stream_(stream), color_output_(color_output) {}
   void SemanticAnalysis(AstNode* prog);
   void BuildSymbolTable(AstNode* prog);
+  std::vector<TableEntry>& GetSymbolTable() {
+    return tab_;
+  }
 
  private:
-  std::vector<SemanticError> err_;
   SymbolMap<std::string> mp_;
   std::vector<TableEntry> tab_;
   DataType return_type_ = NONE_TYPE;
+
+  std::string filename_;
+  std::istream* stream_;
+  bool color_output_;
 
   void BuildProgram(AstNode* prog);
   void BuildGlobalDecl(AstNode* decl);

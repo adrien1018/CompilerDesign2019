@@ -7,6 +7,8 @@
 #include <utility>
 #include <variant>
 
+#include "error.h"
+
 /*** Note
  * Errors being caught in the first pass:
  *  - 1.a ID <name> undeclared.
@@ -35,7 +37,7 @@ DataType Analyzer::BuildType(AstNode* nd) {
     size_t id = mp_.Query(type_name);
     if (id == SymbolMap<std::string>::npos) {
       std::cerr << "[Error] type " << type_name << " undeclared" << std::endl;
-      err_.emplace_back(/* TODO */);
+      //err_.emplace_back(/* TODO */);
       return UNKNOWN_TYPE;
     } else {
       if (tab_[id].GetType() != TYPE_ALIAS) {
@@ -61,7 +63,7 @@ void Analyzer::InsertSymTab(std::variant<std::string, size_t>& id,
     id = id_num.first;
   } else {
     std::cerr << "[Error] Redeclaration" << std::endl;
-    err_.emplace_back(/* TODO: redeclared error */);
+    //err_.emplace_back(/* TODO: redeclared error */);
   }
 }
 

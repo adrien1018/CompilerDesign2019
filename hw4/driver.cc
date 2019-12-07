@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <iostream>
 #include "error.h"
+#include "analysis.h"
 
 int Driver::Parse(bool debug) {
   yy::parser parser(*this);
@@ -12,7 +13,13 @@ int Driver::Parse(bool debug) {
 }
 
 void Driver::PrintError(const Location& l, const std::string& m) {
-  ::PrintError(stream_, l, filename_, m, color_output);
+  ::PrintError(stream_, l, filename_, m, color_output_);
+}
+
+void Driver::SemanticAnalysis() {
+  Analyzer analyzer(filename_, stream_, color_output_);
+  analyzer.BuildSymbolTable(prog);
+  analyzer.SemanticAnalysis(prog);
 }
 
 int yyFlexLexer::yylex() {
