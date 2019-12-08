@@ -40,3 +40,13 @@ void F() {
   int a;
   a();
 }
+
+int Gx() {
+  return 1;
+}
+
+int G() {
+  int c[3];
+  float a = Gx;
+  return c[1];
+}

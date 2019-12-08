@@ -1,16 +1,11 @@
 #include "error.h"
 
+#include <errno.h>
 #include <iomanip>
 
 namespace {
 
-enum MsgType {
-  ERROR,
-  WARNING,
-  NOTE
-};
-
-inline void StartColor(MsgType type, bool color_output) {
+inline void StartColor(MsgClass type, bool color_output) {
   if (color_output) {
     switch (type) {
       case ERROR:   std::cerr << "\033[01;31m\033[K"; break;
@@ -28,7 +23,7 @@ inline void EndColor(bool color_output) {
 
 template <class Func>
 inline void PrintMsg(const FileInfor& f, const Location& l, Func&& msg_callback,
-                     MsgType type, bool print_code) {
+                     MsgClass type, bool print_code) {
   auto StartColor = [f,type]() { ::StartColor(type, f.color_output); };
   auto EndColor = [f]() { ::EndColor(f.color_output); };
   StartEmph(f.color_output);
@@ -61,7 +56,7 @@ inline void PrintMsg(const FileInfor& f, const Location& l, Func&& msg_callback,
   StartColor();
   std::cerr << '^' << std::string(end_col - l.begin.column - 1, '~');
   EndColor();
-  std::cerr << '\n';
+  std::cerr << std::endl;
 }
 
 inline std::string TypeStr(DataType a) {
@@ -74,18 +69,74 @@ inline std::string TypeStr(DataType a) {
 
 } // namespace
 
-void PrintError(const FileInfor& f, const Location& l, const std::string& m) {
-  PrintMsg(f, l, [&m](){ std::cerr << m; }, ERROR, true);
-}
-void PrintWarning(const FileInfor& f, const Location& l, const std::string& m) {
-  PrintMsg(f, l, [&m](){ std::cerr << m; }, WARNING, true);
-}
-void PrintNote(const FileInfor& f, const Location& l, const std::string& m) {
-  PrintMsg(f, l, [&m](){ std::cerr << m; }, NOTE, true);
+void PrintFileError(const FileInfor& f, const std::string& file) {
+  StartColor(ERROR, f.color_output);
+  std::cerr << "error: ";
+  EndColor(f.color_output);
+  std::cerr << file << ": " << strerror(errno) << std::endl;
 }
 
-void PrintError(const FileInfor& f, const Location& l, ErrorType err,
-                const std::string& var) {
+void PrintMsg(const FileInfor& f, const Location& l, MsgClass cl,
+              const std::string& m) {
+  PrintMsg(f, l, [&m](){ std::cerr << m; }, cl, true);
+}
+
+void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
+  PrintMsg(f, l, [&](){
+    switch (err) {
+      case ERR_SUBSCRIPT_NOT_INT: {
+        std::cerr << "array subscript is not an integer";
+        break;
+      }
+      case ERR_ARR_DIMEN: {
+        std::cerr << "incompatible array dimensions";
+        break;
+      }
+      case ERR_SCALAR_TO_ARR: {
+        std::cerr << "initialize array parameter from scalar";
+        break;
+      }
+      case ERR_ARR_TO_SCALAR: {
+        std::cerr << "initialize scalar parameter from array";
+        break;
+      }
+      case ERR_DIMEN_NOT_INT: {
+        std::cerr << "size of array has non-integer type";
+        break;
+      }
+      case ERR_DIMEN_NEG: {
+        std::cerr << "size of array is negative";
+        break;
+      }
+      case ERR_VOID_ASSIGN: {
+        std::cerr << "void value not ignored as it ought to be";
+        break;
+      }
+      case WARN_VOID_RETURN: {
+        StartEmph(f.color_output);
+        std::cerr << "‘return’";
+        EndColor(f.color_output);
+        std::cerr << " with a value, in function returning void";
+        break;
+      }
+      case WARN_RETURN_NOVAL: {
+        StartEmph(f.color_output);
+        std::cerr << "‘return’";
+        EndColor(f.color_output);
+        std::cerr << " with no value, in function returning non-void";
+        break;
+      }
+      case WARN_INCOMPAT_PTR: {
+        std::cerr << "initializing array parameter from incompatible dimensions";
+        break;
+      }
+      default: throw; // incorrect parameters
+    }
+  }, GetMsgClass(err), true);
+}
+
+void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
+              const std::string& var) {
   PrintMsg(f, l, [&](){
     switch (err) {
       case ERR_UNDECL: {
@@ -107,6 +158,13 @@ void PrintError(const FileInfor& f, const Location& l, ErrorType err,
         std::cerr << "‘" << var << "’";
         EndColor(f.color_output);
         std::cerr << " was not declared as a type";
+        break;
+      }
+      case ERR_NOT_VAR: {
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        std::cerr << " is not a variable";
         break;
       }
       case ERR_NOT_CALLABLE: {
@@ -138,36 +196,15 @@ void PrintError(const FileInfor& f, const Location& l, ErrorType err,
         EndColor(f.color_output);
         break;
       }
-    }
-  }, ERROR, true);
-}
-
-void PrintWarning(const FileInfor& f, const Location& l, WarningType warn) {
-  PrintMsg(f, l, [&](){
-    switch (warn) {
-      case WARN_VOID_RETURN: {
-        StartEmph(f.color_output);
-        std::cerr << "‘return’";
-        EndColor(f.color_output);
-        std::cerr << " with a value, in function returning void";
-        break;
-      }
-      case WARN_RETURN_NOVAL: {
-        StartEmph(f.color_output);
-        std::cerr << "‘return’";
-        EndColor(f.color_output);
-        std::cerr << " with no value, in function returning non-void";
-        break;
-      }
       default: throw; // incorrect parameters
     }
-  }, WARNING, true);
+  }, GetMsgClass(err), true);
 }
 
-void PrintWarning(const FileInfor& f, const Location& l, WarningType warn,
-                  DataType t1, DataType t2) {
+void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
+              DataType t1, DataType t2) {
   PrintMsg(f, l, [&](){
-    switch (warn) {
+    switch (err) {
       case WARN_CONVERSION: {
         std::cerr << "conversion from ";
         StartEmph(f.color_output);
@@ -182,5 +219,5 @@ void PrintWarning(const FileInfor& f, const Location& l, WarningType warn,
       }
       default: throw; // incorrect parameters
     }
-  }, WARNING, true);
+  }, GetMsgClass(err), true);
 }

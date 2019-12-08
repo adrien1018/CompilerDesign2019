@@ -34,11 +34,16 @@ int main(int argc, char* argv[]) {
       }
       outfile = argv[i];
     } else {
-      Driver drv(argv[i]);
-      if (drv.Parse(debug) == 0 && drv.SemanticAnalysis()) {
-        PrintGV(drv.prog, outfile);
-        return 0;
-      } else {
+      try {
+        Driver drv(argv[i]);
+        if (drv.Parse(debug) == 0 && drv.SemanticAnalysis()) {
+          PrintGV(drv.prog, outfile);
+          return 0;
+        } else {
+          return 1;
+        }
+      } catch (...) {
+        std::cerr << "Compilation terminated.\n";
         return 1;
       }
     }

@@ -14,3 +14,5 @@ void C() {
   typedef int a;
   int a;
 }
+
+int C() {}

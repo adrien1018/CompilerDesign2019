@@ -13,7 +13,7 @@ int Driver::Parse(bool debug) {
 }
 
 void Driver::PrintError(const Location& l, const std::string& m) {
-  ::PrintError(file_, l, m);
+  ::PrintMsg(file_, l, ERROR, m);
 }
 
 bool Driver::SemanticAnalysis() {

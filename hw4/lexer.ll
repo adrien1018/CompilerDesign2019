@@ -71,8 +71,8 @@ NEWLINE                    \n|\r|\r\n
 COMMENT                    \/\*([^*]|\*[^/])*\*\/
 
 /*** constants ***/
-REGEX_C_INT                {DIGIT}+
-REGEX_C_FLOAT              ({DIGIT}+(\.{DIGIT}*)?|\.{DIGIT}+)([eE][+-]?{DIGIT}+)?
+REGEX_C_INT                [+-]?{DIGIT}+
+REGEX_C_FLOAT              [+-]?({DIGIT}+(\.{DIGIT}*)?|\.{DIGIT}+)([eE][+-]?{DIGIT}+)?
 REGEX_C_STRING             \"([^\\"\n]|\\(.|\n))*\"
 
 /*** operators ***/
