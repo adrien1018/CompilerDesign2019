@@ -1,8 +1,8 @@
 #ifndef ERROR_H_
 #define ERROR_H_
 
-#include <string>
 #include <iostream>
+#include <string>
 
 #include "ast.h"
 
@@ -25,12 +25,13 @@ enum MsgType {
   ERR_REDECL_PARAM,
   ERR_REDECL_CONFLICT,
   ERR_REDECL_TYPE,
-  ERR_ARGS_TOO_FEW, //
-  ERR_ARGS_TOO_MANY, //
+  ERR_ARGS_TOO_FEW,   //
+  ERR_ARGS_TOO_MANY,  //
   ERR_SUBSCRIPT_NOT_INT,
   ERR_ARR_DIMEN,
-  ERR_SCALAR_TO_ARR, // TODO: change to 2 location (print "initializing argument")
-  ERR_ARR_TO_SCALAR, //
+  ERR_SCALAR_TO_ARR,  // TODO: change to 2 location (print "initializing
+                      // argument")
+  ERR_ARR_TO_SCALAR,  //
   ERR_DIMEN_NOT_INT,
   ERR_DIMEN_NEG,
   ERR_VOID_ASSIGN,
@@ -45,11 +46,7 @@ enum MsgType {
   ERR_NOTHING
 };
 
-enum MsgClass {
-  ERROR,
-  WARNING,
-  NOTE
-};
+enum MsgClass { ERROR, WARNING, NOTE };
 
 inline MsgClass GetMsgClass(MsgType err) {
   return (int)err < (int)WARN_BEGIN ? ERROR : WARNING;
@@ -60,11 +57,9 @@ void PrintFileError(const FileInfor&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgClass, const std::string&);
 
 void PrintMsg(const FileInfor&, const Location&, MsgType);
-void PrintMsg(const FileInfor&, const Location&, MsgType,
+void PrintMsg(const FileInfor&, const Location&, MsgType, const std::string&);
+void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               const std::string&);
-void PrintMsg(const FileInfor&, const Location&, MsgType,
-              const Location&, const std::string&);
-void PrintMsg(const FileInfor&, const Location&, MsgType,
-              DataType, DataType);
+void PrintMsg(const FileInfor&, const Location&, MsgType, DataType, DataType);
 
 #endif

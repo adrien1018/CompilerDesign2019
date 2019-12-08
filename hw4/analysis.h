@@ -9,15 +9,12 @@
 #include "error.h"
 #include "symtab.h"
 
-
 class Analyzer {
  public:
   Analyzer(const FileInfor file) : file_(file), success_(true) {}
   bool SemanticAnalysis(AstNode* prog);
   bool BuildSymbolTable(AstNode* prog);
-  std::vector<TableEntry>& GetSymbolTable() {
-    return tab_;
-  }
+  std::vector<TableEntry>& GetSymbolTable() { return tab_; }
 
  private:
   using SymMap_ = SymbolMap<std::string::value_type>;
@@ -55,20 +52,20 @@ class Analyzer {
   DataType BuildType(AstNode* nd);
 
   void AnalyzeProgram(AstNode* prog);
-  void AnalyzeGlobalDecl(AstNode* decl);
+  void AnalyzeGlobalDecl(AstNode* decl) noexcept;
   void AnalyzeFunctionDecl(AstNode* func);
-  void AnalyzeBlock(AstNode* block);
-  void AnalyzeStmtList(AstNode* stmt_list);
-  void AnalyzeDeclList(AstNode* decl_list);
-  void AnalyzeVariableDecl(AstNode* var_decl);
+  void AnalyzeBlock(AstNode* block) noexcept;
+  void AnalyzeStmtList(AstNode* stmt_list) noexcept;
+  void AnalyzeDeclList(AstNode* decl_list) noexcept;
+  void AnalyzeVariableDecl(AstNode* var_decl) noexcept;
   void AnalyzeInitID(AstNode* init_id);
-  void AnalyzeStatement(AstNode* stmt);
-  void AnalyzeIfStmt(AstNode* stmt);
-  void AnalyzeIfElseStmt(AstNode* stmt);
-  void AnalyzeForStmt(AstNode* stmt);
-  void AnalyzeWhileStmt(AstNode* stmt);
-  void AnalyzeRelopExprList(AstNode* relop_expr_list);
-  void AnalyzeAssignExprList(AstNode* assign_expr_list);
+  void AnalyzeStatement(AstNode* stmt) noexcept;
+  void AnalyzeIfStmt(AstNode* stmt) noexcept;
+  void AnalyzeIfElseStmt(AstNode* stmt) noexcept;
+  void AnalyzeForStmt(AstNode* stmt) noexcept;
+  void AnalyzeWhileStmt(AstNode* stmt) noexcept;
+  void AnalyzeRelopExprList(AstNode* relop_expr_list) noexcept;
+  void AnalyzeAssignExprList(AstNode* assign_expr_list) noexcept;
   void AnalyzeAssignExpr(AstNode* expr);
   void AnalyzeRelopExpr(AstNode* expr);
   void AnalyzeFunctionCall(AstNode* node);

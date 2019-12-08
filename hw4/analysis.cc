@@ -59,8 +59,8 @@ struct StopExpression {};
 namespace {
 
 const Identifier& GetIdentifier(const AstNode* nd) {
-  return std::get<Identifier>(std::get<IdentifierSemanticValue>(
-      nd->semantic_value).identifier);
+  return std::get<Identifier>(
+      std::get<IdentifierSemanticValue>(nd->semantic_value).identifier);
 }
 
 }  // namespace
@@ -94,8 +94,7 @@ DataType Analyzer::BuildType(AstNode* nd) {
 }
 
 void Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
-                            TableEntry&& entry, AstNode* nd,
-                            bool is_param) {
+                            TableEntry&& entry, AstNode* nd, bool is_param) {
   auto id_num = mp_.Insert(std::get<std::string>(id));
   if (id_num.second) {
     tab_.emplace_back(std::move(entry));
@@ -241,19 +240,19 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
   Debug_("BuildVarRef", '\n');
   auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
+  Debug_("var = ", name, '\n');
   size_t id = mp_.Query(name);
   if (id == SymMap_::npos) {
+    Debug_("undeclared\n");
     success_ = false;
     PrintMsg(file_, node->loc, ERR_UNDECL, name);
-    // throw StopExpression();
-    return;
+    throw StopExpression();
   }
   const TableEntry& entry = tab_[id];
   if (entry.GetType() != VARIABLE) {
     success_ = false;
     PrintMsg(file_, node->loc, ERR_NOT_VAR, name);
-    // throw StopExpression();
-    return;
+    throw StopExpression();
   }
   const auto& var = entry.GetValue<VariableType>();
   if (node->child.size() != var.GetDimension()) {
@@ -261,14 +260,12 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
       if (!is_function_arg || node->child.size() > var.GetDimension()) {
         success_ = false;
         PrintMsg(file_, node->loc, ERR_ARR_DIMEN);
-        // throw StopExpression();
-        return;
+        throw StopExpression();
       }
     } else {
       success_ = false;
       PrintMsg(file_, node->loc, ERR_UNDECL, name);
-      // throw StopExpression();
-      return;
+      throw StopExpression();
     }
   }
   value.identifier = GetIdentifier(entry.GetNode());
@@ -320,6 +317,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
 }
 
 void Analyzer::BuildRelopExpr(AstNode* expr, bool is_function_arg) noexcept {
+  Debug_("BuildRelopExpr\n");
   switch (expr->node_type) {
     case EXPR_NODE:
       for (AstNode* operand : expr->child) {
@@ -327,7 +325,13 @@ void Analyzer::BuildRelopExpr(AstNode* expr, bool is_function_arg) noexcept {
       }
       break;
     case IDENTIFIER_NODE:
-      TRY_EXPRESSION(BuildVarRef(expr, is_function_arg));
+      try {
+        BuildVarRef(expr, is_function_arg);
+      } catch (StopExpression&) {
+        Debug_("catch StopExpression\n");
+      } catch (...) {
+        Debug_("catch ...\n");
+      }
       break;
     case STMT_NODE:
       BuildStatement(expr);
@@ -678,31 +682,40 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       return;
     }
   } else {
-    AnalyzeRelopExpr(expr);
+    try {
+      AnalyzeRelopExpr(expr);
+    } catch (...) {
+      throw;
+    }
   }
 }
 
-void Analyzer::AnalyzeAssignExprList(AstNode* assign_expr_list) {
-  for (AstNode* expr : assign_expr_list->child) AnalyzeAssignExpr(expr);
+void Analyzer::AnalyzeAssignExprList(AstNode* assign_expr_list) noexcept {
+  for (AstNode* expr : assign_expr_list->child) {
+    TRY_EXPRESSION(AnalyzeAssignExpr(expr));
+  }
 }
 
-void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list) {
-  for (AstNode* expr : relop_expr_list->child) AnalyzeRelopExpr(expr);
+void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list) noexcept {
+  for (AstNode* expr : relop_expr_list->child) {
+    TRY_EXPRESSION(AnalyzeRelopExpr(expr));
+  }
 }
 
-void Analyzer::AnalyzeWhileStmt(AstNode* stmt) {
+void Analyzer::AnalyzeWhileStmt(AstNode* stmt) noexcept {
   AstNode* relop_expr = *stmt->child.begin();
-  AnalyzeRelopExpr(relop_expr);
+  TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
+    // don't throw here?
     // throw StopExpression();
     return;
   }
   AnalyzeStatement(*std::next(stmt->child.begin()));
 }
 
-void Analyzer::AnalyzeForStmt(AstNode* stmt) {
+void Analyzer::AnalyzeForStmt(AstNode* stmt) noexcept {
   auto it = stmt->child.begin();
   AnalyzeAssignExprList(*it++);
   AstNode* relop_expr_list = *it++;
@@ -712,6 +725,7 @@ void Analyzer::AnalyzeForStmt(AstNode* stmt) {
     if (condition->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, condition->loc, ERR_VOID_ASSIGN);
+      // don't throw here?
       // throw StopExpression();
       return;
     }
@@ -720,26 +734,28 @@ void Analyzer::AnalyzeForStmt(AstNode* stmt) {
   AnalyzeStatement(*it++);
 }
 
-void Analyzer::AnalyzeIfStmt(AstNode* stmt) {
+void Analyzer::AnalyzeIfStmt(AstNode* stmt) noexcept {
   auto it = stmt->child.begin();
   AstNode* relop_expr = *it++;
-  AnalyzeRelopExpr(relop_expr);
+  TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
+    // don't throw here?
     // throw StopExpression();
     return;
   }
   AnalyzeStatement(*it++);
 }
 
-void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) {
+void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) noexcept {
   auto it = stmt->child.begin();
   AstNode* relop_expr = *it++;
-  AnalyzeRelopExpr(relop_expr);
+  TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
+    // don't throw here?
     // throw StopExpression();
     return;
   }
@@ -747,7 +763,7 @@ void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) {
   AnalyzeStatement(*it++);
 }
 
-void Analyzer::AnalyzeStatement(AstNode* stmt) {
+void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
   Debug_("AnalyzeStatement", '\n');
   if (stmt->node_type == STMT_NODE) {
     auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
@@ -795,7 +811,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) {
   }
 }
 
-void Analyzer::AnalyzeStmtList(AstNode* stmt_list) {
+void Analyzer::AnalyzeStmtList(AstNode* stmt_list) noexcept {
   for (AstNode* stmt : stmt_list->child) AnalyzeStatement(stmt);
 }
 
@@ -804,7 +820,11 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
   auto& value = std::get<IdentifierSemanticValue>(init_id->semantic_value);
   if (value.kind == WITH_INIT_ID) {
     AstNode* init_val = *init_id->child.begin();
-    AnalyzeRelopExpr(init_val);
+    try {
+      AnalyzeRelopExpr(init_val);
+    } catch (...) {
+      throw;
+    }
     if (init_val->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, init_val->loc, ERR_VOID_ASSIGN);
@@ -814,16 +834,16 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
   }
 }
 
-void Analyzer::AnalyzeVariableDecl(AstNode* var_decl) {
+void Analyzer::AnalyzeVariableDecl(AstNode* var_decl) noexcept {
   Debug_("AnalyzeVariableDecl", '\n');
   for (auto it = std::next(var_decl->child.begin());
        it != var_decl->child.end(); it++) {
     AstNode* init_id = *it;
-    AnalyzeInitID(init_id);
+    TRY_EXPRESSION(AnalyzeInitID(init_id));
   }
 }
 
-void Analyzer::AnalyzeDeclList(AstNode* decl_list) {
+void Analyzer::AnalyzeDeclList(AstNode* decl_list) noexcept {
   Debug_("AnalyzeDeclList", '\n');
   for (AstNode* child : decl_list->child) {
     assert(child->node_type == DECLARATION_NODE);
@@ -834,7 +854,7 @@ void Analyzer::AnalyzeDeclList(AstNode* decl_list) {
   }
 }
 
-void Analyzer::AnalyzeBlock(AstNode* block) {
+void Analyzer::AnalyzeBlock(AstNode* block) noexcept {
   Debug_("AnalyzeBlock", '\n');
   for (AstNode* node : block->child) {
     if (node->node_type == STMT_LIST_NODE) {
@@ -855,7 +875,7 @@ void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
   return_type_ = NONE_TYPE;
 }
 
-void Analyzer::AnalyzeGlobalDecl(AstNode* decl) {
+void Analyzer::AnalyzeGlobalDecl(AstNode* decl) noexcept {
   Debug_("AnalyzeGlobalDecl", '\n');
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
     for (AstNode* child : decl->child) AnalyzeGlobalDecl(child);
