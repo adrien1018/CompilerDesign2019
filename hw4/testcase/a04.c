@@ -1,30 +1,12 @@
+int fn1() {
+  int ABC = 5;
+  return ABC + 5;
+}
+void fn2() {}
+void fn3(int a, int b[3][4]) {}
 int main() {
-  int i;
-  int p;
-  int k, j;
-  for (i = 0; i < 9; i = i + 1) {
-    /* empty */
-  }
-  for (i = 0, p = 4 + 4; i < 9; i = i + 1, p = i) {
-    write("test");
-  }
-  for (;;) {
-    /*empty*/
-  }
-  while (1) {
-  }
-  while (2) {
-    write("haha");
-    write("wow");
-  }
-  if (k == j) {
-    write("first");
-  }
-  if (k == j) {
-    write("first");
-  } else if (j == k) {
-    write("second");
-  } else {
-    write("third");
-  }
+  int b[4][4];
+  fn1();
+  fn2();
+  fn3(2, b);
 }

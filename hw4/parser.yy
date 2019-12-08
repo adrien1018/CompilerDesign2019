@@ -34,6 +34,7 @@ std::string GetTypeName(DataType type) {
     case FLOAT_TYPE: return "float";
     case VOID_TYPE: return "void";
     case CONST_STRING_TYPE: return "char *";
+    default: return "";
   }
 }
 
@@ -112,18 +113,43 @@ int DoLogicalOperation(BinaryOperator op, T x, U y) {
   }
 }
 
+AstNode* UnaryConstNode(UnaryOperator op, AstNode* nd, const Location& loc) {
+  DataType& type = nd->data_type;
+  if (type == CONST_STRING_TYPE)
+    throw yy::parser::syntax_error(loc, "cannot operate on strings");
+  ConstValue& val = std::get<ConstValue>(nd->semantic_value);
+  switch (op) {
+    case UNARY_OP_NEGATIVE: {
+      if (type == INT_TYPE) {
+        val = -std::get<int>(val);
+      } else {
+        val = -std::get<FloatType>(val);
+      }
+      break;
+    }
+    case UNARY_OP_LOGICAL_NEGATION: {
+      if (type == INT_TYPE) {
+        val = !std::get<int>(val);
+      } else {
+        val = !std::get<FloatType>(val);
+      }
+      type = INT_TYPE;
+    }
+  }
+  return nd;
+}
+
 AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
                         const Location& loc) {
   DataType ltype = lhs->data_type;
   DataType rtype = rhs->data_type;
   if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE)
-    throw yy::parser::syntax_error(loc, "");
+    throw yy::parser::syntax_error(loc, "cannot operate on strings");
   AstNode* node = new AstNode(CONST_VALUE_NODE, loc);
   try {
     node->data_type = MixDataType(lhs, rhs);
   } catch (const std::exception& e) {
-    // TODO: Error messages
-    throw yy::parser::syntax_error(loc, "");
+    throw yy::parser::syntax_error(loc, e.what());
   }
   ConstValue& lcv = std::get<ConstValue>(lhs->semantic_value);
   ConstValue& rcv = std::get<ConstValue>(rhs->semantic_value);
@@ -281,7 +307,7 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 
 %type <AstNode*> program function_decl block decl var_decl init_id stmt
 %type <AstNode*> relop_expr var_ref
-%type <AstNode*> param assign_expr cexpr assign_expr_list
+%type <AstNode*> param assign_expr cexpr cexpr_uni assign_expr_list
 %type <AstNode*> type_decl id_item relop_expr_list unifact
 %type <std::list<AstNode*>> global_decl_list stmt_list decl_list init_id_list
 %type <std::list<AstNode*>> param_list id_list dim_list
@@ -462,7 +488,6 @@ dim_decl:
     $$ = {$2};
   };
 
-/* TODO: Support logical operations and unary operations in cexpr */
 cexpr:
   cexpr O_ADDITION cexpr {
     $$ = MergeConstNode(BINARY_OP_ADD, $1, $3, @$);
@@ -476,39 +501,41 @@ cexpr:
   cexpr O_DIVISION cexpr {
     $$ = MergeConstNode(BINARY_OP_DIV, $1, $3, @$);
   } |
-  CONST {
-    $$ = $1;
-  } |
-  S_L_PAREN cexpr S_R_PAREN {
-    $$ = $2;
-  };
-  /* cexpr O_LOGICAL_AND cexpr {
-    $$ = MergeConstNode(BINARY_OP_AND, $1, $3, @$);
-  } |
   cexpr O_LOGICAL_OR cexpr {
     $$ = MergeConstNode(BINARY_OP_OR, $1, $3, @$);
   } |
-  cexpr O_LOGICAL_EQ cexpr {
-    $$ = MergeConstNode(BINARY_OP_EQ, $1, $3, @$);
+  cexpr O_LOGICAL_AND cexpr {
+    $$ = MergeConstNode(BINARY_OP_AND, $1, $3, @$);
   } |
-  cexpr O_LOGICAL_GE cexpr {
-    $$ = MergeConstNode(BINARY_OP_GE, $1, $3, @$);
-  } |
-  cexpr O_LOGICAL_LE cexpr {
-    $$ = MergeConstNode(BINARY_OP_LE, $1, $3, @$);
-  } |
-  cexpr O_LOGICAL_NE cexpr {
-    $$ = MergeConstNode(BINARY_OP_NE, $1, $3, @$);
-  } |
-  cexpr O_LOGICAL_LT cexpr {
+  cexpr O_LESS_THAN cexpr {
     $$ = MergeConstNode(BINARY_OP_LT, $1, $3, @$);
   } |
-  cexpr O_LOGICAL_GT cexpr {
+  cexpr O_LESS_THAN_OR_EQ cexpr {
+    $$ = MergeConstNode(BINARY_OP_LE, $1, $3, @$);
+  } |
+  cexpr O_GREATER_THAN cexpr {
     $$ = MergeConstNode(BINARY_OP_GT, $1, $3, @$);
   } |
-  O_SUBTRACTION cexpr {
-    $$ = nullptr; 
-  } | */
+  cexpr O_GREATER_THAN_OR_EQ cexpr {
+    $$ = MergeConstNode(BINARY_OP_GE, $1, $3, @$);
+  } |
+  cexpr_uni {
+    $$ = $1;
+  };
+
+cexpr_uni:
+  O_SUBTRACTION cexpr_uni {
+    $$ = UnaryConstNode(UNARY_OP_NEGATIVE, $2, @$);
+  } |
+  O_LOGICAL_NOT cexpr_uni {
+    $$ = UnaryConstNode(UNARY_OP_LOGICAL_NEGATION, $2, @$);
+  } |
+  S_L_PAREN cexpr S_R_PAREN {
+    $$ = $2;
+  } |
+  CONST {
+    $$ = $1;
+  };
 
 init_id_list:
   init_id {
