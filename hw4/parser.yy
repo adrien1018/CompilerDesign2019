@@ -562,7 +562,7 @@ stmt:
     $$ = new AstNode(NULL_NODE, @$);
   } |
   R_RETURN S_SEMICOLON {
-    $$ = MakeStmtNode(RETURN_STMT, @$);
+    $$ = MakeStmtNode(RETURN_STMT, @1);
   } |
   R_RETURN relop_expr S_SEMICOLON {
     $$ = MakeStmtNode(RETURN_STMT, @$);

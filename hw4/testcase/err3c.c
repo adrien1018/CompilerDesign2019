@@ -10,6 +10,7 @@ int C(int d[2]) {
 
 int D() {
   int a[4][5];
+  float c[3][2];
   int b = 3;
   b = b + A(a); /* ERR */
   b = b + B(a); /* OK 3c */
@@ -20,5 +21,6 @@ int D() {
   b = b + A(a[1][1]); /* OK */
   b = b + B(a[1][1]); /* ERR */
   b = b + C(a[1][1]); /* ERR */
+  b = b + C(c[1]); /* ERR 3d */
   return b;
 }

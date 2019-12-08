@@ -58,6 +58,10 @@ struct StopExpression {};
 
 namespace {
 
+const std::string& GetName(const AstNode* nd) {
+  return std::get<std::string>(std::get<IdentifierSemanticValue>(
+      nd->semantic_value).identifier);
+}
 const Identifier& GetIdentifier(const AstNode* nd) {
   return std::get<Identifier>(std::get<IdentifierSemanticValue>(
       nd->semantic_value).identifier);
@@ -127,8 +131,8 @@ void Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
   }
 }
 
-std::vector<size_t> Analyzer::ParseDimDecl(
-    const std::list<AstNode*>& dim_decl) {
+std::vector<size_t> Analyzer::ParseDimDecl(AstNode* parent) {
+  auto& dim_decl = parent->child;
   std::vector<size_t> dims;
   for (auto cexpr : dim_decl) {
     if (cexpr->node_type == NULL_NODE) {
@@ -139,15 +143,14 @@ std::vector<size_t> Analyzer::ParseDimDecl(
     if (cexpr->data_type != INT_TYPE) {
       success_ = false;
       PrintMsg(file_, cexpr->loc, ERR_DIMEN_NOT_INT);
-      // throw StopExpression();
-      return dims;
+      throw StopExpression();
     }
     ConstValue& cv = std::get<ConstValue>(cexpr->semantic_value);
     int size = std::get<int>(cv);
     if (size < 0) {
       success_ = false;
       PrintMsg(file_, cexpr->loc, ERR_DIMEN_NEG);
-      // throw StopExpression();
+      throw StopExpression();
       return dims;
     }
     dims.push_back(size);
@@ -229,11 +232,11 @@ std::pair<VariableType, TableEntry> Analyzer::BuildParam(AstNode* param) {
       return std::make_pair(VariableType(type),
                             BuildEntry<VARIABLE>(identifier, type));
     }
-    auto dims = ParseDimDecl(identifier->child);
+    auto dims = ParseDimDecl(identifier);
     VariableType res(type, std::move(dims));
     return std::make_pair(res, BuildEntry<VARIABLE>(identifier, res));
   } catch (...) {
-    throw;
+    throw; // TODO?
   }
 }
 
@@ -306,7 +309,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
     success_ = false;
     PrintMsg(file_, id_node->loc,
              num_param > func.NumParam() ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW,
-             name);
+             entry.GetNode()->loc, name);
     // throw StopExpression();
     return;
   }
@@ -512,7 +515,7 @@ void Analyzer::BuildProgram(AstNode* prog) {
 bool Analyzer::BuildSymbolTable(AstNode* prog) {
   Debug_("BuildSymbolTable", '\n');
   BuildProgram(prog);
-  mp_.Clear();
+  mp_.ClearMap();
   return success_;
 }
 
@@ -567,11 +570,13 @@ inline MsgType CheckConvertibility(const VariableType& proto,
     return ERR_ARR_TO_SCALAR;
   }
   if (proto.GetDimension() != args.GetDimension()) {
-    return WARN_INCOMPAT_PTR;
+    return WARN_INCOMPAT_DIMEN;
   }
-  for (size_t i = 1; i < proto.dims.size();
-       ++i) {  // ignore the first dimension
-    if (proto.dims[i] != args.dims[i]) return WARN_INCOMPAT_PTR;
+  if (proto.IsArray() && proto.data_type != args.data_type) {
+    return WARN_INCOMPAT_ARR_TYPE;
+  }
+  for (size_t i = 1; i < proto.dims.size(); ++i) { // ignore the first dimension
+    if (proto.dims[i] != args.dims[i]) return WARN_INCOMPAT_DIMEN;
   }
   return ERR_NOTHING;
 }
@@ -591,7 +596,9 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
     MsgType x =
         CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
     if (x != ERR_NOTHING) {
-      PrintMsg(file_, param->loc, x);
+      PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
+                GetIdentifier(param).second,
+                GetIdentifier(entry.GetNode()).second);
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
   }
