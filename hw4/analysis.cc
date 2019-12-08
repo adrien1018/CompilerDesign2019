@@ -772,7 +772,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
         AnalyzeIfElseStmt(stmt);
         break;
       case ASSIGN_STMT:
-        AnalyzeAssignExpr(stmt);
+        TRY_EXPRESSION(AnalyzeAssignExpr(stmt));
         break;
       case FUNCTION_CALL_STMT:
         AnalyzeFunctionCall(stmt);

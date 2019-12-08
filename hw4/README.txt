@@ -8,8 +8,9 @@ Compile:
 Usage:
   $ ./parser [file]
 
-New features:
+New features / modifications:
 * Allow negative constant values (in scanner)
+* Allow unlimited array dimensions
 * Imitate GCC error messages (e.g. notes, code printing, colors, exit status)
   (note that we don't print message on success)
 
