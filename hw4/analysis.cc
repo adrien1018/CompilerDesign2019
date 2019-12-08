@@ -142,14 +142,14 @@ std::vector<size_t> Analyzer::ParseDimDecl(AstNode* parent) {
     assert(cexpr->node_type == CONST_VALUE_NODE);
     if (cexpr->data_type != INT_TYPE) {
       success_ = false;
-      PrintMsg(file_, cexpr->loc, ERR_DIMEN_NOT_INT);
+      PrintMsg(file_, cexpr->loc, ERR_DIMEN_NOT_INT, GetName(parent));
       throw StopExpression();
     }
     ConstValue& cv = std::get<ConstValue>(cexpr->semantic_value);
     int size = std::get<int>(cv);
     if (size < 0) {
       success_ = false;
-      PrintMsg(file_, cexpr->loc, ERR_DIMEN_NEG);
+      PrintMsg(file_, cexpr->loc, ERR_DIMEN_NEG, GetName(parent));
       throw StopExpression();
       return dims;
     }
@@ -171,7 +171,7 @@ void Analyzer::BuildInitID(AstNode* init_id, DataType type) noexcept {
       InsertSymTab(value.identifier, BuildEntry<VARIABLE>(init_id, type),
                    init_id);
     } else {
-      std::vector<size_t> dims = ParseDimDecl(init_id->child);
+      std::vector<size_t> dims = ParseDimDecl(init_id);
       InsertSymTab(value.identifier,
                    BuildEntry<VARIABLE>(init_id, type, std::move(dims)),
                    init_id);
