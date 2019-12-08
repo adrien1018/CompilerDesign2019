@@ -269,11 +269,7 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
     }
   }
   value.identifier = GetIdentifier(entry.GetNode());
-  try {
-    for (AstNode* dim : node->child) BuildRelopExpr(dim);
-  } catch (...) {
-    throw;
-  }
+  for (AstNode* dim : node->child) BuildRelopExpr(dim);
 }
 
 void Analyzer::BuildFunctionCall(AstNode* node) {
@@ -306,11 +302,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   }
   value.identifier = GetIdentifier(entry.GetNode());
   node->data_type = func.return_type;
-  try {
-    BuildRelopExprList(relop_expr_list, true);
-  } catch (...) {
-    throw;
-  }
+  BuildRelopExprList(relop_expr_list, true);
 }
 
 void Analyzer::BuildRelopExpr(AstNode* expr, bool is_function_arg) noexcept {
@@ -322,13 +314,7 @@ void Analyzer::BuildRelopExpr(AstNode* expr, bool is_function_arg) noexcept {
       }
       break;
     case IDENTIFIER_NODE:
-      try {
-        BuildVarRef(expr, is_function_arg);
-      } catch (StopExpression&) {
-        Debug_("catch StopExpression\n");
-      } catch (...) {
-        Debug_("catch ...\n");
-      }
+      TRY_EXPRESSION(BuildVarRef(expr, is_function_arg));
       break;
     case STMT_NODE:
       BuildStatement(expr);

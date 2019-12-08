@@ -36,13 +36,33 @@ std::string GetTypeName(DataType type) {
     case CONST_STRING_TYPE: return "char *";
     default: return "";
   }
+  return "";
 }
 
-inline DataType MixDataType(AstNode *a, AstNode *b) {
+std::string GetOpName(BinaryOperator op) {
+  switch (op) {
+    case BINARY_OP_ADD: return "+";
+    case BINARY_OP_SUB: return "-";
+    case BINARY_OP_MUL: return "*";
+    case BINARY_OP_DIV: return "/";
+    case BINARY_OP_AND: return "&&";
+    case BINARY_OP_OR: return "||";
+    case BINARY_OP_EQ: return "==";
+    case BINARY_OP_NE: return "!=";
+    case BINARY_OP_LT: return "<";
+    case BINARY_OP_GT: return ">";
+    case BINARY_OP_LE: return "<=";
+    case BINARY_OP_GE: return ">=";
+  }
+  return "";
+}
+
+inline DataType MixDataType(AstNode *a, AstNode *b, BinaryOperator op) {
   if (a->data_type == CONST_STRING_TYPE || b->data_type == CONST_STRING_TYPE) {
     std::string x = GetTypeName(a->data_type);
     std::string y = GetTypeName(b->data_type);
-    throw std::invalid_argument("invalid operands to binary + (have '" + x + "' and '" + y + "')");
+    std::string z = GetOpName(op);
+    throw std::invalid_argument("invalid operands to binary " + z + " (have '" + x + "' and '" + y + "')");
   }
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
@@ -71,6 +91,10 @@ constexpr bool IsLogicalOp(BinaryOperator op) {
   return op == BINARY_OP_EQ || op == BINARY_OP_GE || op == BINARY_OP_LE ||
          op == BINARY_OP_NE || op == BINARY_OP_GT || op == BINARY_OP_LT ||
          op == BINARY_OP_AND || op == BINARY_OP_OR;
+}
+
+constexpr bool IsArithmaticOp(BinaryOperator op) {
+  return !IsLogicalOp(op);
 }
 
 template <typename T, typename U>
@@ -143,11 +167,15 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
                         const Location& loc) {
   DataType ltype = lhs->data_type;
   DataType rtype = rhs->data_type;
-  if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE)
-    throw yy::parser::syntax_error(loc, "cannot operate on strings");
+  if (ltype == CONST_STRING_TYPE || rtype == CONST_STRING_TYPE) {
+    std::string x = GetTypeName(ltype);
+    std::string y = GetTypeName(rtype);
+    std::string z = GetOpName(op);
+    throw yy::parser::syntax_error(loc, "invalid operands to binary " + z + " (have '" + x + "' and '" + y + "')");
+  }
   AstNode* node = new AstNode(CONST_VALUE_NODE, loc);
   try {
-    node->data_type = MixDataType(lhs, rhs);
+    node->data_type = MixDataType(lhs, rhs, op);
   } catch (const std::exception& e) {
     throw yy::parser::syntax_error(loc, e.what());
   }
@@ -661,7 +689,7 @@ relop_expr:
   } |
   relop_expr O_ADDITION relop_expr {
     try {
-      auto type = MixDataType($1, $3);
+      auto type = MixDataType($1, $3, BINARY_OP_ADD);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_ADD, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -669,7 +697,7 @@ relop_expr:
   } |
   relop_expr O_SUBTRACTION relop_expr {
     try {
-      auto type = MixDataType($1, $3);
+      auto type = MixDataType($1, $3, BINARY_OP_SUB);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_SUB, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -677,7 +705,7 @@ relop_expr:
   } |
   relop_expr O_MULTIPLICATION relop_expr {
     try {
-      auto type = MixDataType($1, $3);
+      auto type = MixDataType($1, $3, BINARY_OP_MUL);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_MUL, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -685,7 +713,7 @@ relop_expr:
   } |
   relop_expr O_DIVISION relop_expr {
     try {
-      auto type = MixDataType($1, $3);
+      auto type = MixDataType($1, $3, BINARY_OP_DIV);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_DIV, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
