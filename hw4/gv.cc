@@ -67,8 +67,8 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
         ofs << std::get<std::string>(
             std::get<IdentifierSemanticValue>(node->semantic_value).identifier);
       } catch (const std::bad_variant_access &) {
-        ofs << std::get<size_t>(
-            std::get<IdentifierSemanticValue>(node->semantic_value).identifier);
+        ofs << std::get<Identifier>(std::get<IdentifierSemanticValue>(
+            node->semantic_value).identifier).first;
       }
       ofs << ' '
           << kIdTypeMap.at(

@@ -6,6 +6,8 @@
 #include <string>
 #include <variant>
 
+#include "symtab.h"
+
 using FloatType = double;
 
 struct Location {
@@ -124,10 +126,11 @@ struct DeclSemanticValue {
   DeclKind kind;
 };
 
-struct SymbolAttribute;
+using Identifier = std::pair<size_t,
+                             SymbolMap<std::string::value_type>::StringRef>;
 
 struct IdentifierSemanticValue {
-  std::variant<std::string, size_t> identifier;
+  std::variant<std::string, Identifier> identifier;
   IdentifierKind kind;
 };
 

@@ -20,7 +20,8 @@ class Analyzer {
   }
 
  private:
-  SymbolMap<std::string> mp_;
+  using SymMap_ = SymbolMap<std::string::value_type>;
+  SymMap_ mp_;
   std::vector<TableEntry> tab_;
   DataType return_type_ = NONE_TYPE;
 
@@ -48,8 +49,8 @@ class Analyzer {
 
   std::pair<VariableType, TableEntry> BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl);
-  void InsertSymTab(std::variant<std::string, size_t>& id, TableEntry&& entry,
-                    AstNode*, bool is_param = false);
+  void InsertSymTab(std::variant<std::string, Identifier>& id,
+                    TableEntry&& entry, AstNode*, bool is_param = false);
   void InsertParam(AstNode* param, TableEntry&& entry);
   DataType BuildType(AstNode* nd);
 

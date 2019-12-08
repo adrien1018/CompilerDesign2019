@@ -72,7 +72,7 @@ class TableEntry {
     value_ = T(std::forward<Param>(param)...);
   }
 
-  AstNode* GetNode() { return nd_; }
+  AstNode* GetNode() const { return nd_; }
 };
 
 template <EntryType T, class... Param>
