@@ -78,14 +78,12 @@ DataType Analyzer::BuildType(AstNode* nd) {
     if (id == SymMap_::npos) {
       success_ = false;
       PrintMsg(file_, nd->loc, ERR_TYPE_UNDECL, type_name);
-      // throw StopExpression();
-      return UNKNOWN_TYPE;
+      throw StopExpression();
     } else {
       if (tab_[id].GetType() != TYPE_ALIAS) {
         success_ = false;
         PrintMsg(file_, nd->loc, ERR_NOT_TYPE, type_name);
-        // throw StopExpression();
-        return UNKNOWN_TYPE;
+        throw StopExpression();
       }
       value.type = tab_[id].GetValue<DataType>();
       return std::get<DataType>(value.type);
@@ -126,7 +124,7 @@ void Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
                              : ERR_REDECL_CONFLICT;
     PrintMsg(file_, nd->loc, msg, prev_entry.GetNode()->loc,
              id_num.first.second);
-    // throw StopExpression();
+    throw StopExpression();
   }
 }
 
@@ -150,7 +148,6 @@ std::vector<size_t> Analyzer::ParseDimDecl(AstNode* parent) {
       success_ = false;
       PrintMsg(file_, cexpr->loc, ERR_DIMEN_NEG, GetName(parent));
       throw StopExpression();
-      return dims;
     }
     dims.push_back(size);
   }
@@ -269,7 +266,6 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
       success_ = false;
       PrintMsg(file_, node->loc, ERR_SCALAR_SUBSCRIPT, name);
       throw StopExpression();
-      return;
     }
   }
   value.identifier = GetIdentifier(entry.GetNode());
@@ -290,15 +286,13 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   if (id == SymMap_::npos) {
     success_ = false;
     PrintMsg(file_, id_node->loc, ERR_UNDECL, name);
-    // throw StopExpression();
-    return;
+    throw StopExpression();
   }
   const TableEntry& entry = tab_[id];
   if (entry.GetType() != FUNCTION) {
     success_ = false;
     PrintMsg(file_, id_node->loc, ERR_NOT_CALLABLE, name);
-    // throw StopExpression();
-    return;
+    throw StopExpression();
   }
   const auto& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
@@ -308,8 +302,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
     PrintMsg(file_, id_node->loc,
              num_param > func.NumParam() ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW,
              entry.GetNode()->loc, name);
-    // throw StopExpression();
-    return;
+    throw StopExpression();
   }
   value.identifier = GetIdentifier(entry.GetNode());
   node->data_type = func.return_type;
@@ -455,35 +448,39 @@ void Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
 }
 
 void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
-  Debug_("BuildFunctionDecl", '\n');
-  auto it = func_decl->child.begin();
-  AstNode* type_node = *it++;
-  DataType type = BuildType(type_node);
-  AstNode* id_node = *it++;
-  assert(id_node && id_node->node_type == IDENTIFIER_NODE);
-  auto& func_name =
-      std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
-  Debug_("func_name = ", std::get<std::string>(func_name), '\n');
-  std::vector<VariableType> param_list;
-  std::vector<TableEntry> entries;
-  AstNode* param_list_node = *it++;
-  for (AstNode* param : param_list_node->child) {
-    Debug_("BuildParam", '\n');
-    auto res = BuildParam(param);
-    param_list.push_back(std::move(res.first));
-    entries.push_back(std::move(res.second));
-  }
-  InsertSymTab(func_name,
-               BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
-               id_node);
-  mp_.PushScope();  // push scope for the function parameters
-  size_t i = 0;
-  for (AstNode* param : param_list_node->child) {
-    auto& entry = entries[i++];
-    InsertParam(param, std::move(entry));
-  }
-  BuildBlock(*it);
-  mp_.PopScope();  // pop scope
+  bool flag = false;
+  try {
+    Debug_("BuildFunctionDecl", '\n');
+    auto it = func_decl->child.begin();
+    AstNode* type_node = *it++;
+    DataType type = BuildType(type_node);
+    AstNode* id_node = *it++;
+    assert(id_node && id_node->node_type == IDENTIFIER_NODE);
+    auto& func_name =
+        std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
+    Debug_("func_name = ", std::get<std::string>(func_name), '\n');
+    std::vector<VariableType> param_list;
+    std::vector<TableEntry> entries;
+    AstNode* param_list_node = *it++;
+    for (AstNode* param : param_list_node->child) {
+      Debug_("BuildParam", '\n');
+      auto res = BuildParam(param);
+      param_list.push_back(std::move(res.first));
+      entries.push_back(std::move(res.second));
+    }
+    InsertSymTab(func_name,
+                BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
+                id_node);
+    mp_.PushScope();  // push scope for the function parameters
+    flag = true;
+    size_t i = 0;
+    for (AstNode* param : param_list_node->child) {
+      auto& entry = entries[i++];
+      InsertParam(param, std::move(entry));
+    }
+    BuildBlock(*it);
+  } catch (StopExpression&) {}
+  if (flag) mp_.PopScope();  // pop scope
 }
 
 void Analyzer::BuildGlobalDecl(AstNode* decl) noexcept {
@@ -505,7 +502,6 @@ void Analyzer::BuildGlobalDecl(AstNode* decl) noexcept {
       break;
     case FUNCTION_DECL:
       Debug_("FUNCTION_DECL", '\n');
-      // TODO: catch StopFunction
       BuildFunctionDecl(decl);
       break;
   }
@@ -631,7 +627,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
           success_ = false;
           PrintMsg(file_, operand->loc, ERR_VOID_ASSIGN);
           // throw StopExpression();
-          return;
+          // TODO: Why this throw uncaught???
         }
       }
       auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
@@ -689,8 +685,7 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
     if (relop_expr->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-      // throw StopExpression();
-      return;
+      throw StopExpression();
     }
   } else {
     try {
@@ -719,9 +714,6 @@ void Analyzer::AnalyzeWhileStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-    // don't throw here?
-    // throw StopExpression();
-    return;
   }
   AnalyzeStatement(*std::next(stmt->child.begin()));
 }
@@ -736,9 +728,6 @@ void Analyzer::AnalyzeForStmt(AstNode* stmt) noexcept {
     if (condition->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, condition->loc, ERR_VOID_ASSIGN);
-      // don't throw here?
-      // throw StopExpression();
-      return;
     }
   }
   AnalyzeAssignExprList(*it++);
@@ -752,9 +741,6 @@ void Analyzer::AnalyzeIfStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-    // don't throw here?
-    // throw StopExpression();
-    return;
   }
   AnalyzeStatement(*it++);
 }
@@ -766,9 +752,6 @@ void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-    // don't throw here?
-    // throw StopExpression();
-    return;
   }
   AnalyzeStatement(*it++);
   AnalyzeStatement(*it++);
@@ -839,8 +822,7 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
     if (init_val->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, init_val->loc, ERR_VOID_ASSIGN);
-      // throw StopExpression();
-      return;
+      throw StopExpression();
     }
   }
 }
