@@ -28,23 +28,23 @@ class Analyzer {
   bool success_;
 
   void BuildProgram(AstNode* prog);
-  void BuildGlobalDecl(AstNode* decl);
+  void BuildGlobalDecl(AstNode* decl) noexcept;
   void BuildFunctionDecl(AstNode* func_decl);
-  void BuildBlock(AstNode* block);
-  void BuildDeclList(AstNode* decl_list);
-  void BuildStmtList(AstNode* stmt_list);
-  void BuildStatement(AstNode* stmt);
-  void BuildAssignExprList(AstNode* assign_expr_list);
+  void BuildBlock(AstNode* block) noexcept;
+  void BuildDeclList(AstNode* decl_list) noexcept;
+  void BuildStmtList(AstNode* stmt_list) noexcept;
+  void BuildStatement(AstNode* stmt) noexcept;
+  void BuildAssignExprList(AstNode* assign_expr_list) noexcept;
   void BuildRelopExprList(AstNode* relop_expr_list,
-                          bool is_function_arg = false);
-  void BuildAssignExpr(AstNode* expr);
-  void BuildRelopExpr(AstNode* expr, bool is_function_arg = false);
+                          bool is_function_arg = false) noexcept;
+  void BuildAssignExpr(AstNode* expr) noexcept;
+  void BuildRelopExpr(AstNode* expr, bool is_function_arg = false) noexcept;
   void BuildFunctionCall(AstNode* node);
   void BuildVarRef(AstNode* node, bool is_function_arg = false);
-  void BuildTypeDecl(AstNode* type_decl);
+  void BuildTypeDecl(AstNode* type_decl) noexcept;
   void BuildTypedefID(AstNode* id_item, DataType type);
-  void BuildVariableDecl(AstNode* var_decl);
-  void BuildInitID(AstNode* init_id, DataType type);
+  void BuildVariableDecl(AstNode* var_decl) noexcept;
+  void BuildInitID(AstNode* init_id, DataType type) noexcept;
 
   std::pair<VariableType, TableEntry> BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl);
