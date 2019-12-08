@@ -30,14 +30,14 @@
 #ifdef DEBUG
 #include <iostream>
 template <class T>
-static inline void DebugX_(T&& a) { Debug_(a); }
+static inline void DebugX_(T&& a) { std::cerr << a; }
 template <class U, class... T>
 static inline void DebugX_(U&& u, T&&... tail) {
-  DebugX_(u); DebugX_(std::forward<T>(tail...)));
+  DebugX_(u); DebugX_(std::forward<T>(tail)...);
 }
 template <class... T>
 static inline void Debug_(T&&... args) {
-  DebugX_(std::forward<T>(args...)); std::cerr << std::flush;
+  DebugX_(std::forward<T>(args)...); std::cerr << std::flush;
 }
 #else
 template <class... T>

@@ -54,7 +54,7 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
   return yy::parser::make_##x(loc)
 #define RETURN_RESERVED(x)                       \
   printf("Get reserved word: [%s]\n", YYText()); \
-  return yy::parser::make##x(loc)
+  return yy::parser::symbol_type(x, loc)
 #else
 #define RETURN_TOKEN(x) return yy::parser::make_##x(loc)
 #define RETURN_RESERVED(x) return yy::parser::symbol_type(x, loc)
