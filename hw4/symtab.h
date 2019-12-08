@@ -117,12 +117,13 @@ template <class T> class SymbolMap {
 
   size_t Query(const KeyType& name) const {
     auto it = map_.find(StringRef(name));
-    if (it == map_.end()) return npos;
+    if (it == map_.end() || it->second.empty()) return npos;
     return it->second.back();
   }
   size_t QueryScope(const KeyType& name) const {
     auto it = map_.find(StringRef(name));
-    if (it == map_.end() || scope_[it->second.back()] != scope_lst_.size()) {
+    if (it == map_.end() || it->second.empty() ||
+        scope_[it->second.back()] != scope_lst_.size()) {
       return npos;
     }
     return it->second.back();
@@ -130,7 +131,8 @@ template <class T> class SymbolMap {
   std::pair<std::pair<size_t, StringRef>, bool> Insert(const KeyType& name) {
     size_t x = scope_.size();
     auto it = map_.emplace(StringRef(name), std::vector<size_t>());
-    if (!it.second && scope_[it.first->second.back()] == scope_lst_.size()) {
+    if (!it.second && it.first->second.size() &&
+        scope_[it.first->second.back()] == scope_lst_.size()) {
       return {{it.first->second.back(), it.first->first}, false};
     }
     *const_cast<StringRef*>(&it.first->first) = InsertPool_(name); // map hack

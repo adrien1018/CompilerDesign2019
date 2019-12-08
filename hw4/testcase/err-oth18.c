@@ -1,21 +1,7 @@
-int f1() {
-  return 8.7;
-  return;
-}
-
-float f2() {
-  int a, b;
-  float c, d;
-  return 87;
-  return a + b;
-  return;
-  return a + c; /* OK */
-  return c + d; /* OK */
-}
-
-void f3() {
-  int a, b;
-  return 8.7;
-  return a + b;
-  return; /* OK */
+void meow() {}
+int main() {
+  int a = meow();
+  while (meow()) {}
+  for(a = meow(); meow(); a = meow());
+  return meow();
 }
