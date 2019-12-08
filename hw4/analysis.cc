@@ -278,6 +278,20 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
+  if (name == "write") { // write built-in function
+    AstNode* relop_expr_list = *std::next(node->child.begin());
+    if (size_t num_param = relop_expr_list->child.size();
+        num_param != 1) {
+      success_ = false;
+      PrintMsg(file_, id_node->loc,
+               num_param > 1 ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW, name);
+      throw StopExpression();
+    }
+    value.identifier = (Identifier){-1, {}};
+    node->data_type = VOID_TYPE;
+    BuildRelopExprList(relop_expr_list, true);
+    return;
+  }
   size_t id = mp_.Query(name);
   if (id == SymMap_::npos) {
     success_ = false;
@@ -580,7 +594,16 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   Debug_("AnalyzeFunctionCall", '\n');
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
-  const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
+  size_t id = std::get<Identifier>(value.identifier).first;
+  if (id == (size_t)-1) { // write
+    AstNode* relop_expr_list = *std::next(node->child.begin());
+    assert(relop_expr_list.size() == 1);
+    AnalyzeRelopExprList(relop_expr_list);
+    // AstNode* param = relop_expr_list->child.front();
+    // TODO: Check not array
+    return;
+  }
+  const TableEntry& entry = tab_[id];
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   AnalyzeRelopExprList(relop_expr_list);
@@ -619,6 +642,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
           success_ = false;
           PrintMsg(file_, operand->loc, ERR_VOID_ASSIGN);
           throw StopExpression();
+          // TODO: Why this throw uncaught???
         }
       }
       auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
@@ -659,11 +683,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
       break;
     }
     case IDENTIFIER_NODE:
-      try {
-        AnalyzeVarRef(expr);
-      } catch (...) {
-        throw;
-      }
+      AnalyzeVarRef(expr);
       break;
     case STMT_NODE:
       AnalyzeStatement(expr);

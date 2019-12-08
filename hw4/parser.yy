@@ -155,7 +155,7 @@ AstNode* UnaryConstNode(UnaryOperator op, AstNode* nd, const Location& loc) {
       if (type == INT_TYPE) {
         val = !std::get<int>(val);
       } else {
-        val = !std::get<FloatType>(val);
+        val = (int)!std::get<FloatType>(val);
       }
       type = INT_TYPE;
     }

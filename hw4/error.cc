@@ -184,6 +184,20 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " is not a function";
             break;
           }
+          case ERR_ARGS_TOO_FEW: { // write
+            std::cerr << "too few arguments to builtin function ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            break;
+          }
+          case ERR_ARGS_TOO_MANY: { // write
+            std::cerr << "too many arguments to builtin function ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            break;
+          }
           case ERR_SCALAR_SUBSCRIPT: {
             std::cerr << "subscripted value ";
             StartEmph(f.color_output);
