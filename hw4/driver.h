@@ -42,6 +42,8 @@ class Driver : public yyFlexLexer {
   FileInfor file_;
   bool stream_create_;
 
+  void DeleteAst_();
+
  public:
   Location location;
   AstNode* prog = nullptr;
@@ -72,6 +74,7 @@ class Driver : public yyFlexLexer {
 
   ~Driver() {
     if (stream_create_) delete file_.streamptr;
+    DeleteAst_();
   }
 
   int Parse(bool debug = false);

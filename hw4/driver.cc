@@ -5,6 +5,19 @@
 #include "error.h"
 #include "analysis.h"
 
+namespace {
+
+void RecursiveDelete(AstNode* nd) {
+  for (AstNode* x : nd->child) RecursiveDelete(x);
+  delete nd;
+}
+
+} // namespace
+
+void Driver::DeleteAst_() {
+  if (prog) RecursiveDelete(prog);
+}
+
 int Driver::Parse(bool debug) {
   yy::parser parser(*this);
   if (debug) parser.set_debug_level(1);

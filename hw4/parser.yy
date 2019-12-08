@@ -562,7 +562,7 @@ stmt:
     $$ = new AstNode(NULL_NODE, @$);
   } |
   R_RETURN S_SEMICOLON {
-    $$ = MakeStmtNode(RETURN_STMT, @$);
+    $$ = MakeStmtNode(RETURN_STMT, @1);
   } |
   R_RETURN relop_expr S_SEMICOLON {
     $$ = MakeStmtNode(RETURN_STMT, @$);
@@ -659,12 +659,6 @@ relop_expr:
   } |
   unifact {
     $$ = $1;
-  } |
-  O_SUBTRACTION unifact {
-    $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE, @$, {$2});
-  } |
-  O_LOGICAL_NOT unifact {
-    $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION, @$, {$2});
   };
 
 relop_expr_list:
@@ -686,6 +680,12 @@ nonempty_relop_expr_list:
   };
 
 unifact:
+  O_SUBTRACTION unifact {
+    $$ = MakeExprNode(UNARY_OPERATION, $2->data_type, UNARY_OP_NEGATIVE, @$, {$2});
+  } |
+  O_LOGICAL_NOT unifact {
+    $$ = MakeExprNode(UNARY_OPERATION, INT_TYPE, UNARY_OP_LOGICAL_NEGATION, @$, {$2});
+  } |
   var_ref {
     $$ = $1;
   } |

@@ -6,8 +6,10 @@ YACC = bison
 YACCFLAGS = -v -t -d -Lc++
 CXXFLAGS = -O3 -g -Wall -std=c++17 -Wno-register -Wno-switch # -DNDEBUG
 
+analysis.o: CXXFLAGS += -fprofile-arcs -ftest-coverage
+
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -o $@ $^
 
 scanner.cc: lexer.ll parser.cc
 	$(LEX) -+ -o $@ $<
@@ -21,4 +23,6 @@ main.o: parser.cc
 driver.o: parser.cc
 
 clean:
-	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output
+	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output *.gcno *.gcda *.gcov
+clean_gcov:
+	rm -f *.gcda *.gcov

@@ -1,3 +1,6 @@
+int glob_a;
+int glob_b = glob_c;
+
 int A() {
   int c = 2;
   a = c + 2;

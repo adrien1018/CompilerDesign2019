@@ -9,4 +9,7 @@ calc++/
 testing/
 *.gv
 *.png
+*.gcov
+*.gcda
+*.gcno
 tags

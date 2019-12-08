@@ -25,13 +25,13 @@ enum MsgType {
   ERR_REDECL_PARAM,
   ERR_REDECL_CONFLICT,
   ERR_REDECL_TYPE,
-  ERR_ARGS_TOO_FEW,   //
-  ERR_ARGS_TOO_MANY,  //
+  ERR_ARGS_TOO_FEW,
+  ERR_ARGS_TOO_MANY,
   ERR_SUBSCRIPT_NOT_INT,
   ERR_ARR_DIMEN,
-  ERR_SCALAR_TO_ARR,  // TODO: change to 2 location (print "initializing
-                      // argument")
-  ERR_ARR_TO_SCALAR,  //
+  ERR_SCALAR_SUBSCRIPT,
+  ERR_SCALAR_TO_ARR,
+  ERR_ARR_TO_SCALAR,
   ERR_DIMEN_NOT_INT,
   ERR_DIMEN_NEG,
   ERR_VOID_ASSIGN,
@@ -41,7 +41,8 @@ enum MsgType {
   WARN_CONVERSION,
   WARN_VOID_RETURN,
   WARN_RETURN_NOVAL,
-  WARN_INCOMPAT_PTR,
+  WARN_INCOMPAT_DIMEN,
+  WARN_INCOMPAT_ARR_TYPE,
 
   ERR_NOTHING
 };
@@ -60,6 +61,8 @@ void PrintMsg(const FileInfor&, const Location&, MsgType);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               const std::string&);
+void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
+              size_t, const std::string&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, DataType, DataType);
 
 #endif

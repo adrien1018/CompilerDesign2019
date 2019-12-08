@@ -117,22 +117,6 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << "incompatible array dimensions";
             break;
           }
-          case ERR_SCALAR_TO_ARR: {
-            std::cerr << "initialize array parameter from scalar";
-            break;
-          }
-          case ERR_ARR_TO_SCALAR: {
-            std::cerr << "initialize scalar parameter from array";
-            break;
-          }
-          case ERR_DIMEN_NOT_INT: {
-            std::cerr << "size of array has non-integer type";
-            break;
-          }
-          case ERR_DIMEN_NEG: {
-            std::cerr << "size of array is negative";
-            break;
-          }
           case ERR_VOID_ASSIGN: {
             std::cerr << "void value not ignored as it ought to be";
             break;
@@ -149,11 +133,6 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << "‘return’";
             EndColor(f.color_output);
             std::cerr << " with no value, in function returning non-void";
-            break;
-          }
-          case WARN_INCOMPAT_PTR: {
-            std::cerr
-                << "initializing array parameter from incompatible dimensions";
             break;
           }
           default:
@@ -205,18 +184,28 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " is not a function";
             break;
           }
-          case ERR_ARGS_TOO_FEW: {
-            std::cerr << "too few arguments to function ";
+          case ERR_SCALAR_SUBSCRIPT: {
+            std::cerr << "subscripted value ";
             StartEmph(f.color_output);
             std::cerr << "‘" << var << "’";
             EndColor(f.color_output);
+            std::cerr << " is not an array";
             break;
           }
-          case ERR_ARGS_TOO_MANY: {
-            std::cerr << "too many arguments to function ";
+          case ERR_DIMEN_NOT_INT: {
+            std::cerr << "size of array ";
             StartEmph(f.color_output);
             std::cerr << "‘" << var << "’";
             EndColor(f.color_output);
+            std::cerr << " has non-integer type";
+            break;
+          }
+          case ERR_DIMEN_NEG: {
+            std::cerr << "size of array ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            std::cerr << " is negative";
             break;
           }
           default:
@@ -260,6 +249,20 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " redeclared as different kind of symbol";
             break;
           }
+          case ERR_ARGS_TOO_FEW: {
+            std::cerr << "too few arguments to function ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            break;
+          }
+          case ERR_ARGS_TOO_MANY: {
+            std::cerr << "too many arguments to function ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            break;
+          }
           default:
             throw;  // incorrect parameters
         }
@@ -280,8 +283,75 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " was here";
             break;
           }
+          case ERR_ARGS_TOO_FEW:
+          case ERR_ARGS_TOO_MANY: {
+            std::cerr << "declared here";
+            break;
+          }
           default:
             throw;  // incorrect parameters
+        }
+      },
+      NOTE, true);
+}
+
+void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
+              const Location& l2, size_t arg, const std::string& var1,
+              const std::string& var2) {
+  PrintMsg(
+      f, l,
+      [&]() {
+        switch (err) {
+          case ERR_SCALAR_TO_ARR: {
+            std::cerr << "initialize array parameter from scalar ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var1 << "’";
+            EndColor(f.color_output);
+            break;
+          }
+          case ERR_ARR_TO_SCALAR: {
+            std::cerr << "initialize scalar parameter from array ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var1 << "’";
+            EndColor(f.color_output);
+            break;
+          }
+          case WARN_INCOMPAT_DIMEN: {
+            std::cerr << "initializing array parameter from array ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var1 << "’";
+            EndColor(f.color_output);
+            std::cerr << " with incompatible dimensions";
+            break;
+          }
+          case WARN_INCOMPAT_ARR_TYPE: {
+            std::cerr << "initializing array parameter from array ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var1 << "’";
+            EndColor(f.color_output);
+            std::cerr << " with different type";
+            break;
+          }
+          default:
+            throw;  // incorrect parameters
+        }
+      },
+      GetMsgClass(err), true);
+  PrintMsg(
+      f, l2,
+      [&]() {
+        switch (err) {
+          case ERR_SCALAR_TO_ARR:
+          case ERR_ARR_TO_SCALAR:
+          case WARN_INCOMPAT_DIMEN:
+          case WARN_INCOMPAT_ARR_TYPE: {
+            std::cerr << "passing argument " << arg << " of ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var2 << "’";
+            EndColor(f.color_output);
+            break;
+          }
+          default:;
         }
       },
       NOTE, true);
