@@ -6,15 +6,15 @@
 #include <vector>
 
 #include "entry.h"
+#include "error.h"
 #include "symtab.h"
 
 
 class Analyzer {
  public:
-  Analyzer(const std::string& filename, std::istream* stream, bool color_output)
-      : filename_(filename), stream_(stream), color_output_(color_output) {}
-  void SemanticAnalysis(AstNode* prog);
-  void BuildSymbolTable(AstNode* prog);
+  Analyzer(const FileInfor file) : file_(file), success_(true) {}
+  bool SemanticAnalysis(AstNode* prog);
+  bool BuildSymbolTable(AstNode* prog);
   std::vector<TableEntry>& GetSymbolTable() {
     return tab_;
   }
@@ -24,9 +24,8 @@ class Analyzer {
   std::vector<TableEntry> tab_;
   DataType return_type_ = NONE_TYPE;
 
-  std::string filename_;
-  std::istream* stream_;
-  bool color_output_;
+  FileInfor file_;
+  bool success_;
 
   void BuildProgram(AstNode* prog);
   void BuildGlobalDecl(AstNode* decl);
@@ -40,7 +39,6 @@ class Analyzer {
                           bool is_function_arg = false);
   void BuildAssignExpr(AstNode* expr);
   void BuildRelopExpr(AstNode* expr, bool is_function_arg = false);
-  void BuildWriteCall(AstNode* node);
   void BuildFunctionCall(AstNode* node);
   void BuildVarRef(AstNode* node, bool is_function_arg = false);
   void BuildTypeDecl(AstNode* type_decl);
@@ -50,7 +48,8 @@ class Analyzer {
 
   std::pair<VariableType, TableEntry> BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl);
-  void InsertSymTab(std::variant<std::string, size_t>& id, TableEntry&& entry);
+  void InsertSymTab(std::variant<std::string, size_t>& id, TableEntry&& entry,
+                    AstNode*);
   void InsertParam(AstNode* param, TableEntry&& entry);
   DataType BuildType(AstNode* nd);
 

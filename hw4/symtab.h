@@ -30,10 +30,12 @@
  *   Complexity: expected O(1)
  *
  * std::pair<size_t, bool> Insert(const KeyType& name);
+ * std::pair<std::pair<size_t, const std::string&>, bool> Insert(KeyType&& name);
  *   Insert a symbol with key `name` into the current position.
  *   If a symbol with key `name` exists in the current scope, it returns
  *     std::make_pair([id of the existing symbol], false). Otherwise, it returns
  *     std::make_pair([id of the inserted symbol], true).
+ *   The rvalue version returns a const reference to the key.
  *   Complexity: amortized + expected O(1)
  *
  * size_t GetScopeDepth(size_t id) const;
@@ -92,16 +94,16 @@ class SymbolMap {
     if (scope_lst_.size()) scope_lst_.back().insert(&*it.first);
     return {x, true};
   }
-  std::pair<size_t, bool> Insert(KeyType&& name) {
+  std::pair<std::pair<size_t, const std::string&>, bool> Insert(KeyType&& name) {
     size_t x = scope_.size();
     auto it = map_.emplace(std::move(name), std::vector<size_t>());
     if (!it.second && scope_[it.first->second.back()] == scope_lst_.size()) {
-      return {it.first->second.back(), false};
+      return {{it.first->second.back(), it.first->first}, false};
     }
     scope_.push_back(scope_lst_.size());
     it.first->second.push_back(x);
     if (scope_lst_.size()) scope_lst_.back().insert(&*it.first);
-    return {x, true};
+    return {{x, it.first->first}, true};
   }
   size_t GetScopeDepth(size_t id) const { return scope_[id]; }
   size_t GetScopeDepth() const { return scope_lst_.size(); }

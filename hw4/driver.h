@@ -6,6 +6,7 @@
 
 #include "analysis.h"
 #include "ast.h"
+#include "error.h"
 #include "parser.hh"
 
 #ifndef yyFlexLexer
@@ -26,55 +27,56 @@
 
 class Driver : public yyFlexLexer {
  private:
-  void SetColor_() { color_output_ = DRIVER_ISATTY_(DRIVER_FILENO_(stderr)); }
-  std::istream* InitStream_(const std::string& str) {
-    stream_ = new std::ifstream(str);
-    return stream_;
+  void SetColor_() {
+    file_.color_output = DRIVER_ISATTY_(DRIVER_FILENO_(stderr));
   }
-  std::istream* stream_;
+  std::istream* InitStream_(const std::string& str) {
+    file_.streamptr = new std::ifstream(str);
+    return file_.streamptr;
+  }
+  FileInfor file_;
   bool stream_create_;
-  std::string filename_;
-  bool color_output_;
 
  public:
+  Location location;
+  AstNode* prog = nullptr;
+
   Driver()
       : yyFlexLexer(),
-        stream_(&std::cin),
-        stream_create_(false),
-        filename_("<stdin>") {
+        file_(&std::cin, "<stdin>"),
+        stream_create_(false) {
     SetColor_();
   }
-  Driver(std::istream* i = 0, std::ostream* o = 0)
+  Driver(std::istream* i = nullptr, std::ostream* o = nullptr)
       : yyFlexLexer(i, o),
-        stream_(i),
-        stream_create_(false),
-        filename_("<unknown>") {
+        file_(i, "<unknown>"),
+        stream_create_(false) {
     SetColor_();
   }
   Driver(std::istream& i, std::ostream& o)
       : yyFlexLexer(&i, &o),
-        stream_(&i),
-        stream_create_(false),
-        filename_("<unknown>") {
+        file_(&i, "<unknown>"),
+        stream_create_(false) {
     SetColor_();
   }
   Driver(const std::string& file)
-      : yyFlexLexer(InitStream_(file)), stream_create_(true), filename_(file) {
+      : yyFlexLexer(InitStream_(file)),
+        stream_create_(true) {
+    file_.filename = file;
     SetColor_();
   }
 
   ~Driver() {
-    if (stream_create_) delete stream_;
+    if (stream_create_) delete file_.streamptr;
   }
-  Location location;
-  AstNode* prog = nullptr;
 
   int Parse(bool debug = false);
 
   void PrintError(const Location& l, const std::string& m);
-  yy::parser::symbol_type yylex_a();
 
-  void SemanticAnalysis();
+  bool SemanticAnalysis();
+
+  yy::parser::symbol_type yylex_a();
 };
 
 inline yy::parser::symbol_type yylex(Driver& drv) { return drv.yylex_a(); }

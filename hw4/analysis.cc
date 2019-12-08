@@ -7,8 +7,6 @@
 #include <utility>
 #include <variant>
 
-#include "error.h"
-
 /*** Note
  * Errors being caught in the first pass:
  *  - 1.a ID <name> undeclared.
@@ -28,6 +26,10 @@
 // TODO: Store the identifier names to restore error messages in the second
 // pass.
 // TODO: Does C-- support something like "typedef int INT[3];"?
+// TODO: Support write()
+// TODO: Add declare position note
+
+struct StopExpression {};
 
 DataType Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
@@ -36,13 +38,15 @@ DataType Analyzer::BuildType(AstNode* nd) {
     std::cerr << "type_name = " << type_name << std::endl;
     size_t id = mp_.Query(type_name);
     if (id == SymbolMap<std::string>::npos) {
-      std::cerr << "[Error] type " << type_name << " undeclared" << std::endl;
-      //err_.emplace_back(/* TODO */);
+      success_ = false;
+      PrintError(file_, nd->loc, ERR_TYPE_UNDECL, type_name);
+      //throw StopExpression();
       return UNKNOWN_TYPE;
     } else {
       if (tab_[id].GetType() != TYPE_ALIAS) {
-        std::cerr << "[Error] " << type_name << " was not declared as type"
-                  << std::endl;
+        success_ = false;
+        PrintError(file_, nd->loc, ERR_NOT_TYPE, type_name);
+        //throw StopExpression();
         return UNKNOWN_TYPE;
       }
       value.type = tab_[id].GetValue<AliasType>().canonical_type;
@@ -56,14 +60,15 @@ DataType Analyzer::BuildType(AstNode* nd) {
 }
 
 void Analyzer::InsertSymTab(std::variant<std::string, size_t>& id,
-                            TableEntry&& entry) {
+                            TableEntry&& entry, AstNode* nd) {
   auto id_num = mp_.Insert(std::move(std::get<std::string>(id)));
   if (id_num.second) {
     tab_.emplace_back(std::move(entry));
-    id = id_num.first;
+    id = id_num.first.first;
   } else {
-    std::cerr << "[Error] Redeclaration" << std::endl;
-    //err_.emplace_back(/* TODO: redeclared error */);
+    success_ = false;
+    PrintError(file_, nd->loc, ERR_REDECL, id_num.first.second);
+    //throw StopExpression();
   }
 }
 
@@ -100,10 +105,10 @@ void Analyzer::BuildInitID(AstNode* init_id, DataType type) {
       AstNode* init_val = *init_id->child.begin();
       BuildRelopExpr(init_val);
     }
-    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type));
+    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type), init_id);
   } else {
     std::vector<size_t> dims = ParseDimDecl(init_id->child);
-    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type, std::move(dims)));
+    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type, std::move(dims)), init_id);
   }
 }
 
@@ -125,7 +130,7 @@ void Analyzer::BuildTypedefID(AstNode* id_item, DataType type) {
   if (value.kind == ARRAY_ID) {
     // TODO
   } else {
-    InsertSymTab(value.identifier, BuildEntry<TYPE_ALIAS>(type));
+    InsertSymTab(value.identifier, BuildEntry<TYPE_ALIAS>(type), id_item);
   }
 }
 
@@ -158,8 +163,9 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
   const std::string& name = std::get<std::string>(value.identifier);
   size_t id = mp_.Query(name);
   if (id == SymbolMap<std::string>::npos) {
-    std::cerr << "[Error] " << name << " undeclared" << std::endl;
-    // TODO: Error - `name` undeclared.
+    success_ = false;
+    PrintError(file_, node->loc, ERR_UNDECL, name);
+    //throw StopExpression();
   } else {
     const TableEntry& entry = tab_[id];
     if (entry.GetType() != VARIABLE && entry.GetType() != ARRAY) {
@@ -175,29 +181,14 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
           // TODO: Error
         }
       } else {
-        std::cerr << "[Error] " << name << " undeclared" << std::endl;
-        // TODO: Error
+        success_ = false;
+        PrintError(file_, node->loc, ERR_UNDECL, name);
+        //throw StopExpression();
       }
     }
     value.identifier = id;
   }
   for (AstNode* dim : node->child) BuildRelopExpr(dim);
-}
-
-void Analyzer::BuildWriteCall(AstNode* node) {
-  if (node->child.size() == 1) {
-    std::cerr << "[Error] too few arguments to function write" << std::endl;
-    // TODO: Error - too few arguments to function `name`
-    return;
-  }
-  if (node->child.size() != 2) {
-    std::cerr << "[Error] too many arguments to function write" << std::endl;
-    // TODO: Error - too many arguments to function `name`
-    return;
-  }
-  if ((*std::next(node->child.begin()))->data_type != CONST_STRING_TYPE) {
-    // TODO: Error - argument is not a string
-  }
 }
 
 void Analyzer::BuildFunctionCall(AstNode* node) {
@@ -206,33 +197,32 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
-  if (name == "write") return BuildWriteCall(node);
   size_t id = mp_.Query(name);
   if (id == SymbolMap<std::string>::npos) {
-    std::cerr << "[Error] " << name << " undeclared" << std::endl;
-    // TODO: Error - `name` undeclared.
+    success_ = false;
+    PrintError(file_, id_node->loc, ERR_UNDECL, name);
+    //throw StopExpression();
+    return;
   }
   const TableEntry& entry = tab_[id];
   if (entry.GetType() != FUNCTION) {
-    std::cerr << "[Error] " << name << " should be declared as function"
-              << std::endl;
-    // TODO: Error - `name` should be declared as function.
+    success_ = false;
+    PrintError(file_, id_node->loc, ERR_NOT_CALLABLE, name);
+    //throw StopExpression();
+    return;
   }
-  value.identifier = id;
   const auto& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   if (size_t num_param = relop_expr_list->child.size();
       num_param != func.NumParam()) {
-    if (num_param > func.NumParam()) {
-      std::cerr << "[Error] too many arguments to function " << name
-                << std::endl;
-      // TODO: Error - too many arguments to function `name`
-    } else {
-      std::cerr << "[Error] too few arguments to function " << name
-                << std::endl;
-      // TODO: Error - too few arguments to function `name`
-    }
+    success_ = false;
+    PrintError(file_, id_node->loc,
+        num_param > func.NumParam() ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW,
+        name);
+    //throw StopExpression();
+    return;
   }
+  value.identifier = id;
   node->data_type = func.return_type;
   BuildRelopExprList(relop_expr_list, true);
 }
@@ -356,7 +346,7 @@ void Analyzer::BuildBlock(AstNode* block) {
 void Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
   AstNode* identifier = *std::next(param->child.begin());
   auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
-  InsertSymTab(value.identifier, std::move(entry));
+  InsertSymTab(value.identifier, std::move(entry), param);
 }
 
 void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
@@ -378,7 +368,8 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
     param_list.push_back(std::move(res.first));
     entries.push_back(std::move(res.second));
   }
-  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)));
+  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)),
+               id_node);
   mp_.PushScope();  // push scope for the function parameters
   size_t i = 0;
   for (AstNode* param : param_list_node->child) {
@@ -412,7 +403,7 @@ void Analyzer::BuildGlobalDecl(AstNode* decl) {
       break;
     default:
       std::cerr << "Wtf" << std::endl;
-      exit(1);
+      throw;
   }
 }
 
@@ -422,9 +413,10 @@ void Analyzer::BuildProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) BuildGlobalDecl(decl);
 }
 
-void Analyzer::BuildSymbolTable(AstNode* prog) {
+bool Analyzer::BuildSymbolTable(AstNode* prog) {
   std::cerr << "BuildSymbolTable" << std::endl;
   BuildProgram(prog);
+  return success_;
 }
 
 void Analyzer::AnalyzeVarRef(AstNode* var) {
@@ -466,7 +458,7 @@ inline VariableType GetPrototype(AstNode* expr,
   }
 }
 
-inline std::optional<SemanticError> CheckConvertibility(
+inline bool CheckConvertibility(
     const VariableType& proto, const VariableType& args) {
   // Check whether `b` can be implicitly converted to `a`. Returns an error or
   // a warning if incorrect conversion occurs.
@@ -474,13 +466,13 @@ inline std::optional<SemanticError> CheckConvertibility(
     // TODO: Error - Scalar <name> passed to array parameter <name>
     std::cerr << "[Error] Scalar <name> passed to array parameter <name>"
               << std::endl;
-    return {};
+    return false;
   }
   if (!proto.IsArray() && args.IsArray()) {
     // TODO: Error - Array <name> passed to scalar parameter <name>
     std::cerr << "[Error] Array <name> passed to scalar parameter <name>"
               << std::endl;
-    return {};
+    return false;
   }
   if (proto.GetDimension() != args.GetDimension()) {
     // TODO: Warning - passing argument <name> of <name> from incompatible
@@ -488,7 +480,7 @@ inline std::optional<SemanticError> CheckConvertibility(
     std::cerr << "[Warning] passing argument <name> of <name> from "
                  "incompatible pointer type"
               << std::endl;
-    return {};
+    return false;
   }
   for (size_t i = 0; i < proto.dims.size(); ++i) {
     if (proto.dims[i] > 0 && args.dims[i] > 0 &&
@@ -498,10 +490,10 @@ inline std::optional<SemanticError> CheckConvertibility(
       std::cerr << "[Warning] passing argument <name> of <name> from "
                    "incompatible pointer type"
                 << std::endl;
-      return {};
+      return false;
     }
   }
-  return {};
+  return true;
 }
 
 }  // namespace
@@ -510,22 +502,17 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   std::cerr << "AnalyzeFunctionCall" << std::endl;
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
-  try {
-    const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
-    const FunctionType& func = entry.GetValue<FunctionType>();
-    AstNode* relop_expr_list = *std::next(node->child.begin());
-    AnalyzeRelopExprList(relop_expr_list);
-    size_t i = 0;
-    for (AstNode* param : relop_expr_list->child) {
-      auto err =
-          CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
-      if (err.has_value()) {
-        std::cerr << "[Error] " << std::endl;
-        // TODO: Error
-      }
+  const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
+  const FunctionType& func = entry.GetValue<FunctionType>();
+  AstNode* relop_expr_list = *std::next(node->child.begin());
+  AnalyzeRelopExprList(relop_expr_list);
+  size_t i = 0;
+  for (AstNode* param : relop_expr_list->child) {
+    if (!CheckConvertibility(func.params[i++], GetPrototype(param, tab_))) {
+      success_ = false;
+      //throw StopExpression();
+      return;
     }
-  } catch (...) {
-    std::cerr << "Calling write() function" << std::endl;
   }
 }
 
@@ -700,15 +687,22 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) {
         if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
         DataType type = stmt->child.empty()
                             ? VOID_TYPE
-                            : (*(stmt->child.begin()))->data_type;
+                            : stmt->child.front()->data_type;
         if (return_type_ != NONE_TYPE && type != return_type_) {
-          std::cerr << "[Error] Incompatible return type" << std::endl;
-          // TODO: Error - Incompatible return type.
+          if (return_type_ == VOID_TYPE) {
+            PrintWarning(file_, stmt->child.front()->loc, WARN_VOID_RETURN);
+          } else if (type == VOID_TYPE) {
+            PrintWarning(file_, stmt->loc, WARN_RETURN_NOVAL);
+          } else {
+            PrintWarning(file_, stmt->child.front()->loc, WARN_CONVERSION,
+                type, return_type_);
+            // TODO: Need a conversion node?
+          }
         }
         break;
     }
-  } else {
-    if (stmt->node_type == BLOCK_NODE) AnalyzeBlock(stmt);
+  } else if (stmt->node_type == BLOCK_NODE) {
+    AnalyzeBlock(stmt);
   }
 }
 
@@ -786,4 +780,7 @@ void Analyzer::AnalyzeProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) AnalyzeGlobalDecl(decl);
 }
 
-void Analyzer::SemanticAnalysis(AstNode* prog) { AnalyzeProgram(prog); }
+bool Analyzer::SemanticAnalysis(AstNode* prog) {
+  AnalyzeProgram(prog);
+  return success_;
+}

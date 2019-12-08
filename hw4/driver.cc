@@ -13,13 +13,13 @@ int Driver::Parse(bool debug) {
 }
 
 void Driver::PrintError(const Location& l, const std::string& m) {
-  ::PrintError(stream_, l, filename_, m, color_output_);
+  ::PrintError(file_, l, m);
 }
 
-void Driver::SemanticAnalysis() {
-  Analyzer analyzer(filename_, stream_, color_output_);
-  analyzer.BuildSymbolTable(prog);
-  analyzer.SemanticAnalysis(prog);
+bool Driver::SemanticAnalysis() {
+  Analyzer analyzer(file_);
+  if (!analyzer.BuildSymbolTable(prog)) return false;
+  return analyzer.SemanticAnalysis(prog);
 }
 
 int yyFlexLexer::yylex() {
