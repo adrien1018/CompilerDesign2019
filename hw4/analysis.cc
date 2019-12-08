@@ -278,10 +278,9 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
-  if (name == "write") { // write built-in function
+  if (name == "write") {  // write built-in function
     AstNode* relop_expr_list = *std::next(node->child.begin());
-    if (size_t num_param = relop_expr_list->child.size();
-        num_param != 1) {
+    if (size_t num_param = relop_expr_list->child.size(); num_param != 1) {
       success_ = false;
       PrintMsg(file_, id_node->loc,
                num_param > 1 ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW, name);
@@ -533,7 +532,7 @@ void Analyzer::AnalyzeVarRef(AstNode* var) {
   if (value.kind == ARRAY_ID) {
     Debug_("AnalyzeVarRef: value.kind == ARRAY_ID", '\n');
     for (AstNode* expr : var->child) {
-      AnalyzeRelopExpr(expr);
+      TRY_EXPRESSION(AnalyzeRelopExpr(expr));
       if (expr->data_type != INT_TYPE) {
         success_ = false;
         PrintMsg(file_, expr->loc, ERR_SUBSCRIPT_NOT_INT);
@@ -595,7 +594,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
-  if (id == (size_t)-1) { // write
+  if (id == (size_t)-1) {  // write
     AstNode* relop_expr_list = *std::next(node->child.begin());
     assert(relop_expr_list.size() == 1);
     AnalyzeRelopExprList(relop_expr_list);
@@ -635,14 +634,13 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
     case EXPR_NODE: {
       std::vector<DataType> types;
       for (AstNode* operand : expr->child) {
-        AnalyzeRelopExpr(operand);
+        TRY_EXPRESSION(AnalyzeRelopExpr(operand));
         types.push_back(operand->data_type);
         assert(operand->data_type != UNKNOWN_TYPE);
         if (operand->data_type == VOID_TYPE) {
           success_ = false;
           PrintMsg(file_, operand->loc, ERR_VOID_ASSIGN);
           throw StopExpression();
-          // TODO: Why this throw uncaught???
         }
       }
       auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
@@ -697,8 +695,8 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       std::get<StmtSemanticValue>(expr->semantic_value).kind == ASSIGN_STMT) {
     AstNode* id_node = *expr->child.begin();
     AstNode* relop_expr = *std::next(expr->child.begin());
-    AnalyzeVarRef(id_node);
-    AnalyzeRelopExpr(relop_expr);
+    TRY_EXPRESSION(AnalyzeVarRef(id_node));
+    TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
     if (relop_expr->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
@@ -799,7 +797,8 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
         break;
       case RETURN_STMT:
         try {
-          if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
+          if (!stmt->child.empty())
+            TRY_EXPRESSION(AnalyzeRelopExpr(*stmt->child.begin()));
           DataType type =
               stmt->child.empty() ? VOID_TYPE : stmt->child.front()->data_type;
           if (return_type_ != NONE_TYPE && type != return_type_) {
