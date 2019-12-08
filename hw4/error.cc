@@ -206,6 +206,17 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " is not an array";
             break;
           }
+          case ERR_ARR_TO_SCALAR: { // write
+            std::cerr << "initialize scalar parameter from array ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            std::cerr << " on call to builtin function ";
+            StartEmph(f.color_output);
+            std::cerr << "‘write’";
+            EndColor(f.color_output);
+            break;
+          }
           case ERR_DIMEN_NOT_INT: {
             std::cerr << "size of array ";
             StartEmph(f.color_output);

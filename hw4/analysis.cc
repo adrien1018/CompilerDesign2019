@@ -598,8 +598,13 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
     AstNode* relop_expr_list = *std::next(node->child.begin());
     assert(relop_expr_list.size() == 1);
     AnalyzeRelopExprList(relop_expr_list);
-    // AstNode* param = relop_expr_list->child.front();
-    // TODO: Check not array
+    AstNode* param = relop_expr_list->child.front();
+    auto proto = GetPrototype(param, tab_);
+    if (proto.IsArray()) {
+      success_ = false;
+      PrintMsg(file_, param->loc, ERR_ARR_TO_SCALAR,
+               GetIdentifier(param).second);
+    }
     return;
   }
   const TableEntry& entry = tab_[id];
