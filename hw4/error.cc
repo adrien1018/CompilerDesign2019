@@ -39,24 +39,29 @@ inline void PrintMsg(const FileInfor& f, const Location& l, Func&& msg_callback,
   EndColor();
   msg_callback();
   std::cerr << '\n';
-  if (!print_code) return;
-  std::cerr << std::setw(5) << l.begin.line << " | ";
-  auto pos = f.streamptr->tellg();
-  f.streamptr->seekg(l.begin.offset - l.begin.column + 1);
-  std::string line;
-  std::getline(*f.streamptr, line);
-  f.streamptr->seekg(pos);
-  std::cerr << line.substr(0, l.begin.column - 1);
-  size_t end_col = l.begin.line == l.end.line ? l.end.column : line.size() + 1;
-  StartColor();
-  std::cerr << line.substr(l.begin.column - 1, end_col - l.begin.column);
-  EndColor();
-  std::cerr << line.substr(end_col - 1) << '\n';
-  std::cerr << "      | " << std::string(l.begin.column - 1, ' ');
-  StartColor();
-  std::cerr << '^' << std::string(end_col - l.begin.column - 1, '~');
-  EndColor();
-  std::cerr << std::endl;
+  if (print_code) {
+    std::cerr << std::setw(5) << l.begin.line << " | ";
+    auto pos = f.streamptr->tellg();
+    f.streamptr->seekg(l.begin.offset - l.begin.column + 1);
+    std::string line;
+    std::getline(*f.streamptr, line);
+    f.streamptr->seekg(pos);
+    std::cerr << line.substr(0, l.begin.column - 1);
+    size_t end_col = l.begin.line == l.end.line ? l.end.column : line.size() + 1;
+    StartColor();
+    std::cerr << line.substr(l.begin.column - 1, end_col - l.begin.column);
+    EndColor();
+    std::cerr << line.substr(end_col - 1) << '\n';
+    std::cerr << "      | " << std::string(l.begin.column - 1, ' ');
+    StartColor();
+    std::cerr << '^';
+    if (end_col > l.begin.column + 1) {
+      std::cerr << std::string(end_col - l.begin.column - 1, '~');
+    }
+    EndColor();
+    std::cerr << '\n';
+  }
+  std::cerr << std::flush;
 }
 
 inline std::string TypeStr(DataType a) {

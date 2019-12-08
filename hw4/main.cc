@@ -42,7 +42,7 @@ int main(int argc, char* argv[]) {
         } else {
           return 1;
         }
-      } catch (...) {
+      } catch (std::runtime_error&) {
         std::cerr << "Compilation terminated.\n";
         return 1;
       }
