@@ -630,8 +630,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
         if (operand->data_type == VOID_TYPE) {
           success_ = false;
           PrintMsg(file_, operand->loc, ERR_VOID_ASSIGN);
-          // throw StopExpression();
-          // TODO: Why this throw uncaught???
+          throw StopExpression();
         }
       }
       auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
@@ -670,7 +669,11 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
       break;
     }
     case IDENTIFIER_NODE:
-      AnalyzeVarRef(expr);
+      try {
+        AnalyzeVarRef(expr);
+      } catch (...) {
+        throw;
+      }
       break;
     case STMT_NODE:
       AnalyzeStatement(expr);

@@ -28,9 +28,20 @@
 
 namespace {
 
+std::string GetTypeName(DataType type) {
+  switch (type) {
+    case INT_TYPE: return "int";
+    case FLOAT_TYPE: return "float";
+    case VOID_TYPE: return "void";
+    case CONST_STRING_TYPE: return "char *";
+  }
+}
+
 inline DataType MixDataType(AstNode *a, AstNode *b) {
   if (a->data_type == CONST_STRING_TYPE || b->data_type == CONST_STRING_TYPE) {
-    throw std::invalid_argument("");
+    std::string x = GetTypeName(a->data_type);
+    std::string y = GetTypeName(b->data_type);
+    throw std::invalid_argument("invalid operands to binary + (have '" + x + "' and '" + y + "')");
   }
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
   if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
@@ -626,8 +637,7 @@ relop_expr:
       auto type = MixDataType($1, $3);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_ADD, @$, {$1, $3});
     } catch (const std::exception &e) {
-      // TODO: Error messages
-      throw yy::parser::syntax_error(@$, "");
+      throw yy::parser::syntax_error(@$, e.what());
     }
   } |
   relop_expr O_SUBTRACTION relop_expr {
@@ -635,8 +645,7 @@ relop_expr:
       auto type = MixDataType($1, $3);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_SUB, @$, {$1, $3});
     } catch (const std::exception &e) {
-      // TODO: Error messages
-      throw yy::parser::syntax_error(@$, "");
+      throw yy::parser::syntax_error(@$, e.what());
     }
   } |
   relop_expr O_MULTIPLICATION relop_expr {
@@ -644,8 +653,7 @@ relop_expr:
       auto type = MixDataType($1, $3);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_MUL, @$, {$1, $3});
     } catch (const std::exception &e) {
-      // TODO: Error messages
-      throw yy::parser::syntax_error(@$, "");
+      throw yy::parser::syntax_error(@$, e.what());
     }
   } |
   relop_expr O_DIVISION relop_expr {
@@ -653,8 +661,7 @@ relop_expr:
       auto type = MixDataType($1, $3);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_DIV, @$, {$1, $3});
     } catch (const std::exception &e) {
-      // TODO: Error messages
-      throw yy::parser::syntax_error(@$, "");
+      throw yy::parser::syntax_error(@$, e.what());
     }
   } |
   unifact {
