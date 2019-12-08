@@ -802,8 +802,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
         break;
       case RETURN_STMT:
         try {
-          if (!stmt->child.empty())
-            TRY_EXPRESSION(AnalyzeRelopExpr(*stmt->child.begin()));
+          if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
           DataType type =
               stmt->child.empty() ? VOID_TYPE : stmt->child.front()->data_type;
           if (return_type_ != NONE_TYPE && type != return_type_) {
