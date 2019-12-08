@@ -46,13 +46,22 @@ static inline void Debug_(T&&...) {}
 
 struct StopExpression {};
 
+namespace {
+
+const Identifier& GetIdentifier(const AstNode* nd) {
+  return std::get<Identifier>(std::get<IdentifierSemanticValue>(
+      nd->semantic_value).identifier);
+}
+
+} // namespace
+
 DataType Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
   try {
     std::string type_name = std::get<std::string>(value.type);
     Debug_("type_name = ", type_name, '\n');
     size_t id = mp_.Query(type_name);
-    if (id == SymbolMap<std::string>::npos) {
+    if (id == SymMap_::npos) {
       success_ = false;
       PrintMsg(file_, nd->loc, ERR_TYPE_UNDECL, type_name);
       //throw StopExpression();
@@ -74,19 +83,19 @@ DataType Analyzer::BuildType(AstNode* nd) {
   }
 }
 
-void Analyzer::InsertSymTab(std::variant<std::string, size_t>& id,
+void Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
                             TableEntry&& entry, AstNode* nd,
                             bool is_param) {
-  auto id_num = mp_.Insert(std::move(std::get<std::string>(id)));
+  auto id_num = mp_.Insert(std::get<std::string>(id));
   if (id_num.second) {
     tab_.emplace_back(std::move(entry));
-    id = id_num.first.first;
+    id = id_num.first;
   } else {
     auto& prev_entry = tab_[id_num.first.first];
     if (entry.GetType() == TYPE_ALIAS && prev_entry.GetType() == TYPE_ALIAS &&
         entry.GetValue<DataType>() == prev_entry.GetValue<DataType>()) {
       // typedef can be redeclared
-      id = id_num.first.first;
+      id = id_num.first;
       return;
     }
     success_ = false;
@@ -204,7 +213,7 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
   auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
   size_t id = mp_.Query(name);
-  if (id == SymbolMap<std::string>::npos) {
+  if (id == SymMap_::npos) {
     success_ = false;
     PrintMsg(file_, node->loc, ERR_UNDECL, name);
     //throw StopExpression();
@@ -233,7 +242,7 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
       return;
     }
   }
-  value.identifier = id;
+  value.identifier = GetIdentifier(entry.GetNode());
   for (AstNode* dim : node->child) BuildRelopExpr(dim);
 }
 
@@ -244,7 +253,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
   size_t id = mp_.Query(name);
-  if (id == SymbolMap<std::string>::npos) {
+  if (id == SymMap_::npos) {
     success_ = false;
     PrintMsg(file_, id_node->loc, ERR_UNDECL, name);
     //throw StopExpression();
@@ -268,7 +277,7 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
     //throw StopExpression();
     return;
   }
-  value.identifier = id;
+  value.identifier = GetIdentifier(entry.GetNode());
   node->data_type = func.return_type;
   BuildRelopExprList(relop_expr_list, true);
 }
@@ -463,12 +472,13 @@ void Analyzer::BuildProgram(AstNode* prog) {
 bool Analyzer::BuildSymbolTable(AstNode* prog) {
   Debug_("BuildSymbolTable", '\n');
   BuildProgram(prog);
+  mp_.Clear();
   return success_;
 }
 
 void Analyzer::AnalyzeVarRef(AstNode* var) {
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
-  const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
+  const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const VariableType& var_type = entry.GetValue<VariableType>();
   Debug_("AnalyzeVarRef", '\n');
   if (value.kind == ARRAY_ID) {
@@ -498,7 +508,7 @@ inline VariableType GetPrototype(AstNode* expr,
                                  const std::vector<TableEntry>& tab) {
   if (expr->node_type == IDENTIFIER_NODE) {
     auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
-    const TableEntry& entry = tab[std::get<size_t>(value.identifier)];
+    const TableEntry& entry = tab[std::get<Identifier>(value.identifier).first];
     const VariableType& type = entry.GetValue<VariableType>();
     return type.Slice(expr->child.size());
   } else {
@@ -531,7 +541,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   Debug_("AnalyzeFunctionCall", '\n');
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
-  const TableEntry& entry = tab_[std::get<size_t>(value.identifier)];
+  const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const FunctionType& func = entry.GetValue<FunctionType>();
   AstNode* relop_expr_list = *std::next(node->child.begin());
   AnalyzeRelopExprList(relop_expr_list);
