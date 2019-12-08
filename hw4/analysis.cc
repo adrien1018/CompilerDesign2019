@@ -59,8 +59,8 @@ struct StopExpression {};
 namespace {
 
 const std::string& GetName(const AstNode* nd) {
-  return std::get<std::string>(std::get<IdentifierSemanticValue>(
-      nd->semantic_value).identifier);
+  return std::get<std::string>(
+      std::get<IdentifierSemanticValue>(nd->semantic_value).identifier);
 }
 const Identifier& GetIdentifier(const AstNode* nd) {
   return std::get<Identifier>(
@@ -232,7 +232,7 @@ std::pair<VariableType, TableEntry> Analyzer::BuildParam(AstNode* param) {
     VariableType res(type, std::move(dims));
     return std::make_pair(res, BuildEntry<VARIABLE>(identifier, res));
   } catch (...) {
-    throw; // TODO?
+    throw;  // TODO?
   }
 }
 
@@ -457,8 +457,8 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
       entries.push_back(std::move(res.second));
     }
     InsertSymTab(func_name,
-                BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
-                id_node);
+                 BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
+                 id_node);
     Debug_("PushScope:function\n");
     mp_.PushScope();  // push scope for the function parameters
     flag = true;
@@ -468,7 +468,8 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
       InsertParam(param, std::move(entry));
     }
     BuildBlock(*it);
-  } catch (StopExpression&) {}
+  } catch (StopExpression&) {
+  }
   if (flag) Debug_("PopScope:function\n");
   if (flag) mp_.PopScope();  // pop scope
 }
@@ -566,7 +567,8 @@ inline MsgType CheckConvertibility(const VariableType& proto,
   if (proto.IsArray() && proto.data_type != args.data_type) {
     return WARN_INCOMPAT_ARR_TYPE;
   }
-  for (size_t i = 1; i < proto.dims.size(); ++i) { // ignore the first dimension
+  for (size_t i = 1; i < proto.dims.size();
+       ++i) {  // ignore the first dimension
     if (proto.dims[i] != args.dims[i]) return WARN_INCOMPAT_DIMEN;
   }
   return ERR_NOTHING;
@@ -588,8 +590,8 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
         CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
     if (x != ERR_NOTHING) {
       PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
-                GetIdentifier(param).second,
-                GetIdentifier(entry.GetNode()).second);
+               GetIdentifier(param).second,
+               GetIdentifier(entry.GetNode()).second);
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
   }
@@ -647,9 +649,11 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
         switch (op) {
           case UNARY_OP_POSITIVE:
           case UNARY_OP_NEGATIVE:
-            expr->data_type = types[0]; break;
+            expr->data_type = types[0];
+            break;
           case UNARY_OP_LOGICAL_NEGATION:
-            expr->data_type = INT_TYPE; break;
+            expr->data_type = INT_TYPE;
+            break;
         }
       }
       break;
