@@ -65,9 +65,9 @@ void Assign() {
 
 void Block() {
   size_t now = stk.size();
-  int sz = mrand(0, 200)(gen);
+  int sz = mrand(0, 400)(gen);
   for (int i = 0; i < sz; i++) Decl();
-  sz = mrand(0, 200)(gen);
+  sz = mrand(0, 400)(gen);
   for (int i = 0; i < sz; i++) Assign();
   stk.resize(now);
 }

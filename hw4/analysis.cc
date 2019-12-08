@@ -125,7 +125,6 @@ void Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
                              : ERR_REDECL_CONFLICT;
     PrintMsg(file_, nd->loc, msg, prev_entry.GetNode()->loc,
              id_num.first.second);
-    Debug_("Throw\n");
     throw StopExpression();
   }
 }
@@ -267,7 +266,6 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
       success_ = false;
       PrintMsg(file_, node->loc, ERR_SCALAR_SUBSCRIPT, name);
       throw StopExpression();
-      return;
     }
   }
   value.identifier = GetIdentifier(entry.GetNode());
@@ -448,39 +446,39 @@ void Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
 }
 
 void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
-  Debug_("BuildFunctionDecl", '\n');
-  auto it = func_decl->child.begin();
-  AstNode* type_node = *it++;
-  DataType type = BuildType(type_node);
-  AstNode* id_node = *it++;
-  assert(id_node && id_node->node_type == IDENTIFIER_NODE);
-  auto& func_name =
-      std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
-  Debug_("func_name = ", std::get<std::string>(func_name), '\n');
-  std::vector<VariableType> param_list;
-  std::vector<TableEntry> entries;
-  AstNode* param_list_node = *it++;
-  for (AstNode* param : param_list_node->child) {
-    Debug_("BuildParam", '\n');
-    try {
+  bool flag = false;
+  try {
+    Debug_("BuildFunctionDecl", '\n');
+    auto it = func_decl->child.begin();
+    AstNode* type_node = *it++;
+    DataType type = BuildType(type_node);
+    AstNode* id_node = *it++;
+    assert(id_node && id_node->node_type == IDENTIFIER_NODE);
+    auto& func_name =
+        std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
+    Debug_("func_name = ", std::get<std::string>(func_name), '\n');
+    std::vector<VariableType> param_list;
+    std::vector<TableEntry> entries;
+    AstNode* param_list_node = *it++;
+    for (AstNode* param : param_list_node->child) {
+      Debug_("BuildParam", '\n');
       auto res = BuildParam(param);
       param_list.push_back(std::move(res.first));
       entries.push_back(std::move(res.second));
-    } catch (StopExpression&) {
-      // Ignore the parameter
     }
-  }
-  TRY_EXPRESSION(InsertSymTab(func_name,
-        BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
-        id_node));
-  mp_.PushScope();  // push scope for the function parameters
-  size_t i = 0;
-  for (AstNode* param : param_list_node->child) {
-    auto& entry = entries[i++];
-    InsertParam(param, std::move(entry));
-  }
-  BuildBlock(*it);
-  mp_.PopScope();  // pop scope
+    InsertSymTab(func_name,
+                BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
+                id_node);
+    mp_.PushScope();  // push scope for the function parameters
+    flag = true;
+    size_t i = 0;
+    for (AstNode* param : param_list_node->child) {
+      auto& entry = entries[i++];
+      InsertParam(param, std::move(entry));
+    }
+    BuildBlock(*it);
+  } catch (StopExpression&) {}
+  if (flag) mp_.PopScope();  // pop scope
 }
 
 void Analyzer::BuildGlobalDecl(AstNode* decl) noexcept {
@@ -502,7 +500,6 @@ void Analyzer::BuildGlobalDecl(AstNode* decl) noexcept {
       break;
     case FUNCTION_DECL:
       Debug_("FUNCTION_DECL", '\n');
-      // TODO: catch StopFunction
       BuildFunctionDecl(decl);
       break;
   }
@@ -529,7 +526,7 @@ void Analyzer::AnalyzeVarRef(AstNode* var) {
   if (value.kind == ARRAY_ID) {
     Debug_("AnalyzeVarRef: value.kind == ARRAY_ID", '\n');
     for (AstNode* expr : var->child) {
-      AnalyzeRelopExpr(expr);
+      TRY_EXPRESSION(AnalyzeRelopExpr(expr));
       if (expr->data_type != INT_TYPE) {
         success_ = false;
         PrintMsg(file_, expr->loc, ERR_SUBSCRIPT_NOT_INT);
@@ -621,7 +618,7 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
     case EXPR_NODE: {
       std::vector<DataType> types;
       for (AstNode* operand : expr->child) {
-        AnalyzeRelopExpr(operand);
+        TRY_EXPRESSION(AnalyzeRelopExpr(operand));
         types.push_back(operand->data_type);
         assert(operand->data_type != UNKNOWN_TYPE);
         if (operand->data_type == VOID_TYPE) {
@@ -714,7 +711,6 @@ void Analyzer::AnalyzeWhileStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-    return;
   }
   AnalyzeStatement(*std::next(stmt->child.begin()));
 }
@@ -729,7 +725,6 @@ void Analyzer::AnalyzeForStmt(AstNode* stmt) noexcept {
     if (condition->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, condition->loc, ERR_VOID_ASSIGN);
-      return;
     }
   }
   AnalyzeAssignExprList(*it++);
@@ -743,7 +738,6 @@ void Analyzer::AnalyzeIfStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-    return;
   }
   AnalyzeStatement(*it++);
 }
@@ -755,7 +749,6 @@ void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
-    return;
   }
   AnalyzeStatement(*it++);
   AnalyzeStatement(*it++);
@@ -786,7 +779,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
         break;
       case RETURN_STMT:
         try {
-          if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
+          if (!stmt->child.empty()) TRY_EXPRESSION(AnalyzeRelopExpr(*stmt->child.begin()));
           DataType type =
               stmt->child.empty() ? VOID_TYPE : stmt->child.front()->data_type;
           if (return_type_ != NONE_TYPE && type != return_type_) {
