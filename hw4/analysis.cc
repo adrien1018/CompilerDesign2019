@@ -269,7 +269,7 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
       }
     } else {
       success_ = false;
-      PrintMsg(file_, node->loc, ERR_UNDECL, name);
+      PrintMsg(file_, node->loc, ERR_SCALAR_SUBSCRIPT, name);
       // throw StopExpression();
       return;
     }
@@ -654,10 +654,13 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
       } else {
         assert(types.size() == 1);
         UnaryOperator op = std::get<UnaryOperator>(value.op);
-        if (op == UNARY_OP_NEGATIVE)
-          expr->data_type = types[0];
-        else
-          expr->data_type = INT_TYPE;
+        switch (op) {
+          case UNARY_OP_POSITIVE:
+          case UNARY_OP_NEGATIVE:
+            expr->data_type = types[0]; break;
+          case UNARY_OP_LOGICAL_NEGATION:
+            expr->data_type = INT_TYPE; break;
+        }
       }
       break;
     }

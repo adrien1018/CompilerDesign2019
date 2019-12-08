@@ -15,7 +15,7 @@ void RecursiveDelete(AstNode* nd) {
 } // namespace
 
 void Driver::DeleteAst_() {
-  RecursiveDelete(prog);
+  if (prog) RecursiveDelete(prog);
 }
 
 int Driver::Parse(bool debug) {

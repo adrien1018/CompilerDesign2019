@@ -160,6 +160,14 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
         std::cerr << " is not a function";
         break;
       }
+      case ERR_SCALAR_SUBSCRIPT: {
+        std::cerr << "subscripted value ";
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        std::cerr << " is not an array";
+        break;
+      }
       case ERR_DIMEN_NOT_INT: {
         std::cerr << "size of array ";
         StartEmph(f.color_output);
