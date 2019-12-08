@@ -27,7 +27,7 @@
 // TODO: Support write()
 // TODO: Add declare position note
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #include <iostream>
 template <class T>
 static inline void DebugX_(T&& a) { std::cerr << a; }
@@ -64,7 +64,7 @@ DataType Analyzer::BuildType(AstNode* nd) {
         //throw StopExpression();
         return UNKNOWN_TYPE;
       }
-      value.type = tab_[id].GetValue<AliasType>().canonical_type;
+      value.type = tab_[id].GetValue<DataType>();
       return std::get<DataType>(value.type);
     }
   } catch (const std::bad_variant_access& e) {
@@ -75,14 +75,33 @@ DataType Analyzer::BuildType(AstNode* nd) {
 }
 
 void Analyzer::InsertSymTab(std::variant<std::string, size_t>& id,
-                            TableEntry&& entry, AstNode* nd) {
+                            TableEntry&& entry, AstNode* nd,
+                            bool is_param) {
   auto id_num = mp_.Insert(std::move(std::get<std::string>(id)));
   if (id_num.second) {
     tab_.emplace_back(std::move(entry));
     id = id_num.first.first;
   } else {
+    auto& prev_entry = tab_[id_num.first.first];
+    if (entry.GetType() == TYPE_ALIAS && prev_entry.GetType() == TYPE_ALIAS &&
+        entry.GetValue<DataType>() == prev_entry.GetValue<DataType>()) {
+      // typedef can be redeclared
+      id = id_num.first.first;
+      return;
+    }
     success_ = false;
-    PrintMsg(file_, nd->loc, ERR_REDECL, id_num.first.second);
+    MsgType msg =
+        is_param ? ERR_REDECL_PARAM :
+        entry.GetType() != prev_entry.GetType() ? ERR_REDECL_TYPE :
+        ((entry.GetType() == VARIABLE &&
+          entry.GetValue<VariableType>() ==
+            prev_entry.GetValue<VariableType>()) ||
+          (entry.GetType() == FUNCTION &&
+          entry.GetValue<FunctionType>().return_type ==
+            prev_entry.GetValue<FunctionType>().return_type)) ? ERR_REDECL :
+        ERR_REDECL_CONFLICT;
+    PrintMsg(file_, nd->loc, msg, prev_entry.GetNode()->loc,
+             id_num.first.second);
     //throw StopExpression();
   }
 }
@@ -124,10 +143,12 @@ void Analyzer::BuildInitID(AstNode* init_id, DataType type) {
       AstNode* init_val = *init_id->child.begin();
       BuildRelopExpr(init_val);
     }
-    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type), init_id);
+    InsertSymTab(value.identifier,
+                 BuildEntry<VARIABLE>(init_id, type), init_id);
   } else {
     std::vector<size_t> dims = ParseDimDecl(init_id->child);
-    InsertSymTab(value.identifier, BuildEntry<VARIABLE>(type, std::move(dims)), init_id);
+    InsertSymTab(value.identifier,
+                 BuildEntry<VARIABLE>(init_id, type, std::move(dims)), init_id);
   }
 }
 
@@ -149,7 +170,8 @@ void Analyzer::BuildTypedefID(AstNode* id_item, DataType type) {
   if (value.kind == ARRAY_ID) {
     // TODO
   } else {
-    InsertSymTab(value.identifier, BuildEntry<TYPE_ALIAS>(type), id_item);
+    InsertSymTab(value.identifier,
+                 BuildEntry<TYPE_ALIAS>(id_item, type), id_item);
   }
 }
 
@@ -169,11 +191,12 @@ std::pair<VariableType, TableEntry> Analyzer::BuildParam(AstNode* param) {
   AstNode* identifier = *std::next(param->child.begin());
   auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
   if (value.kind == NORMAL_ID) {
-    return std::make_pair(VariableType(type), BuildEntry<VARIABLE>(type));
+    return std::make_pair(VariableType(type),
+                          BuildEntry<VARIABLE>(identifier, type));
   }
   auto dims = ParseDimDecl(identifier->child);
   VariableType res(type, std::move(dims));
-  return std::make_pair(res, BuildEntry<ARRAY>(res));
+  return std::make_pair(res, BuildEntry<VARIABLE>(identifier, res));
 }
 
 void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
@@ -188,7 +211,7 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
     return;
   }
   const TableEntry& entry = tab_[id];
-  if (entry.GetType() != VARIABLE && entry.GetType() != ARRAY) {
+  if (entry.GetType() != VARIABLE) {
     success_ = false;
     PrintMsg(file_, node->loc, ERR_NOT_VAR, name);
     //throw StopExpression();
@@ -240,8 +263,8 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
       num_param != func.NumParam()) {
     success_ = false;
     PrintMsg(file_, id_node->loc,
-        num_param > func.NumParam() ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW,
-        name);
+             num_param > func.NumParam() ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW,
+             name);
     //throw StopExpression();
     return;
   }
@@ -369,7 +392,7 @@ void Analyzer::BuildBlock(AstNode* block) {
 void Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
   AstNode* identifier = *std::next(param->child.begin());
   auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
-  InsertSymTab(value.identifier, std::move(entry), param);
+  InsertSymTab(value.identifier, std::move(entry), param, true);
 }
 
 void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
@@ -391,7 +414,8 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
     param_list.push_back(std::move(res.first));
     entries.push_back(std::move(res.second));
   }
-  InsertSymTab(func_name, BuildEntry<FUNCTION>(type, std::move(param_list)),
+  InsertSymTab(func_name,
+               BuildEntry<FUNCTION>(id_node, type, std::move(param_list)),
                id_node);
   mp_.PushScope();  // push scope for the function parameters
   size_t i = 0;
@@ -707,7 +731,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) {
               PrintMsg(file_, stmt->loc, WARN_RETURN_NOVAL);
             } else {
               PrintMsg(file_, stmt->child.front()->loc, WARN_CONVERSION,
-                  type, return_type_);
+                       type, return_type_);
               // TODO: Need a conversion node?
             }
           }

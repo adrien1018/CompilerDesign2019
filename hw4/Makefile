@@ -4,7 +4,7 @@ OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o error.o
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++
-CXXFLAGS = -O3 -g -Wall -std=c++17 -Wno-register -Wno-switch
+CXXFLAGS = -O3 -g -Wall -std=c++17 -Wno-register -Wno-switch -DNDEBUG
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^

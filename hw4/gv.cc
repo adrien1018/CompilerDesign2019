@@ -155,8 +155,7 @@ int PrintGVNode(
   return count;
 }
 
-#ifdef DEBUG
-
+#ifndef NDEBUG
 void Debug(AstNode *x) {
   PrintLabelString(std::cout, x);
   if (!x->child.size()) return;
@@ -167,8 +166,7 @@ void Debug(AstNode *x) {
   }
   std::cout << ')';
 }
-
-#endif  // DEBUG
+#endif // NDEBUG
 
 }  // namespace
 

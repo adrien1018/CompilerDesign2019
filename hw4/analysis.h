@@ -49,7 +49,7 @@ class Analyzer {
   std::pair<VariableType, TableEntry> BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(const std::list<AstNode*>& dim_decl);
   void InsertSymTab(std::variant<std::string, size_t>& id, TableEntry&& entry,
-                    AstNode*);
+                    AstNode*, bool is_param = false);
   void InsertParam(AstNode* param, TableEntry&& entry);
   DataType BuildType(AstNode* nd);
 

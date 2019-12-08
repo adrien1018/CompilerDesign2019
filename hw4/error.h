@@ -21,7 +21,10 @@ enum MsgType {
   ERR_NOT_TYPE,
   ERR_NOT_VAR,
   ERR_NOT_CALLABLE,
-  ERR_REDECL, // TODO: change to 2 location (print "declared here" note)
+  ERR_REDECL,
+  ERR_REDECL_PARAM,
+  ERR_REDECL_CONFLICT,
+  ERR_REDECL_TYPE,
   ERR_ARGS_TOO_FEW, //
   ERR_ARGS_TOO_MANY, //
   ERR_SUBSCRIPT_NOT_INT,
@@ -61,8 +64,6 @@ void PrintMsg(const FileInfor&, const Location&, MsgType,
               const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType,
               const Location&, const std::string&);
-void PrintMsg(const FileInfor&, const Location&, MsgType,
-              const std::string&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType,
               DataType, DataType);
 

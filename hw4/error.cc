@@ -180,13 +180,6 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
         std::cerr << " is not a function";
         break;
       }
-      case ERR_REDECL: {
-        std::cerr << "redefinition of ";
-        StartEmph(f.color_output);
-        std::cerr << "‘" << var << "’";
-        EndColor(f.color_output);
-        break;
-      }
       case ERR_ARGS_TOO_FEW: {
         std::cerr << "too few arguments to function ";
         StartEmph(f.color_output);
@@ -204,6 +197,59 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
       default: throw; // incorrect parameters
     }
   }, GetMsgClass(err), true);
+}
+
+void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
+              const Location& l2, const std::string& var) {
+  PrintMsg(f, l, [&](){
+    switch (err) {
+      case ERR_REDECL: {
+        std::cerr << "redefinition of ";
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        break;
+      }
+      case ERR_REDECL_PARAM: {
+        std::cerr << "redefinition of parameter ";
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        break;
+      }
+      case ERR_REDECL_CONFLICT: {
+        std::cerr << "conflicting types for ";
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        break;
+      }
+      case ERR_REDECL_TYPE: {
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        std::cerr << " redeclared as different kind of symbol";
+        break;
+      }
+      default: throw; // incorrect parameters
+    }
+  }, GetMsgClass(err), true);
+  PrintMsg(f, l2, [&](){
+    switch (err) {
+      case ERR_REDECL:
+      case ERR_REDECL_PARAM:
+      case ERR_REDECL_CONFLICT:
+      case ERR_REDECL_TYPE: {
+        std::cerr << "the first declaration of ";
+        StartEmph(f.color_output);
+        std::cerr << "‘" << var << "’";
+        EndColor(f.color_output);
+        std::cerr << " was here";
+        break;
+      }
+      default: throw; // incorrect parameters
+    }
+  }, NOTE, true);
 }
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,

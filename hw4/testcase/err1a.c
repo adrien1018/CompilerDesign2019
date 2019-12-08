@@ -50,3 +50,5 @@ int G() {
   float a = Gx;
   return c[1];
 }
+
+void H(not_exist a) {}

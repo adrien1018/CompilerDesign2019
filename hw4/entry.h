@@ -26,13 +26,11 @@ struct VariableType {
   VariableType Slice(size_t dim) const noexcept {
     return VariableType(data_type, dims.begin() + dim, dims.end());
   }
-};
 
-struct AliasType {
-  DataType canonical_type;
-
-  AliasType() = default;
-  AliasType(DataType type) : canonical_type(type) {}
+  bool operator==(const VariableType& rhs) const {
+    return data_type == rhs.data_type && dims == rhs.dims;
+  }
+  bool operator!=(const VariableType& rhs) const { return !operator==(rhs); }
 };
 
 struct FunctionType {
@@ -47,18 +45,17 @@ struct FunctionType {
   size_t NumParam() const noexcept { return params.size(); }
 };
 
-enum EntryType { VARIABLE, ARRAY, FUNCTION, TYPE_ALIAS };
-
-// TODO: Simplify code here
+enum EntryType { VARIABLE, FUNCTION, TYPE_ALIAS };
 
 class TableEntry {
  private:
+  AstNode* nd_;
   EntryType type_;
-  std::variant<VariableType, AliasType, FunctionType> value_;
+  std::variant<VariableType, DataType, FunctionType> value_;
 
  public:
   TableEntry() = default;
-  TableEntry(EntryType type) : type_(type) {}
+  TableEntry(AstNode* nd, EntryType type) : nd_(nd), type_(type) {}
   EntryType GetType() const noexcept { return type_; }
 
   template <class T>
@@ -74,15 +71,17 @@ class TableEntry {
   void SetValue(Param &&... param) {
     value_ = T(std::forward<Param>(param)...);
   }
+
+  AstNode* GetNode() { return nd_; }
 };
 
 template <EntryType T, class... Param>
-TableEntry BuildEntry(Param &&... param) {
-  TableEntry entry(T);
-  if constexpr (T == VARIABLE || T == ARRAY)
+TableEntry BuildEntry(AstNode* nd, Param&&... param) {
+  TableEntry entry(nd, T);
+  if constexpr (T == VARIABLE)
     entry.SetValue<VariableType>(std::forward<Param>(param)...);
   else if constexpr (T == TYPE_ALIAS)
-    entry.SetValue<AliasType>(std::forward<Param>(param)...);
+    entry.SetValue<DataType>(std::forward<Param>(param)...);
   else if constexpr (T == FUNCTION)
     entry.SetValue<FunctionType>(std::forward<Param>(param)...);
   return entry;

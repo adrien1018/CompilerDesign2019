@@ -48,7 +48,7 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
   return node;
 }
 
-#ifdef DEBUG
+#ifndef NDEBUG
 #define RETURN_TOKEN(x)                   \
   printf("Get %s: [%s]\n", #x, YYText()); \
   return yy::parser::make_##x(loc)
@@ -58,7 +58,7 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
 #else
 #define RETURN_TOKEN(x) return yy::parser::make_##x(loc)
 #define RETURN_RESERVED(x) return yy::parser::symbol_type(x, loc)
-#endif  // DEBUG
+#endif // NDEBUG
 
 %}
 
@@ -170,7 +170,7 @@ ERROR                      .
 {NEWLINE}                    { loc.step(); }
 {COMMENT} {
   loc.step();
-#ifdef DEBUG
+#ifndef NDEBUG
   printf("Get comment: [%s]\n", YYText());
 #endif
 }
@@ -181,7 +181,7 @@ ERROR                      .
   if (reserved_it != kReservedWords.end()) {
     RETURN_RESERVED(reserved_it->second);
   }
-#ifdef DEBUG
+#ifndef NDEBUG
   printf("Get identifier: [%s]\n", YYText());
 #endif
   return yy::parser::make_IDENTIFIER(YYText(), loc);
