@@ -24,24 +24,30 @@
 
 #ifndef NDEBUG
 #include <iostream>
+
 template <class T>
 static inline void DebugX_(T&& a) {
   std::cerr << a;
 }
+
 template <class U, class... T>
 static inline void DebugX_(U&& u, T&&... tail) {
   DebugX_(u);
   DebugX_(std::forward<T>(tail)...);
 }
+
 template <class... T>
-static inline void Debug_(T&&... args) {
+inline void Debug_(T&&... args) {
   DebugX_(std::forward<T>(args)...);
   std::cerr << std::flush;
 }
+
 #else
+
 template <class... T>
 static inline void Debug_(T&&...) {}
-#endif
+
+#endif  // NDEBUG
 
 struct StopExpression {};
 
@@ -298,18 +304,23 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
-  if (name == "write") {  // write built-in function
-    AstNode* relop_expr_list = *std::next(node->child.begin());
-    if (size_t num_param = relop_expr_list->child.size(); num_param != 1) {
-      success_ = false;
-      PrintMsg(file_, id_node->loc,
-               num_param > 1 ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW, name);
-      throw StopExpression();
+  for (size_t i = 0; i < 3; ++i) {
+    if (name == kBuiltinFunction[i].first) {  // built-in functions
+      AstNode* relop_expr_list = *std::next(node->child.begin());
+      if (size_t num_param = relop_expr_list->child.size();
+          num_param != kBuiltinFunction[i].second) {
+        success_ = false;
+        PrintMsg(file_, id_node->loc,
+                 num_param > kBuiltinFunction[i].second ? ERR_ARGS_TOO_MANY
+                                                        : ERR_ARGS_TOO_FEW,
+                 name);
+        throw StopExpression();
+      }
+      value.identifier = (Identifier){-(i + 1), {}};
+      node->data_type = VOID_TYPE;
+      BuildRelopExprList(relop_expr_list, true);
+      return;
     }
-    value.identifier = (Identifier){-1, {}};
-    node->data_type = VOID_TYPE;
-    BuildRelopExprList(relop_expr_list, true);
-    return;
   }
   size_t id = mp_.Query(name);
   if (id == SymMap_::npos) {
@@ -620,16 +631,18 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
-  if (id == (size_t)-1) {  // write
+  if (id >= -kNumBuiltinFunction) {  // write
     AstNode* relop_expr_list = *std::next(node->child.begin());
-    assert(relop_expr_list->child.size() == 1);
+    assert(relop_expr_list->child.size() == kBuiltinFunction[-id - 1].second);
     AnalyzeRelopExprList(relop_expr_list);
-    AstNode* param = relop_expr_list->child.front();
-    auto proto = GetPrototype(param, tab_);
-    if (proto.IsArray()) {
-      success_ = false;
-      PrintMsg(file_, param->loc, ERR_ARR_TO_SCALAR,
-               GetIdentifier(param).second);
+    if (!relop_expr_list->child.empty()) {
+      AstNode* param = relop_expr_list->child.front();
+      auto proto = GetPrototype(param, tab_);
+      if (proto.IsArray()) {
+        success_ = false;
+        PrintMsg(file_, param->loc, ERR_ARR_TO_SCALAR,
+                 GetIdentifier(param).second);
+      }
     }
     return;
   }
@@ -902,7 +915,6 @@ void Analyzer::AnalyzeBlock(AstNode* block) noexcept {
       AnalyzeDeclList(node);
     }
   }
-  Debug_("leave AnalyzeBlock\n");
 }
 
 void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
@@ -922,7 +934,6 @@ void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
   return_type_ = return_type;
   AnalyzeBlock(*std::prev(func->child.end()));
   return_type_ = NONE_TYPE;
-  Debug_("leave AnalyzeFunctionDecl\n");
 }
 
 void Analyzer::AnalyzeGlobalDecl(AstNode* decl) noexcept {

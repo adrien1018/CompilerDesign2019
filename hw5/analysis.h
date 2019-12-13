@@ -9,6 +9,11 @@
 #include "error.h"
 #include "symtab.h"
 
+constexpr size_t kNumBuiltinFunction = 3;
+const std::array<std::pair<std::string, size_t>, kNumBuiltinFunction>
+    kBuiltinFunction = {std::make_pair("write", 1), std::make_pair("read", 0),
+                        std::make_pair("fread", 0)};
+
 class Analyzer {
  public:
   Analyzer(const FileInfor file) : file_(file), success_(true) {}
@@ -40,7 +45,7 @@ class Analyzer {
   void BuildFunctionCall(AstNode* node);
   void BuildVarRef(AstNode* node, bool is_function_arg = false);
   void BuildTypeDecl(AstNode* type_decl) noexcept;
-  void BuildTypedefID(AstNode* id_item, const TypeAttr &type);
+  void BuildTypedefID(AstNode* id_item, const TypeAttr& type);
   void BuildVariableDecl(AstNode* var_decl) noexcept;
   void BuildInitID(AstNode* init_id, const TypeAttr& type) noexcept;
 
