@@ -69,7 +69,7 @@ const Identifier& GetIdentifier(const AstNode* nd) {
 
 }  // namespace
 
-const TypeAttr& Analyzer::BuildType(AstNode* nd) {
+TypeAttr Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
   try {
     std::string type_name = std::get<std::string>(value.type);
@@ -89,8 +89,12 @@ const TypeAttr& Analyzer::BuildType(AstNode* nd) {
       return tab_[id].GetValue<TypeAttr>();
     }
   } catch (const std::bad_variant_access& e) {
-    size_t id = std::get<size_t>(value.type);
-    return tab_[id].GetValue<TypeAttr>();
+    try {
+      size_t id = std::get<size_t>(value.type);
+      return tab_[id].GetValue<TypeAttr>();
+    } catch (const std::bad_variant_access& e) {
+      return TypeAttr(std::get<DataType>(value.type));
+    }
   } catch (...) {
     throw;
   }
@@ -165,16 +169,24 @@ void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept {
         AstNode* init_val = *init_id->child.begin();
         BuildRelopExpr(init_val);
       }
-      if (attr.IsArray()) {
+      if (value.kind == WITH_INIT_ID && attr.IsArray()) {
+        std::cerr << "[Error] invalid initializer\n";
         // TODO: Error
+        throw StopExpression();
       }
-      InsertSymTab(value.identifier,
-                   BuildEntry<VARIABLE>(init_id, attr.data_type), init_id);
-    } else {
-      std::vector<size_t> dims = ParseDimDecl(init_id);
       InsertSymTab(value.identifier,
                    BuildEntry<VARIABLE>(init_id, attr.data_type, attr.dims),
                    init_id);
+    } else {
+      std::cout << "This case\n";
+      std::vector<size_t> dims = ParseDimDecl(init_id);
+      dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
+      for (size_t v : dims) std::cout << v << ' ';
+      std::cout << '\n';
+      InsertSymTab(
+          value.identifier,
+          BuildEntry<VARIABLE>(init_id, attr.data_type, std::move(dims)),
+          init_id);
     }
   } catch (StopExpression&) {
     // Ignore this identifier.
@@ -197,27 +209,22 @@ void Analyzer::BuildVariableDecl(AstNode* var_decl) noexcept {
   }
 }
 
-namespace {
-
-std::vector<size_t> ComposeDim(const TypeAttr& attr,
-                               std::vector<size_t>&& dim) {
-  std::vector<size_t> res(attr.dims.size() + dim.size());
-  std::copy(attr.dims.begin(), attr.dims.end(), res.begin());
-  std::move(dim.begin(), dim.end(), std::back_inserter(res));
-  return res;
-}
-
-}  // namespace
-
 void Analyzer::BuildTypedefID(AstNode* id_item, const TypeAttr& attr) {
+  Debug_("BuildTypedefID\n");
   assert(id_item->node_type == IDENTIFIER_NODE);
   auto& value = std::get<IdentifierSemanticValue>(id_item->semantic_value);
   if (value.kind == ARRAY_ID) {
     auto dim = ParseDimDecl(id_item);
-    InsertSymTab(value.identifier,
-                 BuildEntry<TYPE_ALIAS>(id_item, attr.data_type,
-                                        ComposeDim(attr, std::move(dim))),
-                 id_item);
+    if (attr.data_type == VOID_TYPE) {
+      std::cerr << "[Error] declaration of <name> as array of voids\n";
+      // TODO: Error
+      throw StopExpression();
+    }
+    dim.insert(dim.end(), attr.dims.begin(), attr.dims.end());
+    InsertSymTab(
+        value.identifier,
+        BuildEntry<TYPE_ALIAS>(id_item, attr.data_type, std::move(dim)),
+        id_item);
   } else {
     InsertSymTab(value.identifier, BuildEntry<TYPE_ALIAS>(id_item, attr),
                  id_item);
@@ -250,10 +257,10 @@ std::pair<VariableAttr, TableEntry> Analyzer::BuildParam(AstNode* param) {
           BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims));
     }
     auto dims = ParseDimDecl(identifier);
-    auto composed = ComposeDim(attr, std::move(dims));
-    VariableAttr res(attr.data_type, composed);
-    return std::make_pair(res, BuildEntry<VARIABLE>(identifier, attr.data_type,
-                                                    std::move(composed)));
+    dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
+    VariableAttr res(attr.data_type, dims);
+    return std::make_pair(
+        res, BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims)));
   } catch (...) {
     throw;  // TODO?
   }
@@ -263,10 +270,8 @@ void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
   Debug_("BuildVarRef", '\n');
   auto& value = std::get<IdentifierSemanticValue>(node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
-  Debug_("var = ", name, '\n');
   size_t id = mp_.Query(name);
   if (id == SymMap_::npos) {
-    Debug_("undeclared\n");
     success_ = false;
     PrintMsg(file_, node->loc, ERR_UNDECL, name);
     throw StopExpression();
@@ -479,7 +484,9 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
     AstNode* type_node = *it++;
     const TypeAttr& attr = BuildType(type_node);
     if (attr.IsArray()) {
+      std::cerr << "[Error] <name> declared as function returning an array\n";
       // TODO: Error
+      throw StopExpression();
     }
     AstNode* id_node = *it++;
     assert(id_node && id_node->node_type == IDENTIFIER_NODE);
@@ -623,7 +630,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   size_t id = std::get<Identifier>(value.identifier).first;
   if (id == (size_t)-1) {  // write
     AstNode* relop_expr_list = *std::next(node->child.begin());
-    assert(relop_expr_list.size() == 1);
+    assert(relop_expr_list->child.size() == 1);
     AnalyzeRelopExprList(relop_expr_list);
     AstNode* param = relop_expr_list->child.front();
     auto proto = GetPrototype(param, tab_);
@@ -903,19 +910,27 @@ void Analyzer::AnalyzeBlock(AstNode* block) noexcept {
       AnalyzeDeclList(node);
     }
   }
+  Debug_("leave AnalyzeBlock\n");
 }
 
 void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
   Debug_("AnalyzeFunctionDecl", '\n');
   AstNode* type_node = *func->child.begin();
-  DataType type =
-      tab_[std::get<size_t>(
-               std::get<TypeSpecSemanticValue>(type_node->semantic_value).type)]
-          .GetValue<TypeAttr>()
-          .data_type;
-  return_type_ = type;
+  DataType return_type;
+  try {
+    auto& attr = tab_[std::get<size_t>(std::get<TypeSpecSemanticValue>(
+                                           type_node->semantic_value)
+                                           .type)]
+                     .GetValue<TypeAttr>();
+    return_type = attr.IsArray() ? NONE_TYPE : attr.data_type;
+  } catch (const std::bad_variant_access& e) {
+    return_type = std::get<DataType>(
+        std::get<TypeSpecSemanticValue>(type_node->semantic_value).type);
+  }
+  return_type_ = return_type;
   AnalyzeBlock(*std::prev(func->child.end()));
   return_type_ = NONE_TYPE;
+  Debug_("leave AnalyzeFunctionDecl\n");
 }
 
 void Analyzer::AnalyzeGlobalDecl(AstNode* decl) noexcept {
@@ -935,5 +950,6 @@ void Analyzer::AnalyzeProgram(AstNode* prog) {
 
 bool Analyzer::SemanticAnalysis(AstNode* prog) {
   AnalyzeProgram(prog);
+  Debug_("Done SemanticAnalysis\n");
   return success_;
 }

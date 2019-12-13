@@ -49,7 +49,7 @@ class Analyzer {
   void InsertSymTab(std::variant<std::string, Identifier>& id,
                     TableEntry&& entry, AstNode*, bool is_param = false);
   void InsertParam(AstNode* param, TableEntry&& entry);
-  const TypeAttr& BuildType(AstNode* nd);
+  TypeAttr BuildType(AstNode* nd);
 
   void AnalyzeProgram(AstNode* prog);
   void AnalyzeGlobalDecl(AstNode* decl) noexcept;
