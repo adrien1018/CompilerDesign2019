@@ -20,12 +20,7 @@
  * to array parameter <name>.
  */
 
-// TODO: Catch more errors than requested in the spec.
-// TODO: Store the identifier names to restore error messages in the second
-//       pass.
-// TODO: Does C-- support something like "typedef int INT[3];"?
-// TODO: Support write()
-// TODO: Add declare position note
+// TODO: Print messages of the newly added errors.
 
 #ifndef NDEBUG
 #include <iostream>
@@ -178,11 +173,8 @@ void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept {
                    BuildEntry<VARIABLE>(init_id, attr.data_type, attr.dims),
                    init_id);
     } else {
-      std::cout << "This case\n";
       std::vector<size_t> dims = ParseDimDecl(init_id);
       dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
-      for (size_t v : dims) std::cout << v << ' ';
-      std::cout << '\n';
       InsertSymTab(
           value.identifier,
           BuildEntry<VARIABLE>(init_id, attr.data_type, std::move(dims)),
@@ -950,6 +942,5 @@ void Analyzer::AnalyzeProgram(AstNode* prog) {
 
 bool Analyzer::SemanticAnalysis(AstNode* prog) {
   AnalyzeProgram(prog);
-  Debug_("Done SemanticAnalysis\n");
   return success_;
 }
