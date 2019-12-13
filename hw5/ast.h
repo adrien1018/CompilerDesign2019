@@ -126,8 +126,8 @@ struct DeclSemanticValue {
   DeclKind kind;
 };
 
-using Identifier = std::pair<size_t,
-                             SymbolMap<std::string::value_type>::StringRef>;
+using Identifier =
+    std::pair<size_t, SymbolMap<std::string::value_type>::StringRef>;
 
 struct IdentifierSemanticValue {
   std::variant<std::string, Identifier> identifier;

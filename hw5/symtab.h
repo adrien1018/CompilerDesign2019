@@ -54,15 +54,17 @@
  *   Complexity: O(#symbols inserted)
  */
 
-#include <string>
-#include <vector>
+#include <bits/hash_bytes.h>  // byte hashing hack
+
 #include <algorithm>
 #include <forward_list>
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
-#include <bits/hash_bytes.h> // byte hashing hack
+#include <vector>
 
-template <class T> class SymbolMap {
+template <class T>
+class SymbolMap {
  public:
   typedef std::basic_string<T> KeyType;
   struct StringRef {
@@ -70,6 +72,7 @@ template <class T> class SymbolMap {
     size_t size_;
     StringRef(const T* ptr, size_t sz) : ptr_(ptr), size_(sz) {}
     StringRef(const KeyType& str) : ptr_(str.data()), size_(str.size()) {}
+
    public:
     StringRef() {}
     operator KeyType() const { return KeyType(ptr_, size_); }
@@ -135,7 +138,7 @@ template <class T> class SymbolMap {
         scope_[it.first->second.back()] == scope_lst_.size()) {
       return {{it.first->second.back(), it.first->first}, false};
     }
-    *const_cast<StringRef*>(&it.first->first) = InsertPool_(name); // map hack
+    *const_cast<StringRef*>(&it.first->first) = InsertPool_(name);  // map hack
     scope_.push_back(scope_lst_.size());
     it.first->second.push_back(x);
     if (scope_lst_.size()) scope_lst_.back().insert(&*it.first);

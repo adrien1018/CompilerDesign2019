@@ -61,7 +61,7 @@ struct TypeAttr {
       : data_type(type), dims(std::forward<V>(dim)) {}
 
   bool IsArray() const { return !dims.empty(); }
-  bool operator==(const TypeAttr &rhs) const {
+  bool operator==(const TypeAttr& rhs) const {
     return data_type == rhs.data_type && dims == rhs.dims;
   }
 };

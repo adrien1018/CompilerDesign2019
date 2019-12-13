@@ -2,8 +2,9 @@
 
 #include <iomanip>
 #include <iostream>
-#include "error.h"
+
 #include "analysis.h"
+#include "error.h"
 
 namespace {
 
@@ -12,7 +13,7 @@ void RecursiveDelete(AstNode* nd) {
   delete nd;
 }
 
-} // namespace
+}  // namespace
 
 void Driver::DeleteAst_() {
   if (prog) RecursiveDelete(prog);

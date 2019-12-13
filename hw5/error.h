@@ -65,4 +65,4 @@ void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               size_t, const std::string&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, DataType, DataType);
 
-#endif
+#endif  // ERROR_H_
