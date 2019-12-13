@@ -135,7 +135,7 @@ struct IdentifierSemanticValue {
 };
 
 struct TypeSpecSemanticValue {
-  std::variant<std::string, DataType> type;
+  std::variant<std::string, size_t> type;
 };
 
 using ConstValue = std::variant<int, FloatType, std::string>;
