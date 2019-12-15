@@ -70,6 +70,11 @@ const Identifier& GetIdentifier(const AstNode* nd) {
 
 }  // namespace
 
+/**
+ * Returns the type attribute of the type node `nd`.
+ * Throws a `StopExpression` if the corresponding typename is not declared or
+ * the declaration is not a type declaration.
+ */
 TypeAttr Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
   try {
@@ -94,9 +99,11 @@ TypeAttr Analyzer::BuildType(AstNode* nd) {
       size_t id = std::get<size_t>(value.type);
       return tab_[id].GetValue<TypeAttr>();
     } catch (const std::bad_variant_access& e) {
+      // built-in types.
       return TypeAttr(std::get<DataType>(value.type));
     }
   } catch (...) {
+    // unexpected exceptions.
     throw;
   }
 }
@@ -591,14 +598,13 @@ namespace {
 
 inline VariableAttr GetPrototype(AstNode* expr,
                                  const std::vector<TableEntry>& tab) {
-  if (expr->node_type == IDENTIFIER_NODE) {
-    auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
-    const TableEntry& entry = tab[std::get<Identifier>(value.identifier).first];
-    const VariableAttr& type = entry.GetValue<VariableAttr>();
-    return type.Slice(expr->child.size());
-  } else {
+  if (expr->node_type != IDENTIFIER_NODE) {
     return VariableAttr(expr->data_type);
   }
+  auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
+  const TableEntry& entry = tab[std::get<Identifier>(value.identifier).first];
+  const VariableAttr& type = entry.GetValue<VariableAttr>();
+  return type.Slice(expr->child.size());
 }
 
 inline MsgType CheckConvertibility(const VariableAttr& proto,
@@ -633,7 +639,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   size_t id = std::get<Identifier>(value.identifier).first;
   if (id >= -kNumBuiltinFunction) {  // write
     AstNode* relop_expr_list = *std::next(node->child.begin());
-    assert(relop_expr_list->child.size() == kBuiltinFunction[-id - 1].second);
+    assert(relop_expr_list->child.size() == kBuiltinFunction.at(-id - 1).second);
     AnalyzeRelopExprList(relop_expr_list);
     if (!relop_expr_list->child.empty()) {
       AstNode* param = relop_expr_list->child.front();

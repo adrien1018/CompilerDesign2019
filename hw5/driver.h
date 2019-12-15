@@ -48,27 +48,19 @@ class Driver : public yyFlexLexer {
   Location location;
   AstNode* prog = nullptr;
 
-  Driver()
-      : yyFlexLexer(),
-        file_(&std::cin, "<stdin>"),
-        stream_create_(false) {
+  Driver() : yyFlexLexer(), file_(&std::cin, "<stdin>"), stream_create_(false) {
     SetColor_();
   }
   Driver(std::istream* i = nullptr, std::ostream* o = nullptr)
-      : yyFlexLexer(i, o),
-        file_(i, "<unknown>"),
-        stream_create_(false) {
+      : yyFlexLexer(i, o), file_(i, "<unknown>"), stream_create_(false) {
     SetColor_();
   }
   Driver(std::istream& i, std::ostream& o)
-      : yyFlexLexer(&i, &o),
-        file_(&i, "<unknown>"),
-        stream_create_(false) {
+      : yyFlexLexer(&i, &o), file_(&i, "<unknown>"), stream_create_(false) {
     SetColor_();
   }
   Driver(const std::string& file)
-      : yyFlexLexer(InitStream_(file)),
-        stream_create_(true) {
+      : yyFlexLexer(InitStream_(file)), stream_create_(true) {
     file_.filename = file;
   }
 

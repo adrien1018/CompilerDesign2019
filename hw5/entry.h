@@ -9,17 +9,24 @@
 struct VariableAttr {
   DataType data_type;
   std::vector<size_t> dims;
+  size_t sz_;
 
   VariableAttr() = default;
-  VariableAttr(DataType type) : data_type(type) {}
+  VariableAttr(DataType type) : data_type(type), sz_(1) {}
 
   template <class V>
   VariableAttr(DataType type, V&& dim)
-      : data_type(type), dims(std::forward<V>(dim)) {}
+      : data_type(type), dims(std::forward<V>(dim)) {
+    sz_ = 1;
+    for (size_t d : dims) sz_ *= d;
+  }
 
   template <class Iterator>
   VariableAttr(DataType type, Iterator bg, Iterator ed)
-      : data_type(type), dims(bg, ed) {}
+      : data_type(type), dims(bg, ed) {
+    sz_ = 1;
+    for (size_t d : dims) sz_ *= d;
+  }
 
   bool IsArray() const noexcept { return !dims.empty(); }
   size_t GetDimension() const noexcept { return dims.size(); }
@@ -28,6 +35,8 @@ struct VariableAttr {
   VariableAttr Slice(size_t dim) const noexcept {
     return VariableAttr(data_type, dims.begin() + dim, dims.end());
   }
+
+  size_t GetSize() const { return sz_; }
 
   bool operator==(const VariableAttr& rhs) const {
     return data_type == rhs.data_type && dims == rhs.dims;

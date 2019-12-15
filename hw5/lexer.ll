@@ -1,6 +1,7 @@
 %option noyywrap nounput noinput batch
 %{
 #include <algorithm>
+#include <climits>
 #include <fstream>
 #include <map>
 
@@ -34,9 +35,14 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
   node->data_type = type;
   ConstValue cv;
   switch (type) {
-    case INT_TYPE:
-      cv = atoi(text);
+    case INT_TYPE: {
+      long val = strtol(text, 0, 10);
+      if ((val < INT_MIN || val > INT_MAX) && errno == ERANGE) {
+        // warning: overflow or underflow occurs
+      }
+      cv = (int)val;
       break;
+    }
     case FLOAT_TYPE:
       cv = FloatType(atof(text));
       break;
