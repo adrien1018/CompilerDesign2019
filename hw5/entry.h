@@ -9,23 +9,24 @@
 struct VariableAttr {
   DataType data_type;
   std::vector<size_t> dims;
-  size_t sz_;
+  int32_t offset;
+  size_t size;
 
   VariableAttr() = default;
-  VariableAttr(DataType type) : data_type(type), sz_(1) {}
+  VariableAttr(DataType type) : data_type(type), size(4) {}
 
   template <class V>
   VariableAttr(DataType type, V&& dim)
       : data_type(type), dims(std::forward<V>(dim)) {
-    sz_ = 1;
-    for (size_t d : dims) sz_ *= d;
+    size = 4;
+    for (size_t d : dims) size *= d;
   }
 
   template <class Iterator>
   VariableAttr(DataType type, Iterator bg, Iterator ed)
       : data_type(type), dims(bg, ed) {
-    sz_ = 1;
-    for (size_t d : dims) sz_ *= d;
+    size = 4;
+    for (size_t d : dims) size *= d;
   }
 
   bool IsArray() const noexcept { return !dims.empty(); }
@@ -36,8 +37,6 @@ struct VariableAttr {
     return VariableAttr(data_type, dims.begin() + dim, dims.end());
   }
 
-  size_t GetSize() const { return sz_; }
-
   bool operator==(const VariableAttr& rhs) const {
     return data_type == rhs.data_type && dims == rhs.dims;
   }
@@ -47,12 +46,28 @@ struct VariableAttr {
 struct FunctionAttr {
   DataType return_type;
   std::vector<VariableAttr> params;
+  size_t fp_offset, sp_offset;
+  // fp_offset: fp = old_sp - fp_offset
+  // sp_offset: sp = old_sp - sp_offset
 
   FunctionAttr() = default;
 
   template <class V>
   FunctionAttr(DataType type, V&& params)
-      : return_type(type), params(std::forward<V>(params)) {}
+      : return_type(type), params(std::forward<V>(params)) {
+    fp_offset = 8;
+    for (auto &v : params) {
+      v.offset = fp_offset + 8;
+      if (v.IsArray()) {
+        // pointer type
+        fp_offset += 8;
+      } else {
+        // int or float
+        fp_offset += 4;
+      }
+    }
+    sp_offset = fp_offset + 8;  // old fp
+  }
 
   DataType GetReturnType() const noexcept { return return_type; }
   size_t NumParam() const noexcept { return params.size(); }
