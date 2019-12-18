@@ -24,5 +24,11 @@ int D() {
   b = b + B(a[1][1]); /* ERR */
   b = b + C(a[1][1]); /* ERR */
   b = b + C(c[1]); /* ERR 3d */
+  b = b + C(3);
+  b = b + C(3.4);
+  b = b + C(3 + b);
+  b = b + C(c[0][1]);
+  b = b + C(c[0][0] + b);
+  b = b + C(c[0][0] + c[0][1]);
   return b;
 }

@@ -661,9 +661,14 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
     MsgType x =
         CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
     if (x != ERR_NOTHING) {
-      PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
-               GetIdentifier(param).second,
-               GetIdentifier(entry.GetNode()).second);
+      if (param->node_type == IDENTIFIER_NODE) {
+        PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
+                GetIdentifier(param).second,
+                GetIdentifier(entry.GetNode()).second);
+      } else {
+        PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
+                GetIdentifier(entry.GetNode()).second);
+      }
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
   }

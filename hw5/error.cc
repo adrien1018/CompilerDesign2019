@@ -322,6 +322,38 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
 }
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
+              const Location& l2, size_t arg, const std::string& var2) {
+  PrintMsg(
+      f, l,
+      [&]() {
+        switch (err) {
+          case ERR_SCALAR_TO_ARR: {
+            std::cerr << "initialize array parameter from scalar";
+            break;
+          }
+          default:
+            throw;  // incorrect parameters
+        }
+      },
+      GetMsgClass(err), true);
+  PrintMsg(
+      f, l2,
+      [&]() {
+        switch (err) {
+          case ERR_SCALAR_TO_ARR: {
+            std::cerr << "passing argument " << arg << " of ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var2 << "’";
+            EndColor(f.color_output);
+            break;
+          }
+          default:;
+        }
+      },
+      NOTE, true);
+}
+
+void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
               const Location& l2, size_t arg, const std::string& var1,
               const std::string& var2) {
   PrintMsg(
