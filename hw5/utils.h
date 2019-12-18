@@ -3,6 +3,7 @@
 
 #include <variant>
 
+// Variant access without checking
 template <class... Types> struct IndexOf_ {
   static constexpr size_t value = 0;
 };
@@ -44,5 +45,17 @@ template <class X, class... T> inline auto Get(T&&... args)
   return std::get<X>(std::forward<T>(args)...);
 }
 #endif
+
+// Compile-time string class
+template <size_t N> struct CString {
+  char str[N + 1];
+  constexpr CString() : str{} {}
+  constexpr CString(const char (&x)[N + 1]) : str{} {
+    for (size_t i = 0; i < N; i++) str[i] = x[i];
+  }
+  operator std::string() const { return std::string(str, N); }
+};
+template <size_t N> CString(const char (&lit)[N])
+  -> CString<N - 1>;
 
 #endif // UTILS_H_
