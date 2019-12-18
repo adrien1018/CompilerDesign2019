@@ -26,20 +26,21 @@ struct TypeAttr {
 struct VariableAttr {
   DataType data_type;
   std::vector<size_t> dims;
-  int32_t offset;
   size_t size;
+  int32_t offset;
 
   VariableAttr() = default;
-  VariableAttr(DataType type) : data_type(type), size(4) {}
+  VariableAttr(DataType type) : data_type(type), size(4), offset(0) {}
 
   template <class V>
   VariableAttr(DataType type, V&& dim)
-      : data_type(type), dims(std::forward<V>(dim)) {
+      : data_type(type), dims(std::forward<V>(dim)), offset(0) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
 
-  VariableAttr(const TypeAttr& rhs) : data_type(rhs.data_type), dims(rhs.dims) {
+  VariableAttr(const TypeAttr& rhs)
+      : data_type(rhs.data_type), dims(rhs.dims), offset(0) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
