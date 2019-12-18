@@ -6,6 +6,23 @@
 
 #include "ast.h"
 
+struct TypeAttr {
+  DataType data_type;
+  std::vector<size_t> dims;
+
+  TypeAttr() = default;
+  TypeAttr(DataType type) : data_type(type) {}
+
+  template <class V>
+  TypeAttr(DataType type, V&& dim)
+      : data_type(type), dims(std::forward<V>(dim)) {}
+
+  bool IsArray() const { return !dims.empty(); }
+  bool operator==(const TypeAttr& rhs) const {
+    return data_type == rhs.data_type && dims == rhs.dims;
+  }
+};
+
 struct VariableAttr {
   DataType data_type;
   std::vector<size_t> dims;
@@ -18,6 +35,11 @@ struct VariableAttr {
   template <class V>
   VariableAttr(DataType type, V&& dim)
       : data_type(type), dims(std::forward<V>(dim)) {
+    size = 4;
+    for (size_t d : dims) size *= d;
+  }
+
+  VariableAttr(const TypeAttr& rhs) : data_type(rhs.data_type), dims(rhs.dims) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
@@ -53,10 +75,10 @@ struct FunctionAttr {
   FunctionAttr() = default;
 
   template <class V>
-  FunctionAttr(DataType type, V&& params)
-      : return_type(type), params(std::forward<V>(params)) {
+  FunctionAttr(DataType type, V&& params_)
+      : return_type(type), params(std::forward<V>(params_)) {
     fp_offset = 8;
-    for (auto &v : params) {
+    for (auto& v : params) {
       v.offset = fp_offset + 8;
       if (v.IsArray()) {
         // pointer type
@@ -71,23 +93,6 @@ struct FunctionAttr {
 
   DataType GetReturnType() const noexcept { return return_type; }
   size_t NumParam() const noexcept { return params.size(); }
-};
-
-struct TypeAttr {
-  DataType data_type;
-  std::vector<size_t> dims;
-
-  TypeAttr() = default;
-  TypeAttr(DataType type) : data_type(type) {}
-
-  template <class V>
-  TypeAttr(DataType type, V&& dim)
-      : data_type(type), dims(std::forward<V>(dim)) {}
-
-  bool IsArray() const { return !dims.empty(); }
-  bool operator==(const TypeAttr& rhs) const {
-    return data_type == rhs.data_type && dims == rhs.dims;
-  }
 };
 
 enum EntryType { VARIABLE, FUNCTION, TYPE_ALIAS };

@@ -6,6 +6,7 @@
 
 #include "analysis.h"
 #include "ast.h"
+#include "generator.h"
 #include "parser.hh"
 
 #ifndef yyFlexLexer
@@ -41,6 +42,7 @@ class Driver : public yyFlexLexer {
   }
   FileInfor file_;
   bool stream_create_;
+  std::vector<TableEntry> tab_;
 
   void DeleteAst_();
 
@@ -74,6 +76,7 @@ class Driver : public yyFlexLexer {
   void PrintError(const Location& l, const std::string& m);
 
   bool SemanticAnalysis();
+  void CodeGeneration();
 
   yy::parser::symbol_type yylex_a();
 };

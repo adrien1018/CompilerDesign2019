@@ -33,7 +33,14 @@ void Driver::PrintError(const Location& l, const std::string& m) {
 bool Driver::SemanticAnalysis() {
   Analyzer analyzer(file_);
   if (!analyzer.BuildSymbolTable(prog)) return false;
-  return analyzer.SemanticAnalysis(prog);
+  bool success = analyzer.SemanticAnalysis(prog);
+  tab_ = analyzer.MoveSymbolTable();
+  return success;
+}
+
+void Driver::CodeGeneration() {
+  Generator generator(std::move(tab_));
+  return generator.CodeGeneration(prog);
 }
 
 int yyFlexLexer::yylex() {

@@ -254,11 +254,12 @@ void Analyzer::BuildTypeDecl(AstNode* type_decl) noexcept {
 std::pair<VariableAttr, TableEntry> Analyzer::BuildParam(AstNode* param) {
   try {
     const TypeAttr& attr = BuildType(*param->child.begin());
+    std::cerr << "dims: " <<  attr.dims.size() << '\n';
     AstNode* identifier = *std::next(param->child.begin());
     auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
     if (value.kind == NORMAL_ID) {
       return std::make_pair(
-          attr.data_type,
+          VariableAttr(attr),
           BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims));
     }
     auto dims = ParseDimDecl(identifier);
@@ -601,6 +602,7 @@ inline VariableAttr GetPrototype(AstNode* expr,
   if (expr->node_type != IDENTIFIER_NODE) {
     return VariableAttr(expr->data_type);
   }
+  Debug_("here\n");
   auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
   const TableEntry& entry = tab[std::get<Identifier>(value.identifier).first];
   const VariableAttr& type = entry.GetValue<VariableAttr>();
@@ -637,7 +639,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
-  if (id >= -kNumBuiltinFunction) {  // write
+  if (id >= -kNumBuiltinFunction) {  // built-in function
     AstNode* relop_expr_list = *std::next(node->child.begin());
     assert(relop_expr_list->child.size() == kBuiltinFunction.at(-id - 1).second);
     AnalyzeRelopExprList(relop_expr_list);

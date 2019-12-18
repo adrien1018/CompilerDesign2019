@@ -64,6 +64,7 @@ void Generator::VisitBlock(AstNode *block, size_t &offset) {
         break;
       case VARIABLE_DECL_LIST_NODE:
         VisitDeclList(nd, offset);
+        break;
     }
   }
 }

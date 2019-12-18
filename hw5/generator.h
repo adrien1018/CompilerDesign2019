@@ -8,6 +8,11 @@
 
 class Generator {
  public:
+  Generator() = default;
+  Generator(std::vector<TableEntry> &&tab) : tab_(tab) {}
+
+  void CodeGeneration(AstNode *prog) { VisitProgram(prog); }
+
  private:
   std::vector<TableEntry> tab_;  // symbol table
   std::ofstream ofs_;            // output stream
