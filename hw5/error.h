@@ -62,6 +62,8 @@ void PrintMsg(const FileInfor&, const Location&, MsgType, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
+              size_t, const std::string&);
+void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               size_t, const std::string&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, DataType, DataType);
 
