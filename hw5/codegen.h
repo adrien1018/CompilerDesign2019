@@ -6,7 +6,7 @@
 
 #include "entry.h"
 
-class Generator {
+class CodeGen {
  public:
   Generator() = default;
   Generator(std::vector<TableEntry> &&tab) : tab_(tab) {}

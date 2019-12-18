@@ -1,4 +1,4 @@
-#include "generator.h"
+#include "codegen.h"
 
 #include <cassert>
 #include <iostream>
@@ -20,7 +20,7 @@ T &GetAttribute(AstNode *id, std::vector<TableEntry> &tab) {
 
 }  // namespace
 
-void Generator::VisitStatement(AstNode *stmt, size_t &offset) {
+void CodeGen::VisitStatement(AstNode *stmt, size_t &offset) {
   if (stmt->node_type == BLOCK_NODE) return VisitBlock(stmt, offset);
   if (stmt->node_type != STMT_NODE) return;
   auto &value = std::get<StmtSemanticValue>(stmt->semantic_value);
@@ -37,11 +37,11 @@ void Generator::VisitStatement(AstNode *stmt, size_t &offset) {
   }
 }
 
-void Generator::VisitStmtList(AstNode *stmt_list, size_t &offset) {
+void CodeGen::VisitStmtList(AstNode *stmt_list, size_t &offset) {
   for (AstNode *stmt : stmt_list->child) VisitStatement(stmt, offset);
 }
 
-void Generator::VisitVariableDecl(AstNode *decl, size_t &offset) {
+void CodeGen::VisitVariableDecl(AstNode *decl, size_t &offset) {
   for (auto it = std::next(decl->child.begin()); it != decl->child.end();
        it++) {
     const VariableAttr &attr = GetAttribute<VariableAttr>(*it, tab_);
@@ -49,14 +49,14 @@ void Generator::VisitVariableDecl(AstNode *decl, size_t &offset) {
   }
 }
 
-void Generator::VisitDeclList(AstNode *decl_list, size_t &offset) {
+void CodeGen::VisitDeclList(AstNode *decl_list, size_t &offset) {
   for (AstNode *decl : decl_list->child) {
     DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
     if (kind == VARIABLE_DECL) VisitVariableDecl(decl, offset);
   }
 }
 
-void Generator::VisitBlock(AstNode *block, size_t &offset) {
+void CodeGen::VisitBlock(AstNode *block, size_t &offset) {
   for (AstNode *nd : block->child) {
     switch (nd->node_type) {
       case STMT_LIST_NODE:
@@ -69,7 +69,7 @@ void Generator::VisitBlock(AstNode *block, size_t &offset) {
   }
 }
 
-void Generator::VisitFunctionDecl(AstNode *decl) {
+void CodeGen::VisitFunctionDecl(AstNode *decl) {
   AstNode *id = *std::next(decl->child.begin());
   FunctionAttr &attr = GetAttribute<FunctionAttr>(id, tab_);
   AstNode *block = *std::prev(decl->child.end());
@@ -80,7 +80,7 @@ void Generator::VisitFunctionDecl(AstNode *decl) {
             << " sp_offset = " << attr.sp_offset << '\n';
 }
 
-void Generator::VisitGlobalDecl(AstNode *decl) {
+void CodeGen::VisitGlobalDecl(AstNode *decl) {
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
     for (AstNode *child : decl->child) VisitGlobalDecl(child);
     return;
@@ -89,11 +89,11 @@ void Generator::VisitGlobalDecl(AstNode *decl) {
   if (kind == FUNCTION_DECL) VisitFunctionDecl(decl);
 }
 
-void Generator::VisitProgram(AstNode *prog) {
+void CodeGen::VisitProgram(AstNode *prog) {
   for (AstNode *decl : prog->child) VisitGlobalDecl(decl);
 }
 
-void Generator::GenerateVariableDecl(AstNode *var_decl, bool global) {
+void CodeGen::GenerateVariableDecl(AstNode *var_decl, bool global) {
   if (global) {
     if (section_ != DATA_SECTION) {
       // TODO: generate `.data` marker
@@ -119,14 +119,14 @@ void Generator::GenerateVariableDecl(AstNode *var_decl, bool global) {
   }
 }
 
-void Generator::GenerateFunctionDecl(AstNode *func_decl) {
+void CodeGen::GenerateFunctionDecl(AstNode *func_decl) {
   if (section_ != TEXT_SECTION) {
     // TODO: generate `.text` marker
     ofs_ << ".text\n";
   }
 }
 
-void Generator::GenerateGlobalDecl(AstNode *decl) {
+void CodeGen::GenerateGlobalDecl(AstNode *decl) {
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
     for (AstNode *child : decl->child) GenerateGlobalDecl(child);
     return;
@@ -142,6 +142,6 @@ void Generator::GenerateGlobalDecl(AstNode *decl) {
   }
 }
 
-void Generator::GenerateProgram(AstNode *prog) {
+void CodeGen::GenerateProgram(AstNode *prog) {
   for (AstNode *decl : prog->child) GenerateGlobalDecl(decl);
 }
