@@ -144,6 +144,7 @@ enum Opcode {
   PINSR_CALL,  // call function (+dest ID)
   PINSR_TAIL,  // tail call function (+dest ID)
   PINSR_RET,   // return (no arg)
+  PINSR_LA     // Load absolute address
 };
 
 enum InsrFormat {
@@ -153,7 +154,7 @@ enum InsrFormat {
   B_TYPE,   // Branch
   U_TYPE,   // Upper immediate
   J_TYPE,   // Jump
-  R0_TYPE,  // R-type with rs2 intentionally left blank
+  R0_TYPE,  // R-type with rs2 intentionally left empty
   R4_TYPE,  // Fusion
   PSEUDO    // Pseudo instructions
 };
@@ -216,8 +217,8 @@ const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
     INSR_PAIR(FLT_D),     INSR_PAIR(FLE_D),     INSR_PAIR(FCLASS_S),
     INSR_PAIR(FCLASS_D),
 #undef INSR_PAIR
-    {PINSR_J, "j"},       {PINSR_CALL, "call"}, {PINSR_TAIL, "tail"},
-    {PINSR_RET, "ret"}};
+    {PINSR_J, "J"},       {PINSR_CALL, "CALL"}, {PINSR_TAIL, "TAIL"},
+    {PINSR_RET, "RET"},   {PINSR_LA, "LA"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_LUI, U_TYPE},       {INSR_AUIPC, J_TYPE},
@@ -281,9 +282,7 @@ const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_FEQ_S, R_TYPE},     {INSR_FLT_S, R_TYPE},
     {INSR_FLE_S, R_TYPE},     {INSR_FEQ_D, R_TYPE},
     {INSR_FLT_D, R_TYPE},     {INSR_FLE_D, R_TYPE},
-    {INSR_FCLASS_S, R0_TYPE}, {INSR_FCLASS_D, R0_TYPE},
-    {PINSR_J, PSEUDO},        {PINSR_CALL, PSEUDO},
-    {PINSR_TAIL, PSEUDO},     {PINSR_RET, PSEUDO}};
+    {INSR_FCLASS_S, R0_TYPE}, {INSR_FCLASS_D, R0_TYPE}};
 
 // num or initialized array, string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
@@ -297,7 +296,8 @@ struct IRInsr {
 struct RV64Insr {
   Opcode op;
   uint8_t rs1, rs2, rs3, rd;
-  int64_t imm;  // or destination ID
+  std::variant<std::string, int64_t>
+      imm;  // immediate, destination ID or global symbol
 };
 
 class InsrGen {
