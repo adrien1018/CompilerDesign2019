@@ -12,141 +12,162 @@
 #include "utils.h"
 
 enum Opcode {
-  INSR_LUI,     // Load Upper Immediate
-  INSR_AUIPC,   // Add Upper Immediate to PC
-  INSR_JAL,     // Jump and Link
-  INSR_JALR,    // Jump and Link Register
-  INSR_BEQ,     // Branch Equal
-  INSR_BNE,     // Branch Not Equal
-  INSR_BLT,     // Branch Less Than
-  INSR_BGE,     // Branch Greater than Equal
-  INSR_BLTU, /* not used */    // Branch Less Than Unsigned
-  INSR_BGEU, /* not used */    // Branch Greater than Equal Unsigned
-  INSR_LB, /* not used */      // Load Byte
-  INSR_LH, /* not used */      // Load Half
-  INSR_LW,      // Load Word
-  INSR_LD,      // Load Double
-  INSR_LBU, /* not used */     // Load Byte Unsigned
-  INSR_LHU, /* not used */     // Load Half Unsigned
-  INSR_LWU, /* not used */     // Load Word Unsigned
-  INSR_SB,      // Store Byte
-  INSR_SH,      // Store Half
-  INSR_SW,      // Store Word
-  INSR_SD,      // Store Double
-  INSR_ADDI,    // Add Immediate
-  INSR_SLTI,    // Set Less Than Immediate
-  INSR_SLTIU, /* not used */   // Set Less Than Immediate Unsigned
-  INSR_XORI,    // Xor Immediate
-  INSR_ORI,     // Or Immediate
-  INSR_ANDI,    // And Immediate
-  INSR_SLLI,    // Shift Left Logical Immediate
-  INSR_SRLI,    // Shift Right Logical Immediate
-  INSR_SRAI,    // Shift Right Arithmetic Immediate
-  INSR_ADDIW,   // Add Immediate Word
-  INSR_SLLIW,   // Shift Left Logical Immediate Word
-  INSR_SRLIW,   // Shift Right Logical Immediate Word
-  INSR_SRAIW,   // Shift Right Arithmetic Immediate Word
-  INSR_ADD,     // Add
-  INSR_SUB,     // Subtract
-  INSR_SLL,     // Shift Left Logical
-  INSR_SLT,     // Set Less Than
-  INSR_SLTU, /* not used */    // Set Less Than Unsigned
-  INSR_XOR,     // Xor
-  INSR_SRL,     // Shift Right Logical
-  INSR_SRA,     // Shift Right Arithmetic
-  INSR_OR,      // Or
-  INSR_AND,     // And
-  INSR_ADDW,    // Add Word
-  INSR_SUBW,    // Subtract Word
-  INSR_SLLW,    // Shift Left Logical Word
-  INSR_SRLW,    // Shift Right Logical Word
-  INSR_SRAW,    // Shift Right Arithmetic Word
-  INSR_MUL,     // Multiply
-  INSR_MULH, /* not used */    // Multiply High Signed Signed
-  INSR_MULHSU, /* not used */  // Multiply High Signed Unsigned
-  INSR_MULHU, /* not used */   // Multiply High Unsigned Unsigned
-  INSR_DIV,     // Divide Signed
-  INSR_DIVU, /* not used */    // Divide Unsigned
-  INSR_REM, /* opt only */     // Remainder Signed
-  INSR_REMU, /* not used */    // Remainder Unsigned
-  INSR_MULW,    // Multiple Word
-  INSR_DIVW,    // Divide Signed Word
-  INSR_DIVUW,   // Divide Unsigned Word
-  INSR_REMW,    // Remainder Signed Word
-  INSR_REMUW,   // Remainder Unsigned Word
+  INSR_LUI,    // Load Upper Immediate
+  INSR_AUIPC,  // Add Upper Immediate to PC
+  INSR_JAL,    // Jump and Link
+  INSR_JALR,   // Jump and Link Register
+  INSR_BEQ,    // Branch Equal
+  INSR_BNE,    // Branch Not Equal
+  INSR_BLT,    // Branch Less Than
+  INSR_BGE,    // Branch Greater than Equal
+  INSR_BLTU,
+  /* not used */  // Branch Less Than Unsigned
+  INSR_BGEU,
+  /* not used */  // Branch Greater than Equal Unsigned
+  INSR_LB,
+  /* not used */  // Load Byte
+  INSR_LH,
+  /* not used */  // Load Half
+  INSR_LW,        // Load Word
+  INSR_LD,        // Load Double
+  INSR_LBU,
+  /* not used */  // Load Byte Unsigned
+  INSR_LHU,
+  /* not used */  // Load Half Unsigned
+  INSR_LWU,
+  /* not used */  // Load Word Unsigned
+  INSR_SB,        // Store Byte
+  INSR_SH,        // Store Half
+  INSR_SW,        // Store Word
+  INSR_SD,        // Store Double
+  INSR_ADDI,      // Add Immediate
+  INSR_SLTI,      // Set Less Than Immediate
+  INSR_SLTIU,
+  /* not used */  // Set Less Than Immediate Unsigned
+  INSR_XORI,      // Xor Immediate
+  INSR_ORI,       // Or Immediate
+  INSR_ANDI,      // And Immediate
+  INSR_SLLI,      // Shift Left Logical Immediate
+  INSR_SRLI,      // Shift Right Logical Immediate
+  INSR_SRAI,      // Shift Right Arithmetic Immediate
+  INSR_ADDIW,     // Add Immediate Word
+  INSR_SLLIW,     // Shift Left Logical Immediate Word
+  INSR_SRLIW,     // Shift Right Logical Immediate Word
+  INSR_SRAIW,     // Shift Right Arithmetic Immediate Word
+  INSR_ADD,       // Add
+  INSR_SUB,       // Subtract
+  INSR_SLL,       // Shift Left Logical
+  INSR_SLT,       // Set Less Than
+  INSR_SLTU,
+  /* not used */  // Set Less Than Unsigned
+  INSR_XOR,       // Xor
+  INSR_SRL,       // Shift Right Logical
+  INSR_SRA,       // Shift Right Arithmetic
+  INSR_OR,        // Or
+  INSR_AND,       // And
+  INSR_ADDW,      // Add Word
+  INSR_SUBW,      // Subtract Word
+  INSR_SLLW,      // Shift Left Logical Word
+  INSR_SRLW,      // Shift Right Logical Word
+  INSR_SRAW,      // Shift Right Arithmetic Word
+  INSR_MUL,       // Multiply
+  INSR_MULH,
+  /* not used */  // Multiply High Signed Signed
+  INSR_MULHSU,
+  /* not used */  // Multiply High Signed Unsigned
+  INSR_MULHU,
+  /* not used */  // Multiply High Unsigned Unsigned
+  INSR_DIV,       // Divide Signed
+  INSR_DIVU,
+  /* not used */  // Divide Unsigned
+  INSR_REM,
+  /* opt only */  // Remainder Signed
+  INSR_REMU,
+  /* not used */  // Remainder Unsigned
+  INSR_MULW,      // Multiple Word
+  INSR_DIVW,      // Divide Signed Word
+  INSR_DIVUW,     // Divide Unsigned Word
+  INSR_REMW,      // Remainder Signed Word
+  INSR_REMUW,     // Remainder Unsigned Word
   kIntegerInsr,
 
   // Floating point
   INSR_FLW,  // load
-  INSR_FLD, /* not used */
+  INSR_FLD,  /* not used */
   INSR_FSW,  // store
-  INSR_FSD, /* not used */
-  INSR_FMADD_S, /* opt only */  // fused mul-add
-  INSR_FMSUB_S, /* opt only */
-  INSR_FNMADD_S, /* opt only */
-  INSR_FNMSUB_S, /* opt only */
-  INSR_FMADD_D, /* not used */
-  INSR_FMSUB_D, /* not used */
-  INSR_FNMADD_D, /* not used */
-  INSR_FNMSUB_D, /* not used */
-  INSR_FADD_S,  // arith
+  INSR_FSD,  /* not used */
+  INSR_FMADD_S,
+  /* opt only */  // fused mul-add
+  INSR_FMSUB_S,   /* opt only */
+  INSR_FNMADD_S,  /* opt only */
+  INSR_FNMSUB_S,  /* opt only */
+  INSR_FMADD_D,   /* not used */
+  INSR_FMSUB_D,   /* not used */
+  INSR_FNMADD_D,  /* not used */
+  INSR_FNMSUB_D,  /* not used */
+  INSR_FADD_S,    // arith
   INSR_FSUB_S,
   INSR_FMUL_S,
   INSR_FDIV_S,
-  INSR_FSQRT_S, /* not used */
-  INSR_FSGNJ_S, /* opt only */
-  INSR_FSGNJN_S, /* opt only */
-  INSR_FSGNJX_S, /* opt only */
-  INSR_FMIN_S, /* opt only */
-  INSR_FMAX_S, /* opt only */
-  INSR_FADD_D, /* not used */
-  INSR_FSUB_D, /* not used */
-  INSR_FMUL_D, /* not used */
-  INSR_FDIV_D, /* not used */
-  INSR_FSQRT_D, /* not used */
-  INSR_FSGNJ_D, /* not used */
-  INSR_FSGNJN_D, /* not used */
-  INSR_FSGNJX_D, /* not used */
-  INSR_FMIN_D, /* not used */
-  INSR_FMAX_D, /* not used */
+  INSR_FSQRT_S,   /* not used */
+  INSR_FSGNJ_S,   /* opt only */
+  INSR_FSGNJN_S,  /* opt only */
+  INSR_FSGNJX_S,  /* opt only */
+  INSR_FMIN_S,    /* opt only */
+  INSR_FMAX_S,    /* opt only */
+  INSR_FADD_D,    /* not used */
+  INSR_FSUB_D,    /* not used */
+  INSR_FMUL_D,    /* not used */
+  INSR_FDIV_D,    /* not used */
+  INSR_FSQRT_D,   /* not used */
+  INSR_FSGNJ_D,   /* not used */
+  INSR_FSGNJN_D,  /* not used */
+  INSR_FSGNJX_D,  /* not used */
+  INSR_FMIN_D,    /* not used */
+  INSR_FMAX_D,    /* not used */
   INSR_FCVT_W_S,  // float to int
   INSR_FCVT_WU_S, /* not used */
   INSR_FCVT_L_S,
   INSR_FCVT_LU_S, /* not used */
-  INSR_FCVT_W_D, /* not used */
+  INSR_FCVT_W_D,  /* not used */
   INSR_FCVT_WU_D, /* not used */
-  INSR_FCVT_L_D, /* not used */
+  INSR_FCVT_L_D,  /* not used */
   INSR_FCVT_LU_D, /* not used */
   INSR_FCVT_S_W,  // int to float
   INSR_FCVT_S_WU, /* not used */
   INSR_FCVT_S_L,
   INSR_FCVT_S_LU, /* not used */
-  INSR_FCVT_D_W, /* not used */
+  INSR_FCVT_D_W,  /* not used */
   INSR_FCVT_D_WU, /* not used */
-  INSR_FCVT_D_L, /* not used */
+  INSR_FCVT_D_L,  /* not used */
   INSR_FCVT_D_LU, /* not used */
-  INSR_FCVT_S_D, /* not used */  // float convert
-  INSR_FCVT_D_S, /* not used */
-  INSR_FMV_X_W, /* opt only */  // bitwise float to int
-  INSR_FMV_X_D, /* not used */
-  INSR_FMV_W_X, /* opt only */  // bitwise int to float
-  INSR_FMV_D_X, /* not used */
-  INSR_FEQ_S,  // compare
+  INSR_FCVT_S_D,
+  /* not used */  // float convert
+  INSR_FCVT_D_S,  /* not used */
+  INSR_FMV_X_W,
+  /* opt only */  // bitwise float to int
+  INSR_FMV_X_D,   /* not used */
+  INSR_FMV_W_X,
+  /* opt only */  // bitwise int to float
+  INSR_FMV_D_X,   /* not used */
+  INSR_FEQ_S,     // compare
   INSR_FLT_S,
   INSR_FLE_S,
   INSR_FEQ_D, /* not used */
   INSR_FLT_D, /* not used */
   INSR_FLE_D, /* not used */
-  INSR_FCLASS_S, /* not used */  // class
-  INSR_FCLASS_D, /* not used */
+  INSR_FCLASS_S,
+  /* not used */  // class
+  INSR_FCLASS_D,  /* not used */
   kFloatingPointInsr,
 
   // Pseudo-instructions
   PINSR_J,     // jump (+dest ID)
   PINSR_CALL,  // call function (+dest ID)
-  PINSR_TAIL, /* opt only */  // tail call function (+dest ID)
-  PINSR_RET,   // return (no arg)
-  PINSR_LA     // Load absolute address
+  PINSR_TAIL,
+  /* opt only */  // tail call function (+dest ID)
+  PINSR_RET,      // return (no arg)
+  PINSR_LA        // Load absolute address
 };
 
 enum InsrFormat {
@@ -299,13 +320,6 @@ struct IRInsr {
   int64_t imm;
 };
 
-const std::string kRegisterName[] = {
-    "zero", "ra", "sp",  "gp",  "tp", "t0", "t1", "t2",
-    "s0",   "s1", "a0",  "a1",  "a2", "a3", "a4", "a5",
-    "a6",   "a7", "s2",  "s3",  "s4", "s5", "s6", "s7",
-    "s8",   "s9", "s10", "s11", "t3", "t4", "t5", "t6"
-};
-
 struct RV64Insr {
   Opcode op;
   uint8_t rs1, rs2, rs3, rd;
@@ -366,6 +380,11 @@ constexpr std::array<uint8_t, kNumSavedRegisters> kSavedRegisters = {
 
 constexpr std::array<uint8_t, kNumTempRegisters> kTempRegisters = {
     kT1, kT2, kT3, kT4, kT5, kT6};
+
+const std::string kRegisterName[] = {
+    "zero", "ra", "sp", "gp", "tp",  "t0",  "t1", "t2", "s0", "s1", "a0",
+    "a1",   "a2", "a3", "a4", "a5",  "a6",  "a7", "s2", "s3", "s4", "s5",
+    "s6",   "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"};
 
 }  // namespace rv64
 
