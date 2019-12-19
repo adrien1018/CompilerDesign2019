@@ -1,8 +1,10 @@
 #ifndef INSTRUCTION_H_
 #define INSTRUCTION_H_
 
+#include <array>
 #include <fstream>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <variant>
 #include <vector>
@@ -296,17 +298,109 @@ struct IRInsr {
 struct RV64Insr {
   Opcode op;
   uint8_t rs1, rs2, rs3, rd;
-  std::variant<std::string, int64_t>
-      imm;  // immediate, destination ID or global symbol
+  int64_t imm;
+};
+
+namespace rv64 {
+
+constexpr size_t kRegisters = 32;
+constexpr size_t kNumCalleeSaved = 13;
+constexpr size_t kNumCallerSaved = 16;
+constexpr size_t kNumSavedRegisters = 11;
+constexpr size_t kNumTempRegisters = 6;
+
+// RISC-V register ABI names
+constexpr uint8_t kZero = 0;
+constexpr uint8_t kRa = 1;
+constexpr uint8_t kSp = 2;
+constexpr uint8_t kGp = 3;
+constexpr uint8_t kTp = 4;
+constexpr uint8_t kT0 = 5;
+constexpr uint8_t kT1 = 6;
+constexpr uint8_t kT2 = 7;
+constexpr uint8_t kFp = 8;
+constexpr uint8_t kS0 = 8;
+constexpr uint8_t kS1 = 9;
+constexpr uint8_t kA0 = 10;
+constexpr uint8_t kA1 = 11;
+constexpr uint8_t kA2 = 12;
+constexpr uint8_t kA3 = 13;
+constexpr uint8_t kA4 = 14;
+constexpr uint8_t kA5 = 15;
+constexpr uint8_t kA6 = 16;
+constexpr uint8_t kA7 = 17;
+constexpr uint8_t kS2 = 18;
+constexpr uint8_t kS3 = 19;
+constexpr uint8_t kS4 = 20;
+constexpr uint8_t kS5 = 21;
+constexpr uint8_t kS6 = 22;
+constexpr uint8_t kS7 = 23;
+constexpr uint8_t kS8 = 24;
+constexpr uint8_t kS9 = 25;
+constexpr uint8_t kS10 = 26;
+constexpr uint8_t kS11 = 27;
+constexpr uint8_t kT3 = 28;
+constexpr uint8_t kT4 = 29;
+constexpr uint8_t kT5 = 30;
+constexpr uint8_t kT6 = 31;
+
+constexpr std::array<uint8_t, kNumCalleeSaved> kCalleeSaved = {
+    2, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
+
+constexpr std::array<uint8_t, kNumCallerSaved> kCallerSaved = {
+    1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31};
+
+constexpr std::array<uint8_t, kNumSavedRegisters> kSavedRegisters = {
+    kS1, kS2, kS3, kS4, kS5, kS6, kS7, kS8, kS9, kS10, kS11};
+
+constexpr std::array<uint8_t, kNumTempRegisters> kTempRegisters = {
+    kT1, kT2, kT3, kT4, kT5, kT6};
+
+}  // namespace rv64
+
+struct MemoryLocation {
+  bool in_register;
+  std::variant<uint8_t, int64_t> mem;
 };
 
 class InsrGen {
  public:
-  // void GenerateAR();
+  void Flush();
+  void GenerateAR(const std::vector<IRInsr>& ir);
 
  private:
   std::ofstream ofs_;
   std::vector<RV64Insr> insr_;
+  std::array<size_t, rv64::kRegisters> regs_{};
+
+  class Register {
+   public:
+    template <size_t N>
+    uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced);
+    uint8_t GetSavedRegister(size_t& replaced);
+    uint8_t GetTempRegister(size_t& replaced);
+
+    void SetRegister(uint8_t pos, size_t id);
+
+   private:
+    static constexpr size_t kEmpty = (size_t)-1;
+    static constexpr size_t kReserved = (size_t)-2;
+    std::array<size_t, rv64::kRegisters> regs_{};
+    uint32_t empty_;
+  } reg_;
+
+  template <class... Args>
+  void GenerateInsr(Opcode op, Args&&... args);
+
+  void GenerateRTypeInsr(const IRInsr& insr, std::vector<MemoryLocation>& mem);
+
+  size_t GeneratePrologue(const std::vector<IRInsr>& ir);
+  void GenerateEpilogue(size_t offset);
+
+  void PushCalleeRegisters();
+  void PopCalleeRegisters();
+  uint8_t GetSavedRegister(size_t id, std::vector<MemoryLocation>& mem);
+  uint8_t GetTempRegister(size_t id, std::vector<MemoryLocation>& mem);
 };
 
 #endif  // INSTRUCTION_H_
