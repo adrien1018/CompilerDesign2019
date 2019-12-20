@@ -374,7 +374,15 @@ struct MemoryLocation {
 // num or initialized array, string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
 
-/*** RV64 Instruction Generator ***/
+/**
+ * RV64 Instruction Generator
+ *
+ * The `InsrGen` object helps translating the IR instructions (instructions in
+ * which "pseudo" registers are used) into real RV64 instructions. Things like
+ * allocating stack frames, saving registers and allocating registers for
+ * temporaries and intermediates (and probabily some optimizations) are handled
+ * in this class.
+ */
 class InsrGen {
  public:
   explicit InsrGen() = default;
@@ -399,6 +407,10 @@ class InsrGen {
    * offset` while the temporaries and intermediates will be referenced in the
    * RV64 instructions using `fp - offset`. Both `sp` and `fp` should not be
    * changed in the IR instructions.
+   *
+   * The load/store of the pseudo registers will be handled in this
+   * function. The caller should only cares about the load/store of the
+   * local variables, parameter passsing, etc.
    *
    * The callee saved registers are stored on the stack starting from position
    * `sp + local`.
@@ -425,29 +437,53 @@ class InsrGen {
 
  private:
   std::ofstream ofs_;
-  std::vector<RV64Insr> insr_;
-  std::array<size_t, rv64::kRegisters> regs_{};
+  std::vector<RV64Insr> insr_;  // instruction buffer
 
   class RegController {
    public:
-    explicit RegController() : empty_(0) {
+    explicit RegController() {
       std::fill(regs_.begin(), regs_.end(), kReserved);
       for (uint8_t p : rv64::kSavedRegisters) regs_[p] = kEmpty;
       for (uint8_t p : rv64::kTempRegisters) regs_[p] = kEmpty;
     }
 
+    // Get available register. If no registers are available, check whether
+    // there is a clean register. Try to avoid returning dirty register (an
+    // extra store required).
     template <size_t N>
-    uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced);
-    uint8_t GetSavedRegister(size_t& replaced);
-    uint8_t GetTempRegister(size_t& replaced);
+    uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced,
+                        const std::vector<uint8_t>& dirty) {
+      bool found = false;
+      uint8_t rg;
+      for (size_t i = 0; i < N; ++i) {
+        if (regs_[pool[i]] == kEmpty) return pool[i];
+        if (regs_[pool[i]] != kReserved) {
+          if (!found || !dirty[regs_[pool[i]]]) {
+            found = true;
+            rg = pool[i];
+          }
+        }
+      }
+      replaced = regs_[rg];
+      return rg;
+    }
 
-    void SetRegister(uint8_t pos, size_t id);
+    uint8_t GetSavedRegister(size_t& replaced,
+                             const std::vector<uint8_t>& dirty) {
+      return GetRegister(rv64::kSavedRegisters, replaced, dirty);
+    }
+    uint8_t GetTempRegister(size_t& replaced,
+                            const std::vector<uint8_t>& dirty) {
+      return GetRegister(rv64::kTempRegisters, replaced, dirty);
+    }
+
+    size_t GetPseudoReg(uint8_t pos) const { return regs_[pos]; };
+    void SetPseudoReg(uint8_t pos, size_t id) { regs_[pos] = id; };
 
    private:
     static constexpr size_t kEmpty = (size_t)-1;
     static constexpr size_t kReserved = (size_t)-2;
     std::array<size_t, rv64::kRegisters> regs_{};
-    uint32_t empty_;
   } reg_;
 
   template <class... Args>
@@ -461,8 +497,9 @@ class InsrGen {
 
   void PushCalleeRegisters(size_t offset);
   void PopCalleeRegisters(size_t offset);
-  uint8_t GetSavedRegister(const IRInsr::Register& reg,
-                           std::vector<MemoryLocation>& loc);
+  uint8_t GetSavedRegister(const IRInsr::Register& reg, bool load,
+                           std::vector<MemoryLocation>& loc,
+                           std::vector<uint8_t>& dirty);
   uint8_t GetTempRegister(size_t id, std::vector<MemoryLocation>& mem);
 };
 

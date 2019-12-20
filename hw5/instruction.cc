@@ -62,48 +62,34 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
 
 }  // namespace
 
-void InsrGen::RegController::SetRegister(uint8_t pos, size_t id) {
-  regs_[pos] = id;
-}
-
-template <size_t N>
-uint8_t InsrGen::RegController::GetRegister(const std::array<uint8_t, N> &pool,
-                                            size_t &replaced) {
-  uint8_t rp = 0;
-  for (size_t i = 0; i < N; ++i) {
-    if (regs_[pool[i]] == kEmpty) return pool[i];
-    if (regs_[pool[i]] != kReserved) rp = pool[i];
-  }
-  replaced = regs_[rp];
-  return rp;
-}
-
-uint8_t InsrGen::RegController::GetSavedRegister(size_t &replaced) {
-  return GetRegister(rv64::kSavedRegisters, replaced);
-}
-
-uint8_t InsrGen::RegController::GetTempRegister(size_t &replaced) {
-  return GetRegister(rv64::kTempRegisters, replaced);
-}
-
-uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg,
-                                  std::vector<MemoryLocation> &loc) {
+uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
+                                  std::vector<MemoryLocation> &loc,
+                                  std::vector<uint8_t> &dirty) {
   if (reg.is_real) {
     // TODO: Check the current usage of the specified register, and store it
-    // back to memory if neccesary.
+    // back to memory if neccesary. For now the saved register will not be used,
+    // so leave this the optimzation.
+    return reg.id;
   }
   size_t id = reg.id;
   if (loc[id].in_register) return std::get<uint8_t>(loc[id].mem);
   size_t to_replace = (size_t)-1;
-  uint8_t rg = reg_.GetSavedRegister(to_replace);
+  uint8_t rg = reg_.GetSavedRegister(to_replace, dirty);
   if (to_replace != (size_t)-1) {
-    // store the register back to memory
+    // store the register back to memory if the register is dirty
     loc[to_replace].in_register = false;
-    loc[to_replace].mem = -int64_t(to_replace) * 4;
-    GenerateInsr(INSR_SW, rg, rv64::kFp, -int64_t(to_replace) * 4);
+    if (dirty[to_replace]) {
+      loc[to_replace].mem = -int64_t(to_replace) * 8;  // this is useless now
+      GenerateInsr(INSR_SD, rg, rv64::kFp, -int64_t(to_replace) * 8);
+    }
+    dirty[to_replace] = false;
   }
   loc[id].in_register = true;
   loc[id].mem = rg;
+  if (load) {
+    // load the pseudo register from memory
+    GenerateInsr(INSR_LD, rg, rv64::kFp, -int64_t(id) * 8);
+  }
   return rg;
 }
 
@@ -120,14 +106,6 @@ void InsrGen::PopCalleeRegisters(size_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
     GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, offset + 8 * i);
   }
-}
-
-void InsrGen::GenerateRTypeInsr(const IRInsr &insr,
-                                std::vector<MemoryLocation> &loc) {
-  uint8_t rd = GetSavedRegister(insr.rd, loc);
-  uint8_t rs1 = GetSavedRegister(insr.rs1, loc);
-  uint8_t rs2 = GetSavedRegister(insr.rs2, loc);
-  GenerateInsr(insr.op, rd, rs1, rs2);
 }
 
 void InsrGen::GeneratePrologue(size_t sp_offset, size_t local) {
