@@ -254,7 +254,6 @@ void Analyzer::BuildTypeDecl(AstNode* type_decl) noexcept {
 std::pair<VariableAttr, TableEntry> Analyzer::BuildParam(AstNode* param) {
   try {
     const TypeAttr& attr = BuildType(*param->child.begin());
-    std::cerr << "dims: " << attr.dims.size() << '\n';
     AstNode* identifier = *std::next(param->child.begin());
     auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
     if (value.kind == NORMAL_ID) {
@@ -613,6 +612,9 @@ inline MsgType CheckConvertibility(const VariableAttr& proto,
                                    const VariableAttr& args) {
   // Check whether `b` can be implicitly converted to `a`. Returns an error or
   // a warning if incorrect conversion occurs.
+  if (args.data_type == CONST_STRING_TYPE) {
+    return ERR_STRING_TO_SCALAR;
+  }
   if (proto.IsArray() && !args.IsArray()) {
     return ERR_SCALAR_TO_ARR;
   }
@@ -661,6 +663,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   AnalyzeRelopExprList(relop_expr_list);
   size_t i = 0;
   for (AstNode* param : relop_expr_list->child) {
+    DataType type = func.params[i].data_type;
     MsgType x =
         CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
     if (x != ERR_NOTHING) {
@@ -669,8 +672,13 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
                  GetIdentifier(param).second,
                  GetIdentifier(entry.GetNode()).second);
       } else {
-        PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
-                 GetIdentifier(entry.GetNode()).second);
+        if (x == ERR_STRING_TO_SCALAR) {
+          PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i, type,
+                   GetIdentifier(entry.GetNode()).second);
+        } else {
+          PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
+                   GetIdentifier(entry.GetNode()).second);
+        }
       }
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
@@ -765,6 +773,18 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       success_ = false;
       PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
       throw StopExpression();
+    }
+    assert(id_node->data_type == INT_TYPE || id_node->data_type == FLOAT_TYPE);
+    assert(relop_expr->data_type == INT_TYPE ||
+           relop_expr->data_type == FLOAT_TYPE);
+    if (id_node->data_type != relop_expr->data_type) {
+      AstNode* conv = new AstNode(CONVERSION_NODE);
+      conv->semantic_value =
+          ConversionSemanticValue{relop_expr->data_type, id_node->data_type};
+      conv->child.push_back(relop_expr);
+      relop_expr->parent = conv;
+      expr->child.pop_back();
+      expr->child.push_back(conv);
     }
   } else {
     try {
@@ -872,7 +892,17 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
             } else {
               PrintMsg(file_, stmt->child.front()->loc, WARN_CONVERSION, type,
                        return_type_);
-              // TODO: Need a conversion node?
+              assert(return_type_ == INT_TYPE || return_type_ == FLOAT_TYPE);
+              assert(type == INT_TYPE || type == FLOAT_TYPE);
+              AstNode* conv = new AstNode(CONVERSION_NODE);
+              conv->data_type = return_type_;
+              conv->semantic_value =
+                  ConversionSemanticValue{type, return_type_};
+              AstNode* ret = *stmt->child.begin();
+              conv->child.push_back(ret);
+              ret->parent = conv;
+              stmt->child.pop_front();
+              stmt->child.push_front(conv);
             }
           }
         } catch (StopExpression&) {

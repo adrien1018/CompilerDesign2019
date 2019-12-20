@@ -27,7 +27,8 @@ static const std::unordered_map<AstType, std::string> kNodeTypeMap = {
     MD_PAIR(EXPR_NODE),
     MD_PAIR(CONST_VALUE_NODE),
     MD_PAIR(NONEMPTY_ASSIGN_EXPR_LIST_NODE),
-    MD_PAIR(NONEMPTY_RELOP_EXPR_LIST_NODE)};
+    MD_PAIR(NONEMPTY_RELOP_EXPR_LIST_NODE),
+    MD_PAIR(CONVERSION_NODE)};
 
 static const std::unordered_map<DeclKind, std::string> kDeclTypeMap = {
     MD_PAIR(VARIABLE_DECL), MD_PAIR(TYPE_DECL), MD_PAIR(FUNCTION_DECL),
@@ -125,6 +126,12 @@ void PrintLabelString(std::ostream &ofs, AstNode *node) {
     case NONEMPTY_ASSIGN_EXPR_LIST_NODE:
     case NONEMPTY_RELOP_EXPR_LIST_NODE:
       break;
+    case CONVERSION_NODE: {
+      auto &value = std::get<ConversionSemanticValue>(node->semantic_value);
+      ofs << ' ' << kDataTypeMap.at(value.from) << ' '
+          << kDataTypeMap.at(value.to);
+      break;
+    }
     default:
       ofs << "default case in char *getLabelString(AST_TYPE astType)";
       break;

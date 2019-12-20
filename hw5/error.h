@@ -36,6 +36,7 @@ enum MsgType {
   ERR_DIMEN_NEG,
   ERR_VOID_ASSIGN,
   ERR_UNARY_MINUS_STRING,
+  ERR_STRING_TO_SCALAR,
 
   WARN_BEGIN = 30,
 
@@ -64,6 +65,8 @@ void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               size_t, const std::string&);
+void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
+              size_t, DataType, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
               size_t, const std::string&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, DataType, DataType);

@@ -108,7 +108,8 @@ enum AstType {
   EXPR_NODE,
   CONST_VALUE_NODE,  // ex:1, 2, "constant string"
   NONEMPTY_ASSIGN_EXPR_LIST_NODE,
-  NONEMPTY_RELOP_EXPR_LIST_NODE
+  NONEMPTY_RELOP_EXPR_LIST_NODE,
+  CONVERSION_NODE
 };
 
 struct StmtSemanticValue {
@@ -140,6 +141,10 @@ struct TypeSpecSemanticValue {
 
 using ConstValue = std::variant<int, FloatType, std::string>;
 
+struct ConversionSemanticValue {
+  DataType from, to;
+};
+
 struct AstNode {
   std::list<AstNode*> child;
   AstNode* parent;
@@ -147,10 +152,13 @@ struct AstNode {
   DataType data_type;
   Location loc;
   std::variant<IdentifierSemanticValue, StmtSemanticValue, DeclSemanticValue,
-               ExprSemanticValue, ConstValue, TypeSpecSemanticValue>
+               ExprSemanticValue, ConstValue, TypeSpecSemanticValue,
+               ConversionSemanticValue>
       semantic_value;
 
   AstNode() : parent(nullptr), data_type(NONE_TYPE) {}
+  AstNode(AstType type)
+      : parent(nullptr), node_type(type), data_type(NONE_TYPE) {}
   AstNode(AstType type, const Location& loc)
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
