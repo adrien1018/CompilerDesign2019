@@ -662,25 +662,39 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   AstNode* relop_expr_list = *std::next(node->child.begin());
   AnalyzeRelopExprList(relop_expr_list);
   size_t i = 0;
-  for (AstNode* param : relop_expr_list->child) {
-    DataType type = func.params[i].data_type;
-    MsgType x =
-        CheckConvertibility(func.params[i++], GetPrototype(param, tab_));
+  for (auto it = relop_expr_list->child.begin();
+       it != relop_expr_list->child.end();) {
+    AstNode* nd = *it;
+    auto& args = func.params[i++];
+    auto param = GetPrototype(nd, tab_);
+    MsgType x = CheckConvertibility(args, param);
     if (x != ERR_NOTHING) {
-      if (param->node_type == IDENTIFIER_NODE) {
-        PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
-                 GetIdentifier(param).second,
+      if (nd->node_type == IDENTIFIER_NODE) {
+        PrintMsg(file_, nd->loc, x, entry.GetNode()->loc, i,
+                 GetIdentifier(nd).second,
                  GetIdentifier(entry.GetNode()).second);
       } else {
         if (x == ERR_STRING_TO_SCALAR) {
-          PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i, type,
+          PrintMsg(file_, nd->loc, x, entry.GetNode()->loc, i, args.data_type,
                    GetIdentifier(entry.GetNode()).second);
         } else {
-          PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
+          PrintMsg(file_, nd->loc, x, entry.GetNode()->loc, i,
                    GetIdentifier(entry.GetNode()).second);
         }
       }
       if (GetMsgClass(x) == ERROR) success_ = false;
+    }
+    if (!args.IsArray() && !param.IsArray()) {
+      AstNode* conv = new AstNode(CONVERSION_NODE);
+      conv->semantic_value =
+          ConversionSemanticValue{param.data_type, args.data_type};
+      conv->child.push_back(nd);
+      conv->parent = relop_expr_list;
+      nd->parent = conv;
+      it = relop_expr_list->child.erase(it);
+      relop_expr_list->child.insert(it, conv);
+    } else {
+      it = std::next(it);
     }
   }
 }
@@ -782,6 +796,7 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       conv->semantic_value =
           ConversionSemanticValue{relop_expr->data_type, id_node->data_type};
       conv->child.push_back(relop_expr);
+      conv->parent = expr;
       relop_expr->parent = conv;
       expr->child.pop_back();
       expr->child.push_back(conv);
@@ -898,6 +913,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
               conv->data_type = return_type_;
               conv->semantic_value =
                   ConversionSemanticValue{type, return_type_};
+              conv->parent = stmt;
               AstNode* ret = *stmt->child.begin();
               conv->child.push_back(ret);
               ret->parent = conv;
