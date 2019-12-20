@@ -10,6 +10,8 @@
 #include "symtab.h"
 
 constexpr size_t kNumBuiltinFunction = 3;
+constexpr std::array<DataType, kNumBuiltinFunction> kBuiltinReturnType = {
+    VOID_TYPE, INT_TYPE, FLOAT_TYPE};
 const std::array<std::pair<std::string, size_t>, kNumBuiltinFunction>
     kBuiltinFunction = {std::make_pair("write", 1), std::make_pair("read", 0),
                         std::make_pair("fread", 0)};

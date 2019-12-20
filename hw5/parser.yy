@@ -139,8 +139,9 @@ int DoLogicalOperation(BinaryOperator op, T x, U y) {
 
 AstNode* UnaryConstNode(UnaryOperator op, AstNode* nd, const Location& loc) {
   DataType& type = nd->data_type;
-  if (type == CONST_STRING_TYPE)
-    throw yy::parser::syntax_error(loc, "cannot operate on strings");
+  if (op == UNARY_OP_NEGATIVE && type == CONST_STRING_TYPE) {
+    throw yy::parser::syntax_error(loc, "wrong type argument to unary minus");
+  }
   ConstValue& val = std::get<ConstValue>(nd->semantic_value);
   switch (op) {
     case UNARY_OP_NEGATIVE: {
@@ -154,8 +155,10 @@ AstNode* UnaryConstNode(UnaryOperator op, AstNode* nd, const Location& loc) {
     case UNARY_OP_LOGICAL_NEGATION: {
       if (type == INT_TYPE) {
         val = !std::get<int>(val);
+      } else if (type == FLOAT_TYPE) {
+        val = (int)!std::get<FloatType>(val); 
       } else {
-        val = (int)!std::get<FloatType>(val);
+        val = 1;
       }
       type = INT_TYPE;
     }
@@ -334,7 +337,7 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 %nonassoc R_ELSE
 
 %type <AstNode*> program function_decl block decl var_decl init_id stmt
-%type <AstNode*> relop_expr var_ref
+%type <AstNode*> relop_expr var_ref const_value
 %type <AstNode*> param assign_expr cexpr cexpr_uni assign_expr_list
 %type <AstNode*> type_decl id_item relop_expr_list unifact
 %type <std::list<AstNode*>> global_decl_list stmt_list decl_list init_id_list
@@ -561,7 +564,7 @@ cexpr_uni:
   S_L_PAREN cexpr S_R_PAREN {
     $$ = $2;
   } |
-  CONST {
+  const_value {
     $$ = $1;
   };
 
@@ -751,7 +754,7 @@ unifact:
   var_ref {
     $$ = $1;
   } |
-  CONST {
+  const_value {
     $$ = $1;
   } |
   S_L_PAREN relop_expr S_R_PAREN {
@@ -760,6 +763,18 @@ unifact:
   IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
     $$ = MakeStmtNode(FUNCTION_CALL_STMT, @$);
     MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
+  };
+
+const_value:
+  O_ADDITION CONST {
+    $$ = $2;
+    assert($$->node_type == CONST_VALUE_NODE); 
+    if ($$->data_type == CONST_STRING_TYPE) {
+      throw yy::parser::syntax_error(@$, "wrong type argument to unary plus");
+    }
+  } | 
+  CONST {
+    $$ = $1;
   };
 
 var_ref:

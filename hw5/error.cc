@@ -122,6 +122,10 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << "void value not ignored as it ought to be";
             break;
           }
+          case ERR_UNARY_MINUS_STRING: {
+            std::cerr << "wrong type argument to unary minus";
+            break;
+          }
           case WARN_VOID_RETURN: {
             StartEmph(f.color_output);
             std::cerr << "‘return’";

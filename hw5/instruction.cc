@@ -62,11 +62,13 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
 
 }  // namespace
 
-void InsrGen::Register::SetRegister(uint8_t pos, size_t id) { regs_[pos] = id; }
+void InsrGen::RegisterFile::SetRegister(uint8_t pos, size_t id) {
+  regs_[pos] = id;
+}
 
 template <size_t N>
-uint8_t InsrGen::Register::GetRegister(const std::array<uint8_t, N> &pool,
-                                       size_t &replaced) {
+uint8_t InsrGen::RegisterFile::GetRegister(const std::array<uint8_t, N> &pool,
+                                           size_t &replaced) {
   uint8_t rp = 0;
   for (size_t i = 0; i < N; ++i) {
     if (regs_[pool[i]] == kEmpty) return pool[i];
@@ -76,15 +78,18 @@ uint8_t InsrGen::Register::GetRegister(const std::array<uint8_t, N> &pool,
   return rp;
 }
 
-uint8_t InsrGen::Register::GetSavedRegister(size_t &replaced) {
+uint8_t InsrGen::RegisterFile::GetSavedRegister(size_t &replaced) {
   return GetRegister(rv64::kSavedRegisters, replaced);
 }
 
-uint8_t InsrGen::Register::GetTempRegister(size_t &replaced) {
+uint8_t InsrGen::RegisterFile::GetTempRegister(size_t &replaced) {
   return GetRegister(rv64::kTempRegisters, replaced);
 }
 
-uint8_t InsrGen::GetSavedRegister(size_t id, std::vector<MemoryLocation> &loc) {
+uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg,
+                                  std::vector<MemoryLocation> &loc) {
+  if (reg.is_real) return reg.id;
+  size_t id = reg.id;
   if (loc[id].in_register) return std::get<uint8_t>(loc[id].mem);
   size_t to_replace = (size_t)-1;
   uint8_t rg = reg_.GetSavedRegister(to_replace);

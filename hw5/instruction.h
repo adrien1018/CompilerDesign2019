@@ -403,7 +403,7 @@ class InsrGen {
   std::vector<RV64Insr> insr_;
   std::array<size_t, rv64::kRegisters> regs_{};
 
-  class Register {
+  class RegisterFile {
    public:
     template <size_t N>
     uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced);
@@ -429,7 +429,8 @@ class InsrGen {
 
   void PushCalleeRegisters();
   void PopCalleeRegisters();
-  uint8_t GetSavedRegister(size_t id, std::vector<MemoryLocation>& mem);
+  uint8_t GetSavedRegister(const IRInsr::Register& reg,
+                           std::vector<MemoryLocation>& loc);
   uint8_t GetTempRegister(size_t id, std::vector<MemoryLocation>& mem);
 };
 

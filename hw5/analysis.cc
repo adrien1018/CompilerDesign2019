@@ -254,7 +254,7 @@ void Analyzer::BuildTypeDecl(AstNode* type_decl) noexcept {
 std::pair<VariableAttr, TableEntry> Analyzer::BuildParam(AstNode* param) {
   try {
     const TypeAttr& attr = BuildType(*param->child.begin());
-    std::cerr << "dims: " <<  attr.dims.size() << '\n';
+    std::cerr << "dims: " << attr.dims.size() << '\n';
     AstNode* identifier = *std::next(param->child.begin());
     auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
     if (value.kind == NORMAL_ID) {
@@ -325,8 +325,8 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
         throw StopExpression();
       }
       value.identifier = (Identifier){-(i + 1), {}};
-      node->data_type = VOID_TYPE;
       BuildRelopExprList(relop_expr_list, true);
+      node->data_type = kBuiltinReturnType[i];
       return;
     }
   }
@@ -641,7 +641,8 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   size_t id = std::get<Identifier>(value.identifier).first;
   if (id >= -kNumBuiltinFunction) {  // built-in function
     AstNode* relop_expr_list = *std::next(node->child.begin());
-    assert(relop_expr_list->child.size() == kBuiltinFunction.at(-id - 1).second);
+    assert(relop_expr_list->child.size() ==
+           kBuiltinFunction.at(-id - 1).second);
     AnalyzeRelopExprList(relop_expr_list);
     if (!relop_expr_list->child.empty()) {
       AstNode* param = relop_expr_list->child.front();
@@ -665,11 +666,11 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
     if (x != ERR_NOTHING) {
       if (param->node_type == IDENTIFIER_NODE) {
         PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
-                GetIdentifier(param).second,
-                GetIdentifier(entry.GetNode()).second);
+                 GetIdentifier(param).second,
+                 GetIdentifier(entry.GetNode()).second);
       } else {
         PrintMsg(file_, param->loc, x, entry.GetNode()->loc, i,
-                GetIdentifier(entry.GetNode()).second);
+                 GetIdentifier(entry.GetNode()).second);
       }
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
@@ -728,6 +729,12 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
         switch (op) {
           case UNARY_OP_POSITIVE:
           case UNARY_OP_NEGATIVE:
+            if (types[0] == CONST_STRING_TYPE) {
+              success_ = false;
+              PrintMsg(file_, (*expr->child.begin())->loc,
+                       ERR_UNARY_MINUS_STRING);
+              throw StopExpression();
+            }
             expr->data_type = types[0];
             break;
           case UNARY_OP_LOGICAL_NEGATION:
