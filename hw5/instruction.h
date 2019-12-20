@@ -377,9 +377,14 @@ using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
 /*** RV64 Instruction Generator ***/
 class InsrGen {
  public:
-  InsrGen() = default;
-  InsrGen(const std::string& s) : ofs_(s) {}
+  explicit InsrGen() = default;
+  // Construct InsrGen with the output file name.
+  explicit InsrGen(const std::string& file) : ofs_(file) {}
 
+  // The instructions will be flushed upon descruction.
+  ~InsrGen() { Flush(); }
+
+  // Flush the instructions in the buffer to the output file.
   void Flush();
 
   /**
@@ -388,13 +393,25 @@ class InsrGen {
    *
    * @param ir IR instructions.
    * @param local The number of bytes allocated for the local variables.
+   * @param num_register The number of (pseudo) registers used in this function.
    *
    * The local variables should be referenced in IR instructions using `sp +
    * offset` while the temporaries and intermediates will be referenced in the
    * RV64 instructions using `fp - offset`. Both `sp` and `fp` should not be
    * changed in the IR instructions.
+   *
+   * The callee saved registers are stored on the stack starting from position
+   * `sp + local`.
+   *
+   * Use `RET` instruction to return from the function (the prologue will be
+   * generated upon seeing the `RET` instruction).
+   *
+   * Use `CALL` instruction to do procedure call (the caller saved
+   * registers will be saved upon seeing the `CALL` instruction. This is
+   * optional since the caller saved registers are only used for optimization).
    */
-  void GenerateAR(const std::vector<IRInsr>& ir, size_t local);
+  void GenerateAR(const std::vector<IRInsr>& ir, size_t local,
+                  size_t num_register);
 
   /**
    * Generate a list of global variables (`.data` section in the RV64 assembly).
@@ -411,8 +428,14 @@ class InsrGen {
   std::vector<RV64Insr> insr_;
   std::array<size_t, rv64::kRegisters> regs_{};
 
-  class RegisterFile {
+  class RegController {
    public:
+    explicit RegController() : empty_(0) {
+      std::fill(regs_.begin(), regs_.end(), kReserved);
+      for (uint8_t p : rv64::kSavedRegisters) regs_[p] = kEmpty;
+      for (uint8_t p : rv64::kTempRegisters) regs_[p] = kEmpty;
+    }
+
     template <size_t N>
     uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced);
     uint8_t GetSavedRegister(size_t& replaced);
@@ -432,11 +455,12 @@ class InsrGen {
 
   void GenerateRTypeInsr(const IRInsr& insr, std::vector<MemoryLocation>& mem);
 
-  size_t GeneratePrologue(const std::vector<IRInsr>& ir);
-  void GenerateEpilogue(size_t offset);
+  void GeneratePrologue(size_t sp_offset, size_t local);
+  void GenerateEpilogue(size_t sp_offset, size_t local,
+                        std::vector<RV64Insr>& buf);
 
-  void PushCalleeRegisters();
-  void PopCalleeRegisters();
+  void PushCalleeRegisters(size_t offset);
+  void PopCalleeRegisters(size_t offset);
   uint8_t GetSavedRegister(const IRInsr::Register& reg,
                            std::vector<MemoryLocation>& loc);
   uint8_t GetTempRegister(size_t id, std::vector<MemoryLocation>& mem);

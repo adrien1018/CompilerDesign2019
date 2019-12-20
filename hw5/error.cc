@@ -126,6 +126,10 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << "wrong type argument to unary minus";
             break;
           }
+          case ERR_INVALID_INIT: {
+            std::cerr << "invalid initializer";
+            break;
+          }
           case WARN_VOID_RETURN: {
             StartEmph(f.color_output);
             std::cerr << "‘return’";
@@ -236,6 +240,21 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << "‘" << var << "’";
             EndColor(f.color_output);
             std::cerr << " is negative";
+            break;
+          }
+          case ERR_VOID_ARRAY: {
+            std::cerr << "declaration of ";
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            std::cerr << " as array of voids";
+            break;
+          }
+          case ERR_RETURN_ARRAY: {
+            StartEmph(f.color_output);
+            std::cerr << "‘" << var << "’";
+            EndColor(f.color_output);
+            std::cerr << " declared as function returning an array";
             break;
           }
           default:

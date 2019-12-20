@@ -62,13 +62,13 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
 
 }  // namespace
 
-void InsrGen::RegisterFile::SetRegister(uint8_t pos, size_t id) {
+void InsrGen::RegController::SetRegister(uint8_t pos, size_t id) {
   regs_[pos] = id;
 }
 
 template <size_t N>
-uint8_t InsrGen::RegisterFile::GetRegister(const std::array<uint8_t, N> &pool,
-                                           size_t &replaced) {
+uint8_t InsrGen::RegController::GetRegister(const std::array<uint8_t, N> &pool,
+                                            size_t &replaced) {
   uint8_t rp = 0;
   for (size_t i = 0; i < N; ++i) {
     if (regs_[pool[i]] == kEmpty) return pool[i];
@@ -78,17 +78,20 @@ uint8_t InsrGen::RegisterFile::GetRegister(const std::array<uint8_t, N> &pool,
   return rp;
 }
 
-uint8_t InsrGen::RegisterFile::GetSavedRegister(size_t &replaced) {
+uint8_t InsrGen::RegController::GetSavedRegister(size_t &replaced) {
   return GetRegister(rv64::kSavedRegisters, replaced);
 }
 
-uint8_t InsrGen::RegisterFile::GetTempRegister(size_t &replaced) {
+uint8_t InsrGen::RegController::GetTempRegister(size_t &replaced) {
   return GetRegister(rv64::kTempRegisters, replaced);
 }
 
 uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg,
                                   std::vector<MemoryLocation> &loc) {
-  if (reg.is_real) return reg.id;
+  if (reg.is_real) {
+    // TODO: Check the current usage of the specified register, and store it
+    // back to memory if neccesary.
+  }
   size_t id = reg.id;
   if (loc[id].in_register) return std::get<uint8_t>(loc[id].mem);
   size_t to_replace = (size_t)-1;
@@ -99,25 +102,23 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg,
     loc[to_replace].mem = -int64_t(to_replace) * 4;
     GenerateInsr(INSR_SW, rg, rv64::kFp, -int64_t(to_replace) * 4);
   }
-  // load the memory from register
   loc[id].in_register = true;
   loc[id].mem = rg;
-  // GenerateInsr(INSR_LW, rg, rv64::kFp);
   return rg;
 }
 
 template <class... Args>
 void InsrGen::GenerateInsr(Opcode op, Args &&... args) {}
 
-void InsrGen::PushCalleeRegisters() {
+void InsrGen::PushCalleeRegisters(size_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp, 8 * i);
+    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp, offset + 8 * i);
   }
 }
 
-void InsrGen::PopCalleeRegisters() {
+void InsrGen::PopCalleeRegisters(size_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, 8 * i);
+    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, offset + 8 * i);
   }
 }
 
@@ -129,38 +130,30 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &insr,
   GenerateInsr(insr.op, rd, rs1, rs2);
 }
 
-size_t InsrGen::GeneratePrologue(const std::vector<IRInsr> &ir) {
-  size_t offset = 0;
+void InsrGen::GeneratePrologue(size_t sp_offset, size_t local) {
+  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, 0);  // addi fp, sp, 0
   GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp,
-               -int64_t(offset));  // addi sp, sp, -offset
-  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, offset);  // addi fp, sp, offset
-  PushCalleeRegisters();
-  return offset;
+               -int64_t(sp_offset));  // addi sp, sp, -offset
+  PushCalleeRegisters(local);
 }
 
-void InsrGen::GenerateEpilogue(size_t offset) {
-  PopCalleeRegisters();
-  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, offset);  // addi sp, sp, offset
+void InsrGen::GenerateEpilogue(size_t sp_offset, size_t local,
+                               std::vector<RV64Insr> &buf) {
+  PopCalleeRegisters(local);
+  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp,
+               sp_offset);  // addi sp, sp, offset
 }
 
-void InsrGen::GenerateAR(const std::vector<IRInsr> &ir) {
-  size_t offset = GeneratePrologue(ir);
-  std::vector<MemoryLocation> loc(offset);
-  for (auto &v : ir) {
-    switch (kRV64InsrFormat.at(v.op)) {
-      case R_TYPE:
-        GenerateRTypeInsr(v, loc);
-        break;
-        // case I_TYPE:
-        //   GenerateITypeInsr(v, loc);
-        //   break;
-        // case U_TYPE:
-        //   GenerateUTypeInsr(v, loc);
-        //   break;
-    }
-  }
-  PopCalleeRegisters();
-  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, offset);  // addi sp, sp, offset
+void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
+                         size_t num_register) {
+  std::vector<RV64Insr> buf;
+  std::vector<MemoryLocation> loc(num_register);
+  std::vector<uint8_t> dirty(num_register);
+  size_t sp_offset = 0;  // TODO
+  GeneratePrologue(sp_offset, local);
+  GenerateEpilogue(sp_offset, local, buf);
+  // move all the instructions in the buffer to insr_
+  std::move(buf.begin(), buf.end(), std::back_inserter(insr_));
 }
 
 void InsrGen::Flush() {

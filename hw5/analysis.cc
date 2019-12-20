@@ -20,8 +20,6 @@
  * to array parameter <name>.
  */
 
-// TODO: Print messages of the newly added errors.
-
 #ifndef NDEBUG
 #include <iostream>
 
@@ -176,11 +174,11 @@ void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept {
       if (value.kind == WITH_INIT_ID) {
         AstNode* init_val = *init_id->child.begin();
         BuildRelopExpr(init_val);
-      }
-      if (value.kind == WITH_INIT_ID && attr.IsArray()) {
-        std::cerr << "[Error] invalid initializer\n";
-        // TODO: Error
-        throw StopExpression();
+        if (attr.IsArray()) {
+          success_ = false;
+          PrintMsg(file_, init_val->loc, ERR_INVALID_INIT);
+          throw StopExpression();
+        }
       }
       InsertSymTab(value.identifier,
                    BuildEntry<VARIABLE>(init_id, attr.data_type, attr.dims),
@@ -221,8 +219,8 @@ void Analyzer::BuildTypedefID(AstNode* id_item, const TypeAttr& attr) {
   if (value.kind == ARRAY_ID) {
     auto dim = ParseDimDecl(id_item);
     if (attr.data_type == VOID_TYPE) {
-      std::cerr << "[Error] declaration of <name> as array of voids\n";
-      // TODO: Error
+      success_ = false;
+      PrintMsg(file_, id_item->loc, ERR_VOID_ARRAY, GetName(id_item));
       throw StopExpression();
     }
     dim.insert(dim.end(), attr.dims.begin(), attr.dims.end());
@@ -267,7 +265,8 @@ std::pair<VariableAttr, TableEntry> Analyzer::BuildParam(AstNode* param) {
     return std::make_pair(
         res, BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims)));
   } catch (...) {
-    throw;  // TODO?
+    // rethrow
+    throw;
   }
 }
 
@@ -493,15 +492,16 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
     auto it = func_decl->child.begin();
     AstNode* type_node = *it++;
     const TypeAttr& attr = BuildType(type_node);
-    if (attr.IsArray()) {
-      std::cerr << "[Error] <name> declared as function returning an array\n";
-      // TODO: Error
-      throw StopExpression();
-    }
     AstNode* id_node = *it++;
     assert(id_node && id_node->node_type == IDENTIFIER_NODE);
     auto& func_name =
         std::get<IdentifierSemanticValue>(id_node->semantic_value).identifier;
+    if (attr.IsArray()) {
+      success_ = false;
+      PrintMsg(file_, id_node->loc, ERR_RETURN_ARRAY,
+               std::get<std::string>(func_name));
+      throw StopExpression();
+    }
     Debug_("func_name = ", std::get<std::string>(func_name), '\n');
     std::vector<VariableAttr> param_list;
     std::vector<TableEntry> entries;
