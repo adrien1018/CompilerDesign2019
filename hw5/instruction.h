@@ -425,18 +425,11 @@ struct IRInsr {
     Register(size_t x, bool is_real = false) : id(x), is_real(is_real) {}
   };
   enum ImmType {
-<<<<<<< HEAD
     kConst,        // a constant
     kLabel,        // a label ID referring to a IR label array position
+                   // negative label for builtin functions
     kData,         // a data ID referring to a CodeData array position
     kRoundingMode  // rounding mode (refer to rv64::kRoundingMode)
-=======
-    kConst, // a constant
-    kLabel, // a label ID referring to a IR label array position
-            // negative label for builtin functions
-    kData,  // a data ID referring to a CodeData array position
-    kRoundingMode // rounding mode (refer to rv64::kRoundingMode)
->>>>>>> 4c7da2614ee720fb759d2e6d5ed8659d072d6cc5
   };
   IRInsr() {}
   IRInsr(Opcode op) : op(op) {}
