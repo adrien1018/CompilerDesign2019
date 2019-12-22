@@ -37,6 +37,39 @@ inline size_t CodeGen::AllocRegister(FunctionAttr& attr) {
   return cur_register_++;
 }
 
+void CodeGen::VisitConversion(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  auto& value = std::get<ConversionSemanticValue>(expr->semantic_value);
+  size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE ?
+      AllocRegister(attr) : dest;
+  VisitRelopExpr(expr->child.front(), attr, chval);
+  switch (value.from) {
+    case FLOAT_TYPE: {
+      if (value.to == INT_TYPE) {
+        ir_.emplace_back(INSR_FCVT_W_S, dest, chval,
+                          IRInsr::kRoundingMode, rv64::kRTZ);
+        ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst, 0);
+      } else if (value.to == BOOLEAN_TYPE) {
+        size_t tmp = AllocRegister(attr);
+        ir_.emplace_back(INSR_FMV_W_X, tmp, Reg(rv64::kZero));
+        ir_.emplace_back(INSR_FEQ_S, dest, chval, tmp);
+        ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
+      }
+      break;
+    }
+    case INT_TYPE:
+    case BOOLEAN_TYPE: {
+      if (value.to == BOOLEAN_TYPE) {
+        if (value.from == INT_TYPE) {
+          // TODO: check if this is unnecessary?
+        }
+      } else if (value.to == FLOAT_TYPE) {
+        ir_.emplace_back(INSR_FCVT_S_W, dest, chval);
+      }
+      break;
+    }
+  }
+}
+
 void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
   DataType child_type = expr->child.front()->data_type;
@@ -48,8 +81,10 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       VisitRelopExpr(expr->child.front(), attr, dest);
       ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ,
                         IRInsr::kNoRD, dest, Reg(rv64::kZero),
-                        IRInsr::kLabel, labels_.size());
+                        IRInsr::kLabel, 0);
+      int64_t& now_label = ir_.back().imm;
       VisitRelopExpr(expr->child.front(), attr, dest);
+      now_label = labels_.size();
       labels_.emplace_back(ir_.size());
       return;
     }
@@ -142,85 +177,54 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   }
 }
 
+void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  auto& value = std::get<ConstValue>(expr->semantic_value);
+  if (expr->data_type == CONST_STRING_TYPE) {
+    ir_.emplace_back(PINSR_LOAD_DATA_ADDR, dest,
+                      IRInsr::kData, data_.size());
+    data_.emplace_back(std::get<std::string>(value));
+  } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
+    size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
+    uint32_t x;
+    if (expr->data_type == INT_TYPE) {
+      memcpy(&x, &std::get<int32_t>(value), 4);
+    } else {
+      memcpy(&x, &std::get<FloatType>(value), 4);
+    }
+    if (x >= 0xfffff800 || x < 0x800) {
+      ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero),
+                        IRInsr::kConst, (int32_t)x);
+    } else {
+      uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
+      ir_.emplace_back(INSR_LUI, chval, IRInsr::kConst, tx >> 12);
+      if (x != tx) {
+        ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero),
+                        IRInsr::kConst, (int32_t)(x - tx));
+      }
+    }
+    if (expr->data_type == FLOAT_TYPE) {
+      ir_.emplace_back(INSR_FMV_W_X, dest, chval);
+    }
+  } else {
+    assert(false);
+  }
+}
+
+void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
+}
+
+void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr, size_t dest) {
+}
+
 void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   size_t start_reg = cur_register_;
   switch (expr->node_type) {
-    case CONVERSION_NODE: {
-      auto& value = std::get<ConversionSemanticValue>(expr->semantic_value);
-      size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE ?
-          AllocRegister(attr) : dest;
-      VisitRelopExpr(expr->child.front(), attr, chval);
-      switch (value.from) {
-        case FLOAT_TYPE: {
-          if (value.to == INT_TYPE) {
-            ir_.emplace_back(INSR_FCVT_W_S, dest, chval,
-                             IRInsr::kRoundingMode, rv64::kRTZ);
-            ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst, 0);
-          } else if (value.to == BOOLEAN_TYPE) {
-            size_t tmp = AllocRegister(attr);
-            ir_.emplace_back(INSR_FMV_W_X, tmp, Reg(rv64::kZero));
-            ir_.emplace_back(INSR_FEQ_S, dest, chval, tmp);
-            ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
-          }
-          break;
-        }
-        case INT_TYPE:
-        case BOOLEAN_TYPE: {
-          if (value.to == BOOLEAN_TYPE) {
-            if (value.from == INT_TYPE) {
-              // TODO: check if this is unnecessary?
-            }
-          } else if (value.to == FLOAT_TYPE) {
-            ir_.emplace_back(INSR_FCVT_S_W, dest, chval);
-          }
-          break;
-        }
-      }
-      break;
-    }
-    case EXPR_NODE: {
-      VisitOpr(expr, attr, dest);
-      break;
-    }
-    case CONST_VALUE_NODE: {
-      auto& value = std::get<ConstValue>(expr->semantic_value);
-      if (expr->data_type == CONST_STRING_TYPE) {
-        ir_.emplace_back(PINSR_LOAD_DATA_ADDR, dest,
-                         IRInsr::kData, data_.size());
-        data_.emplace_back(std::get<std::string>(value));
-      } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
-        size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
-        uint32_t x;
-        if (expr->data_type == INT_TYPE) {
-          memcpy(&x, &std::get<int32_t>(value), 4);
-        } else {
-          memcpy(&x, &std::get<FloatType>(value), 4);
-        }
-        if (x >= 0xfffff800 || x < 0x800) {
-          ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero),
-                           IRInsr::kConst, (int32_t)x);
-        } else {
-          uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
-          ir_.emplace_back(INSR_LUI, chval, IRInsr::kConst, tx >> 12);
-          if (x != tx) {
-            ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero),
-                            IRInsr::kConst, (int32_t)(x - tx));
-          }
-        }
-        if (expr->data_type == FLOAT_TYPE) {
-          ir_.emplace_back(INSR_FMV_W_X, dest, chval);
-        }
-      } else {
-        assert(false);
-      }
-      break;
-    }
-    case IDENTIFIER_NODE: {
-      break;
-    }
-    case STMT_NODE: {
-      break;
-    }
+    case CONVERSION_NODE: VisitConversion(expr, attr, dest); break;
+    case EXPR_NODE: VisitOpr(expr, attr, dest); break;
+    case CONST_VALUE_NODE: VisitConst(expr, attr, dest); break;
+    case IDENTIFIER_NODE: VisitIdentifier(expr, attr, dest); break;
+    case STMT_NODE: VisitIdentifier(expr, attr, dest); break;
+    default: assert(false);
   }
   cur_register_ = start_reg;
 }

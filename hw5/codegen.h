@@ -41,7 +41,11 @@ class CodeGen {
   void VisitVariableDecl(AstNode *decl, FunctionAttr&);
   void VisitBlock(AstNode *block, FunctionAttr&);
   void VisitRelopExpr(AstNode* expr, FunctionAttr&, size_t dest);
+  void VisitConversion(AstNode* expr, FunctionAttr&, size_t dest);
   void VisitOpr(AstNode* expr, FunctionAttr&, size_t dest);
+  void VisitConst(AstNode* expr, FunctionAttr&, size_t dest);
+  void VisitIdentifier(AstNode* expr, FunctionAttr&, size_t dest);
+  void VisitFunctionCall(AstNode* expr, FunctionAttr&, size_t dest);
 
   /*** second pass: generate RISC-V assembly ***/
   void GenerateVariableDecl(AstNode *var_decl, bool global);
