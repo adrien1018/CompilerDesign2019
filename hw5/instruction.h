@@ -116,27 +116,43 @@ const std::string kRoundingModeName[] = {"rne", "rtz", "rdn", "rup", "rmm"};
 
 enum Opcode {
   /*** Integer instructions ***/
-  INSR_LUI,     // Load Upper Immediate
-  INSR_AUIPC,   // Add Upper Immediate to PC
-  INSR_JAL,     // Jump and Link
-  INSR_JALR,    // Jump and Link Register
-  INSR_BEQ,     // Branch Equal
-  INSR_BNE,     // Branch Not Equal
-  INSR_BLT,     // Branch Less Than
-  INSR_BGE,     // Branch Greater than Equal
-  INSR_BLTU,    // Branch Less Than Unsigned (not used)
-  INSR_BGEU,    // Branch Greater than Equal Unsigned (not used)
-  INSR_LB,      // Load Byte (not used)
-  INSR_LH,      // Load Half (not used)
-  INSR_LW,      // Load Word
-  INSR_LD,      // Load Double
-  INSR_LBU,     // Load Byte Unsigned (not used)
-  INSR_LHU,     // Load Half Unsigned (not used)
-  INSR_LWU,     // Load Word Unsigned (not used)
-  INSR_SB,      // Store Byte
-  INSR_SH,      // Store Half
-  INSR_SW,      // Store Word
-  INSR_SD,      // Store Double
+  INSR_LUI,    // Load Upper Immediate
+  INSR_AUIPC,  // Add Upper Immediate to PC
+  INSR_JAL,    // Jump and Link
+  INSR_JALR,   // Jump and Link Register
+  // branch rs1, rs2, LABEL ->
+  //     [negative branch] rs1, rs2, NEXT
+  //     j LABEL
+  //   NEXT: [next instruction]
+  //   if LABEL is too far away to fit into immediate
+  //   ("negative branch" means taken and not taken reversed, e.g. beq <-> bne)
+  INSR_BEQ,   // Branch Equal
+  INSR_BNE,   // Branch Not Equal
+  INSR_BLT,   // Branch Less Than
+  INSR_BGE,   // Branch Greater than Equal
+  INSR_BLTU,  // Branch Less Than Unsigned (not used)
+  INSR_BGEU,  // Branch Greater than Equal Unsigned (not used)A
+  // load/store r1, imm(r2) ->
+  //     lui [tmp], [msb(imm)]
+  //     add [tmp], [tmp], r2
+  //     load/store r1, [lsb(imm)]([tmp])
+  //   if imm is too large to fit into immediate
+  INSR_LB,   // Load Byte (not used)
+  INSR_LH,   // Load Half (not used)
+  INSR_LW,   // Load Word
+  INSR_LD,   // Load Double
+  INSR_LBU,  // Load Byte Unsigned (not used)
+  INSR_LHU,  // Load Half Unsigned (not used)
+  INSR_LWU,  // Load Word Unsigned (not used)
+  INSR_SB,   // Store Byte
+  INSR_SH,   // Store Half
+  INSR_SW,   // Store Word
+  INSR_SD,   // Store Double
+  // arithI r1, r2, imm ->
+  //     lui [tmp], [msb(imm)]
+  //     addi [tmp], [tmp], [lsb(imm)]
+  //     arith r1, r2, [tmp]
+  //   if imm is too large to fit into immediate
   INSR_ADDI,    // Add Immediate
   INSR_SLTI,    // Set Less Than Immediate
   INSR_SLTIU,   // Set Less Than Immediate Unsigned
@@ -233,7 +249,7 @@ enum Opcode {
   INSR_FCVT_D_S,   // (not used)
   INSR_FMV_X_W,    // bitwise float to int (not used)
   INSR_FMV_X_D,    // (not used)
-  INSR_FMV_W_X,    // bitwise int to float (opt only)
+  INSR_FMV_W_X,    // bitwise int to float
   INSR_FMV_D_X,    // (not used)
   INSR_FEQ_S,      // compare
   INSR_FLT_S,
@@ -246,14 +262,17 @@ enum Opcode {
   kFloatingPointInsr,
 
   /*** Pseudo-instructions ***/
-  PINSR_J,        // Jump (+dest ID)
-  PINSR_CALL,     // Call function (+dest ID)
-  PINSR_TAIL,     // Tail call function (+dest ID) (opt only)
-  PINSR_RET,      // Return (no arg)
-  PINSR_LA,       // Load absolute address
-  PINSR_MV,       // Copy (can be optimized!)
-  PINSR_FMV_S,    // Floating-point copy (can be optimized!)
-  PINSR_PUSH_SP,  // push stack pointer here
+  PINSR_J,               // Jump (+dest ID)
+  PINSR_CALL,            // Call function (+dest ID)
+  PINSR_TAIL,            // Tail call function (+dest ID) (opt only)
+  PINSR_RET,             // Return (no arg)
+  PINSR_LA,              // Load absolute address
+  PINSR_MV,              // Copy (can be optimized!)
+  PINSR_FMV_S,           // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP,         // push stack pointer here
+  PINSR_LOAD_DATA_ADDR,  // imm_type == kData; expands to
+                         //   lui rd, %hi([imm_label])
+                         //   addi rd, rd, %lo([imm_label])
   kPseudoInsr
 };
 
@@ -406,10 +425,18 @@ struct IRInsr {
     Register(size_t x, bool is_real = false) : id(x), is_real(is_real) {}
   };
   enum ImmType {
+<<<<<<< HEAD
     kConst,        // a constant
     kLabel,        // a label ID referring to a IR label array position
     kData,         // a data ID referring to a CodeData array position
     kRoundingMode  // rounding mode (refer to rv64::kRoundingMode)
+=======
+    kConst, // a constant
+    kLabel, // a label ID referring to a IR label array position
+            // negative label for builtin functions
+    kData,  // a data ID referring to a CodeData array position
+    kRoundingMode // rounding mode (refer to rv64::kRoundingMode)
+>>>>>>> 4c7da2614ee720fb759d2e6d5ed8659d072d6cc5
   };
   IRInsr() {}
   IRInsr(Opcode op) : op(op) {}
@@ -418,6 +445,11 @@ struct IRInsr {
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
       : op(op), rd(rd), rs1(rs1), rs2(rs2) {}
+  IRInsr(Opcode op, ImmType imm_type, int64_t imm)
+      : op(op), imm_type(imm_type), imm(imm) {}
+  template <class RD>
+  IRInsr(Opcode op, RD rd, ImmType imm_type, int64_t imm)
+      : op(op), rd(rd), imm_type(imm_type), imm(imm) {}
   template <class RD, class RS1>
   IRInsr(Opcode op, RD rd, RS1 rs1, ImmType imm_type, int64_t imm)
       : op(op), rd(rd), rs1(rs1), imm_type(imm_type), imm(imm) {}

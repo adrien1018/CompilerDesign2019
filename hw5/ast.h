@@ -119,9 +119,7 @@ struct StmtSemanticValue {
 
 struct ExprSemanticValue {
   ExprKind kind;
-  bool is_const_eval;
   std::variant<BinaryOperator, UnaryOperator> op;
-  std::variant<int, FloatType> const_eval;
 };
 
 struct DeclSemanticValue {
@@ -140,7 +138,7 @@ struct TypeSpecSemanticValue {
   std::variant<std::string, DataType, size_t> type;
 };
 
-using ConstValue = std::variant<int, FloatType, std::string>;
+using ConstValue = std::variant<int32_t, FloatType, std::string>;
 
 struct ConversionSemanticValue {
   DataType from, to;

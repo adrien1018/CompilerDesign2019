@@ -20,8 +20,8 @@ $(OBJS): %.o: %.cc
 analysis.o: CXXFLAGS += -fprofile-arcs -ftest-coverage
 
 # dependency list
-analysis.o: analysis.h entry.h ast.h error.h symtab.h
-codegen.o: codegen.h entry.h ast.h symtab.h instruction.h utils.h
+analysis.o: analysis.h entry.h ast.h error.h symtab.h utils.h
+codegen.o: codegen.h entry.h ast.h symtab.h instruction.h utils.h analysis.h
 driver.o: driver.h ast.h codegen.h analysis.h entry.h error.h symtab.h parser.cc
 error.o: error.h ast.h symtab.h
 gv.o: gv.h ast.h symtab.h
