@@ -5,6 +5,7 @@
 
 #include "ast.h"
 #include "utils.h"
+#include "analysis.h"
 
 namespace {
 
@@ -214,6 +215,65 @@ void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
 }
 
 void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  AstNode* id_node = *expr->child.begin();
+  auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
+  size_t id = std::get<Identifier>(value.identifier).first;
+  AstNode* params = *std::next(expr->child.begin());
+  const FunctionAttr* func_attr;
+  size_t func_label;
+  DataType return_type;
+  if (id > ~kBuiltinFunctionNum) {  // built-in function
+    func_attr = nullptr;
+    func_label = id;
+    return_type = kBuiltinFunction[~id].return_type;
+  } else {
+    func_attr = &tab_[id].GetValue<FunctionAttr>();
+    func_label = func_attr->label;
+    return_type = func_attr->return_type;
+  }
+  size_t ival = 0, fval = 0, i = 0;
+  std::vector<size_t> stk_store;
+  for (auto it = params->child.begin(); it != params->child.end(); ++it, i++) {
+    DataType type = func_attr ?
+        tab_[func_attr->params[i]].GetValue<VariableAttr>().data_type :
+        (*it)->data_type;
+    VisitRelopExpr(*it, attr, dest);
+    if (type == CONST_STRING_TYPE || type == INT_TYPE) {
+      if (ival >= 8) {
+        stk_store.push_back(ir_.size());
+        ir_.emplace_back(type == INT_TYPE ? INSR_SW : INSR_SD, IRInsr::kNoRD,
+                         dest, Reg(rv64::kSp), IRInsr::kConst, 0);
+      } else {
+        ir_.emplace_back(PINSR_MV, Reg(rv64::kA0 + ival), dest);
+      }
+      ival++;
+    } else if (type == FLOAT_TYPE) {
+      if (fval >= 8) {
+        stk_store.push_back(ir_.size());
+        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, dest, Reg(rv64::kSp),
+                         IRInsr::kConst, 0);
+      } else {
+        ir_.emplace_back(PINSR_FMV_S, Reg(rv64::kFa0 + fval), dest);
+      }
+      fval++;
+    }
+  }
+  size_t stk = (stk_store.size() + 1) / 2 * 2; // 16-byte align
+  for (size_t i = 0; i < stk_store.size(); i++) {
+    ir_[stk_store[i]].imm = (stk - i) * -8;
+  }
+  if (stk) {
+    ir_.emplace_back(INSR_ADDI, Reg(rv64::kSp), Reg(rv64::kSp),
+                     IRInsr::kConst, stk * -8);
+  }
+  ir_.emplace_back(PINSR_CALL, IRInsr::kLabel, func_label);
+  switch (return_type) {
+    case INT_TYPE:
+      ir_.emplace_back(PINSR_MV, dest, Reg(rv64::kA0)); break;
+    case FLOAT_TYPE:
+      ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0)); break;
+    default: assert(false);
+  }
 }
 
 void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {

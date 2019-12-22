@@ -8,12 +8,13 @@
 #include "entry.h"
 #include "error.h"
 
-constexpr size_t kNumBuiltinFunction = 3;
-constexpr std::array<DataType, kNumBuiltinFunction> kBuiltinReturnType = {
-    VOID_TYPE, INT_TYPE, FLOAT_TYPE};
-const std::array<std::pair<std::string, size_t>, kNumBuiltinFunction>
-    kBuiltinFunction = {std::make_pair("write", 1), std::make_pair("read", 0),
-                        std::make_pair("fread", 0)};
+struct BuiltinAttr {
+  size_t num_param;
+  DataType return_type;
+};
+
+extern const size_t kBuiltinFunctionNum;
+extern const BuiltinAttr kBuiltinFunction[];
 
 class Analyzer {
  public:

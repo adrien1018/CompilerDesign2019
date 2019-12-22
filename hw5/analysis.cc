@@ -22,6 +22,19 @@
  * to array parameter <name>.
  */
 
+const BuiltinAttr kBuiltinFunction[] = {
+  {1, VOID_TYPE},
+  {0, INT_TYPE},
+  {0, FLOAT_TYPE}
+};
+const size_t kBuiltinFunctionNum =
+    sizeof(kBuiltinFunction) / sizeof(BuiltinAttr);
+const std::unordered_map<std::string, size_t> kBuiltinFunctionMap = {
+  {"write", 0},
+  {"read", 1},
+  {"fread", 2}
+};
+
 struct StopExpression {};
 
 #define TRY_EXPRESSION(action) \
@@ -280,21 +293,24 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   const std::string& name = std::get<std::string>(value.identifier);
-  for (size_t i = 0; i < 3; ++i) {
-    if (name == kBuiltinFunction[i].first) {  // built-in functions
+  {
+    auto it = kBuiltinFunctionMap.find(name);
+    if (it != kBuiltinFunctionMap.end()) { // built-in functions
       AstNode* relop_expr_list = *std::next(node->child.begin());
+      size_t id = it->second;
+      auto& attr = kBuiltinFunction[id];
       if (size_t num_param = relop_expr_list->child.size();
-          num_param != kBuiltinFunction[i].second) {
+          num_param != attr.num_param) {
         success_ = false;
         PrintMsg(file_, id_node->loc,
-                 num_param > kBuiltinFunction[i].second ? ERR_ARGS_TOO_MANY
-                                                        : ERR_ARGS_TOO_FEW,
+                 num_param > attr.num_param ? ERR_ARGS_TOO_MANY
+                                            : ERR_ARGS_TOO_FEW,
                  name);
         throw StopExpression();
       }
-      value.identifier = (Identifier){-(i + 1), {}};
+      value.identifier = (Identifier){~id, {}};
       BuildRelopExprList(relop_expr_list, true);
-      node->data_type = kBuiltinReturnType[i];
+      node->data_type = attr.return_type;
       return;
     }
   }
@@ -622,10 +638,10 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
-  if (id >= -kNumBuiltinFunction) {  // built-in function
+  if (id > ~kBuiltinFunctionNum) {  // built-in function
     AstNode* relop_expr_list = *std::next(node->child.begin());
     assert(relop_expr_list->child.size() ==
-           kBuiltinFunction.at(-id - 1).second);
+           kBuiltinFunction[~id].second);
     AnalyzeRelopExprList(relop_expr_list);
     if (!relop_expr_list->child.empty()) {
       AstNode* param = relop_expr_list->child.front();

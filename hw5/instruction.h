@@ -120,12 +120,23 @@ enum Opcode {
   INSR_AUIPC,   // Add Upper Immediate to PC
   INSR_JAL,     // Jump and Link
   INSR_JALR,    // Jump and Link Register
+  // branch rs1, rs2, LABEL ->
+  //     [negative branch] rs1, rs2, NEXT
+  //     j LABEL
+  //   NEXT: [next instruction]
+  //   if LABEL is too far away to fit into immediate
+  //   ("negative branch" means taken and not taken reversed, e.g. beq <-> bne)
   INSR_BEQ,     // Branch Equal
   INSR_BNE,     // Branch Not Equal
   INSR_BLT,     // Branch Less Than
   INSR_BGE,     // Branch Greater than Equal
   INSR_BLTU,    // Branch Less Than Unsigned (not used)
-  INSR_BGEU,    // Branch Greater than Equal Unsigned (not used)
+  INSR_BGEU,    // Branch Greater than Equal Unsigned (not used)A
+  // load/store r1, imm(r2) ->
+  //     lui [tmp], [msb(imm)]
+  //     add [tmp], [tmp], r2
+  //     load/store r1, [lsb(imm)]([tmp])
+  //   if imm is too large to fit into immediate
   INSR_LB,      // Load Byte (not used)
   INSR_LH,      // Load Half (not used)
   INSR_LW,      // Load Word
@@ -137,6 +148,11 @@ enum Opcode {
   INSR_SH,      // Store Half
   INSR_SW,      // Store Word
   INSR_SD,      // Store Double
+  // arithI r1, r2, imm ->
+  //     lui [tmp], [msb(imm)]
+  //     addi [tmp], [tmp], [lsb(imm)]
+  //     arith r1, r2, [tmp]
+  //   if imm is too large to fit into immediate
   INSR_ADDI,    // Add Immediate
   INSR_SLTI,    // Set Less Than Immediate
   INSR_SLTIU,   // Set Less Than Immediate Unsigned
@@ -411,6 +427,7 @@ struct IRInsr {
   enum ImmType {
     kConst, // a constant
     kLabel, // a label ID referring to a IR label array position
+            // negative label for builtin functions
     kData,  // a data ID referring to a CodeData array position
     kRoundingMode // rounding mode (refer to rv64::kRoundingMode)
   };
@@ -422,6 +439,8 @@ struct IRInsr {
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
       : op(op), rd(rd), rs1(rs1), rs2(rs2) {}
+  IRInsr(Opcode op, ImmType imm_type, int64_t imm)
+      : op(op), imm_type(imm_type), imm(imm) {}
   template <class RD>
   IRInsr(Opcode op, RD rd, ImmType imm_type, int64_t imm)
       : op(op), rd(rd), imm_type(imm_type), imm(imm) {}
