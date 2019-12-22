@@ -15,41 +15,40 @@ T &GetAttribute(AstNode *id, std::vector<TableEntry> &tab) {
   return tab[std::get<Identifier>(value.identifier).first].GetValue<T>();
 }
 
-inline IRInsr::Register Reg(size_t x) {
-  return IRInsr::Register(x, true);
-}
+inline IRInsr::Register Reg(size_t x) { return IRInsr::Register(x, true); }
 
 }  // namespace
 
-inline void CodeGen::InitState(FunctionAttr& attr) {
+inline void CodeGen::InitState(FunctionAttr &attr) {
   cur_stack_ = attr.sp_offset = 0;
   cur_register_ = attr.tot_pseudo_reg = attr.params.size();
   attr.label = labels_.size();
   labels_.emplace_back(ir_.size(), true);
 }
-inline size_t CodeGen::AllocStack(FunctionAttr& attr, size_t sz) {
+inline size_t CodeGen::AllocStack(FunctionAttr &attr, size_t sz) {
   cur_stack_ += sz;
   if (cur_stack_ > attr.sp_offset) attr.sp_offset = cur_stack_;
   return cur_stack_;
 }
-inline size_t CodeGen::AllocRegister(FunctionAttr& attr) {
+inline size_t CodeGen::AllocRegister(FunctionAttr &attr) {
   if (cur_register_ == attr.tot_pseudo_reg) attr.tot_pseudo_reg++;
   return cur_register_++;
 }
 
-void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
+void CodeGen::VisitRelopExpr(AstNode *expr, FunctionAttr &attr, size_t dest) {
   size_t start_reg = cur_register_;
   switch (expr->node_type) {
     case CONVERSION_NODE: {
-      auto& value = std::get<ConversionSemanticValue>(expr->semantic_value);
-      size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE ?
-          AllocRegister(attr) : dest;
+      auto &value = std::get<ConversionSemanticValue>(expr->semantic_value);
+      size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE
+                         ? AllocRegister(attr)
+                         : dest;
       VisitRelopExpr(expr->child.front(), attr, chval);
       switch (value.from) {
         case FLOAT_TYPE: {
           if (value.to == INT_TYPE) {
-            ir_.emplace_back(INSR_FCVT_W_S, dest, chval,
-                             IRInsr::kRoundingMode, rv64::kRTZ);
+            ir_.emplace_back(INSR_FCVT_W_S, dest, chval, IRInsr::kRoundingMode,
+                             rv64::kRTZ);
             ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst, 0);
           } else if (value.to == BOOLEAN_TYPE) {
             size_t tmp = AllocRegister(attr);
@@ -74,11 +73,11 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       break;
     }
     case EXPR_NODE: {
-      auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
+      auto &value = std::get<ExprSemanticValue>(expr->semantic_value);
       DataType child_type = expr->child.front()->data_type;
       if (value.kind == BINARY_OPERATION) {
         BinaryOperator op = std::get<BinaryOperator>(value.op);
-        if (op == BINARY_OP_OR || op == BINARY_OP_AND) { // short-circuit
+        if (op == BINARY_OP_OR || op == BINARY_OP_AND) {  // short-circuit
           assert(child_type == BOOLEAN_TYPE);
           assert((*std::next(expr->child.begin()))->data_type == BOOLEAN_TYPE);
           VisitRelopExpr(expr->child.front(), attr, dest);
@@ -95,82 +94,111 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
           VisitRelopExpr(*std::next(expr->child.begin()), attr, chval);
           switch (op) {
             case BINARY_OP_OR:
-            case BINARY_OP_AND: __builtin_unreachable();
+            case BINARY_OP_AND:
+              __builtin_unreachable();
             case BINARY_OP_LT:
-              ir_.emplace_back(INSR_SLT, dest, dest, chval); break;
+              ir_.emplace_back(INSR_SLT, dest, dest, chval);
+              break;
             case BINARY_OP_LE:
               ir_.emplace_back(INSR_SLT, dest, chval, dest);
-              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
+              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
+              break;
             case BINARY_OP_GT:
-              ir_.emplace_back(INSR_SLT, dest, chval, dest); break;
+              ir_.emplace_back(INSR_SLT, dest, chval, dest);
+              break;
             case BINARY_OP_GE:
               ir_.emplace_back(INSR_SLT, dest, dest, chval);
-              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
+              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
+              break;
             case BINARY_OP_EQ:
               ir_.emplace_back(INSR_XOR, dest, dest, chval);
-              ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1); break;
+              ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1);
+              break;
             case BINARY_OP_NE:
               ir_.emplace_back(INSR_XOR, dest, dest, chval);
-              ir_.emplace_back(INSR_SLTU, dest, Reg(rv64::kZero), dest); break;
+              ir_.emplace_back(INSR_SLTU, dest, Reg(rv64::kZero), dest);
+              break;
             case BINARY_OP_ADD:
-              ir_.emplace_back(INSR_ADDW, dest, dest, chval); break;
+              ir_.emplace_back(INSR_ADDW, dest, dest, chval);
+              break;
             case BINARY_OP_SUB:
-              ir_.emplace_back(INSR_SUBW, dest, dest, chval); break;
+              ir_.emplace_back(INSR_SUBW, dest, dest, chval);
+              break;
             case BINARY_OP_MUL:
-              ir_.emplace_back(INSR_MULW, dest, dest, chval); break;
+              ir_.emplace_back(INSR_MULW, dest, dest, chval);
+              break;
             case BINARY_OP_DIV:
-              ir_.emplace_back(INSR_DIVW, dest, dest, chval); break;
+              ir_.emplace_back(INSR_DIVW, dest, dest, chval);
+              break;
           }
         } else if (child_type == FLOAT_TYPE) {
           size_t chval1 = AllocRegister(attr);
-          size_t chval2 = expr->data_type == INT_TYPE ? AllocRegister(attr) : dest;
+          size_t chval2 =
+              expr->data_type == INT_TYPE ? AllocRegister(attr) : dest;
           VisitRelopExpr(expr->child.front(), attr, chval1);
           VisitRelopExpr(*std::next(expr->child.begin()), attr, chval2);
           switch (op) {
             case BINARY_OP_OR:
-            case BINARY_OP_AND: __builtin_unreachable();
+            case BINARY_OP_AND:
+              __builtin_unreachable();
             case BINARY_OP_LT:
-              ir_.emplace_back(INSR_FLT_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FLT_S, dest, chval1, chval2);
+              break;
             case BINARY_OP_LE:
-              ir_.emplace_back(INSR_FLE_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FLE_S, dest, chval1, chval2);
+              break;
             case BINARY_OP_GT:
-              ir_.emplace_back(INSR_FLE_S, dest, chval2, chval1); break;
+              ir_.emplace_back(INSR_FLE_S, dest, chval2, chval1);
+              break;
             case BINARY_OP_GE:
-              ir_.emplace_back(INSR_FLT_S, dest, chval2, chval1); break;
+              ir_.emplace_back(INSR_FLT_S, dest, chval2, chval1);
+              break;
             case BINARY_OP_EQ:
-              ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2);
+              break;
             case BINARY_OP_NE:
               ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2);
-              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
+              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
+              break;
             case BINARY_OP_ADD:
-              ir_.emplace_back(INSR_FADD_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FADD_S, dest, chval1, chval2);
+              break;
             case BINARY_OP_SUB:
-              ir_.emplace_back(INSR_FSUB_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FSUB_S, dest, chval1, chval2);
+              break;
             case BINARY_OP_MUL:
-              ir_.emplace_back(INSR_FMUL_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FMUL_S, dest, chval1, chval2);
+              break;
             case BINARY_OP_DIV:
-              ir_.emplace_back(INSR_FDIV_S, dest, chval1, chval2); break;
+              ir_.emplace_back(INSR_FDIV_S, dest, chval1, chval2);
+              break;
           }
         } else {
           assert(false);
         }
-      } else { // UNARY_OPERATION
+      } else {  // UNARY_OPERATION
         VisitRelopExpr(expr->child.front(), attr, dest);
         UnaryOperator op = std::get<UnaryOperator>(value.op);
         if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
           switch (op) {
-            case UNARY_OP_POSITIVE: break; // do nothing
+            case UNARY_OP_POSITIVE:
+              break;  // do nothing
             case UNARY_OP_NEGATIVE:
-              ir_.emplace_back(INSR_SUBW, dest, Reg(rv64::kZero), dest); break;
+              ir_.emplace_back(INSR_SUBW, dest, Reg(rv64::kZero), dest);
+              break;
             case UNARY_OP_LOGICAL_NEGATION:
-              ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1); break;
+              ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1);
+              break;
           }
         } else if (child_type == FLOAT_TYPE) {
           switch (op) {
-            case UNARY_OP_POSITIVE: break; // do nothing
+            case UNARY_OP_POSITIVE:
+              break;  // do nothing
             case UNARY_OP_NEGATIVE:
-              ir_.emplace_back(INSR_FSGNJN_S, dest, dest, dest); break;
-            case UNARY_OP_LOGICAL_NEGATION: throw;
+              ir_.emplace_back(INSR_FSGNJN_S, dest, dest, dest);
+              break;
+            case UNARY_OP_LOGICAL_NEGATION:
+              throw;
           }
         } else {
           assert(false);
@@ -188,7 +216,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   cur_register_ = start_reg;
 }
 
-void CodeGen::VisitStatement(AstNode *stmt, FunctionAttr& attr) {
+void CodeGen::VisitStatement(AstNode *stmt, FunctionAttr &attr) {
   if (stmt->node_type == BLOCK_NODE) return VisitBlock(stmt, attr);
   if (stmt->node_type != STMT_NODE) return;
   auto &value = std::get<StmtSemanticValue>(stmt->semantic_value);
@@ -205,28 +233,28 @@ void CodeGen::VisitStatement(AstNode *stmt, FunctionAttr& attr) {
   }
 }
 
-void CodeGen::VisitStmtList(AstNode *stmt_list, FunctionAttr& attr) {
+void CodeGen::VisitStmtList(AstNode *stmt_list, FunctionAttr &attr) {
   for (AstNode *stmt : stmt_list->child) VisitStatement(stmt, attr);
 }
 
-void CodeGen::VisitVariableDecl(AstNode *decl, FunctionAttr& attr) {
+void CodeGen::VisitVariableDecl(AstNode *decl, FunctionAttr &attr) {
   for (auto it = std::next(decl->child.begin()); it != decl->child.end();
        it++) {
-    VariableAttr& var_attr = GetAttribute<VariableAttr>(*it, tab_);
+    VariableAttr &var_attr = GetAttribute<VariableAttr>(*it, tab_);
     if (var_attr.IsArray()) {
       var_attr.offset = AllocStack(attr, var_attr.size);
     } else {
-      auto& value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
+      auto &value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
       var_attr.offset = AllocRegister(attr);
       if (value.kind == WITH_INIT_ID) {
-        AstNode* init_val = (*it)->child.front();
+        AstNode *init_val = (*it)->child.front();
         VisitRelopExpr(init_val, attr, var_attr.offset);
       }
     }
   }
 }
 
-void CodeGen::VisitDeclList(AstNode *decl_list, FunctionAttr& attr) {
+void CodeGen::VisitDeclList(AstNode *decl_list, FunctionAttr &attr) {
   // TODO: Remove type-decls after parsing
   for (AstNode *decl : decl_list->child) {
     DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
@@ -234,7 +262,7 @@ void CodeGen::VisitDeclList(AstNode *decl_list, FunctionAttr& attr) {
   }
 }
 
-void CodeGen::VisitBlock(AstNode *block, FunctionAttr& attr) {
+void CodeGen::VisitBlock(AstNode *block, FunctionAttr &attr) {
   size_t stack_tmp = cur_stack_;
   for (AstNode *nd : block->child) {
     switch (nd->node_type) {
@@ -255,11 +283,11 @@ void CodeGen::VisitFunctionDecl(AstNode *decl) {
   AstNode *block = *std::prev(decl->child.end());
   InitState(attr);
   for (size_t i = 0, ival = 0, fval = 0, stk = 0; i < attr.params.size(); i++) {
-    VariableAttr& param = tab_[attr.params[i]].GetValue<VariableAttr>();
+    VariableAttr &param = tab_[attr.params[i]].GetValue<VariableAttr>();
     if (param.IsArray() || param.data_type == INT_TYPE) {
       if (ival >= 8) {
-        ir_.emplace_back(param.IsArray() ? INSR_LD : INSR_LW,
-                         i, Reg(rv64::kSp), stk++ * 8);
+        ir_.emplace_back(param.IsArray() ? INSR_LD : INSR_LW, i, Reg(rv64::kSp),
+                         stk++ * 8);
       } else {
         ir_.emplace_back(PINSR_MV, i, Reg(rv64::kA0 + ival));
       }

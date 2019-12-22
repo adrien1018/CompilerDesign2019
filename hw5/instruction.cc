@@ -69,8 +69,8 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
                                   std::vector<uint8_t> &dirty) {
   if (reg.is_real) {
     // TODO: Check the current usage of the specified register, and store it
-    // back to memory if neccesary. For now the saved register will not be used,
-    // so leave this the optimzation.
+    // back to memory if neccesary. For now the reserved register will not be
+    // used, so leave this to optimzation.
     return reg.id;
   }
   size_t id = reg.id;
@@ -96,8 +96,83 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
 }
 
 template <class... Args>
+void InsrGen::GeneratePInsr(Opcode op, Args &&... args) {
+  std::vector<int64_t> param{args...};
+  switch (op) {
+    case PINSR_J:
+    case PINSR_CALL:
+    case PINSR_TAIL:
+      insr_.push_back({op, 0, 0, 0, 0, param[0]});
+      break;
+    case PINSR_LA: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      int64_t imm = param[1];
+      insr_.push_back({op, 0, 0, 0, rd, imm});
+      break;
+    }
+  }
+}
+
+template <class... Args>
 void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
-  std::initializer_list<int64_t> param{args...};
+  if (op >= kFloatingPointInsr) GeneratePInsr(op, std::forward<Args>(args)...);
+  std::vector<int64_t> param{args...};
+  switch (kRV64InsrFormat.at(op)) {
+    case R_TYPE: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      uint8_t rs1 = static_cast<uint8_t>(param[1]);
+      uint8_t rs2 = static_cast<uint8_t>(param[2]);
+      insr_.push_back({op, rs1, rs2, 0, rd, 0});
+      break;
+    }
+    case I_TYPE: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      uint8_t rs1 = static_cast<uint8_t>(param[1]);
+      int64_t imm = param[2];
+      insr_.push_back({op, rs1, 0, 0, rd, imm});
+      break;
+    }
+    case U_TYPE: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      int64_t imm = param[1];
+      insr_.push_back({op, 0, 0, 0, rd, imm});
+      break;
+    }
+    case S_TYPE: {
+      uint8_t rs2 = static_cast<uint8_t>(param[0]);
+      int64_t imm = param[1];
+      uint8_t rs1 = static_cast<uint8_t>(param[2]);
+      insr_.push_back({op, rs1, rs2, 0, 0, imm});
+      break;
+    }
+    case B_TYPE: {
+      uint8_t rs1 = static_cast<uint8_t>(param[0]);
+      uint8_t rs2 = static_cast<uint8_t>(param[1]);
+      int64_t imm = param[2];
+      insr_.push_back({op, rs1, rs2, 0, 0, imm});
+      break;
+    }
+    case J_TYPE: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      int64_t imm = param[1];
+      insr_.push_back({op, 0, 0, 0, rd, imm});
+      break;
+    }
+    case R0_TYPE: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      uint8_t rs1 = static_cast<uint8_t>(param[1]);
+      insr_.push_back({op, rs1, 0, 0, rd, 0});
+      break;
+    }
+    case R4_TYPE: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      uint8_t rs1 = static_cast<uint8_t>(param[1]);
+      uint8_t rs2 = static_cast<uint8_t>(param[2]);
+      uint8_t rs3 = static_cast<uint8_t>(param[3]);
+      insr_.push_back({op, rs1, rs2, rs3, rd, 0});
+      break;
+    }
+  }
 }
 
 void InsrGen::PushCalleeRegisters(int64_t offset) {

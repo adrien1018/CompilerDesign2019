@@ -21,69 +21,69 @@ constexpr size_t kNumTempRegisters = 6;
 
 // RISC-V register ABI names
 constexpr uint8_t kZero = 0;
-constexpr uint8_t kRa   = 1;
-constexpr uint8_t kSp   = 2;
-constexpr uint8_t kGp   = 3;
-constexpr uint8_t kTp   = 4;
-constexpr uint8_t kT0   = 5;
-constexpr uint8_t kT1   = 6;
-constexpr uint8_t kT2   = 7;
-constexpr uint8_t kFp   = 8;
-constexpr uint8_t kS0   = 8;
-constexpr uint8_t kS1   = 9;
-constexpr uint8_t kA0   = 10;
-constexpr uint8_t kA1   = 11;
-constexpr uint8_t kA2   = 12;
-constexpr uint8_t kA3   = 13;
-constexpr uint8_t kA4   = 14;
-constexpr uint8_t kA5   = 15;
-constexpr uint8_t kA6   = 16;
-constexpr uint8_t kA7   = 17;
-constexpr uint8_t kS2   = 18;
-constexpr uint8_t kS3   = 19;
-constexpr uint8_t kS4   = 20;
-constexpr uint8_t kS5   = 21;
-constexpr uint8_t kS6   = 22;
-constexpr uint8_t kS7   = 23;
-constexpr uint8_t kS8   = 24;
-constexpr uint8_t kS9   = 25;
-constexpr uint8_t kS10  = 26;
-constexpr uint8_t kS11  = 27;
-constexpr uint8_t kT3   = 28;
-constexpr uint8_t kT4   = 29;
-constexpr uint8_t kT5   = 30;
-constexpr uint8_t kT6   = 31;
+constexpr uint8_t kRa = 1;
+constexpr uint8_t kSp = 2;
+constexpr uint8_t kGp = 3;
+constexpr uint8_t kTp = 4;
+constexpr uint8_t kT0 = 5;
+constexpr uint8_t kT1 = 6;
+constexpr uint8_t kT2 = 7;
+constexpr uint8_t kFp = 8;
+constexpr uint8_t kS0 = 8;
+constexpr uint8_t kS1 = 9;
+constexpr uint8_t kA0 = 10;
+constexpr uint8_t kA1 = 11;
+constexpr uint8_t kA2 = 12;
+constexpr uint8_t kA3 = 13;
+constexpr uint8_t kA4 = 14;
+constexpr uint8_t kA5 = 15;
+constexpr uint8_t kA6 = 16;
+constexpr uint8_t kA7 = 17;
+constexpr uint8_t kS2 = 18;
+constexpr uint8_t kS3 = 19;
+constexpr uint8_t kS4 = 20;
+constexpr uint8_t kS5 = 21;
+constexpr uint8_t kS6 = 22;
+constexpr uint8_t kS7 = 23;
+constexpr uint8_t kS8 = 24;
+constexpr uint8_t kS9 = 25;
+constexpr uint8_t kS10 = 26;
+constexpr uint8_t kS11 = 27;
+constexpr uint8_t kT3 = 28;
+constexpr uint8_t kT4 = 29;
+constexpr uint8_t kT5 = 30;
+constexpr uint8_t kT6 = 31;
 // floating-point registers
-constexpr uint8_t kFt0  = 128 | 0;
-constexpr uint8_t kFt1  = 128 | 1;
-constexpr uint8_t kFt2  = 128 | 2;
-constexpr uint8_t kFt3  = 128 | 3;
-constexpr uint8_t kFt4  = 128 | 4;
-constexpr uint8_t kFt5  = 128 | 5;
-constexpr uint8_t kFt6  = 128 | 6;
-constexpr uint8_t kFt7  = 128 | 7;
-constexpr uint8_t kFs0  = 128 | 8;
-constexpr uint8_t kFs1  = 128 | 9;
-constexpr uint8_t kFa0  = 128 | 10;
-constexpr uint8_t kFa1  = 128 | 11;
-constexpr uint8_t kFa2  = 128 | 12;
-constexpr uint8_t kFa3  = 128 | 13;
-constexpr uint8_t kFa4  = 128 | 14;
-constexpr uint8_t kFa5  = 128 | 15;
-constexpr uint8_t kFa6  = 128 | 16;
-constexpr uint8_t kFa7  = 128 | 17;
-constexpr uint8_t kFs2  = 128 | 18;
-constexpr uint8_t kFs3  = 128 | 19;
-constexpr uint8_t kFs4  = 128 | 20;
-constexpr uint8_t kFs5  = 128 | 21;
-constexpr uint8_t kFs6  = 128 | 22;
-constexpr uint8_t kFs7  = 128 | 23;
-constexpr uint8_t kFs8  = 128 | 24;
-constexpr uint8_t kFs9  = 128 | 25;
+constexpr uint8_t kFt0 = 128 | 0;
+constexpr uint8_t kFt1 = 128 | 1;
+constexpr uint8_t kFt2 = 128 | 2;
+constexpr uint8_t kFt3 = 128 | 3;
+constexpr uint8_t kFt4 = 128 | 4;
+constexpr uint8_t kFt5 = 128 | 5;
+constexpr uint8_t kFt6 = 128 | 6;
+constexpr uint8_t kFt7 = 128 | 7;
+constexpr uint8_t kFs0 = 128 | 8;
+constexpr uint8_t kFs1 = 128 | 9;
+constexpr uint8_t kFa0 = 128 | 10;
+constexpr uint8_t kFa1 = 128 | 11;
+constexpr uint8_t kFa2 = 128 | 12;
+constexpr uint8_t kFa3 = 128 | 13;
+constexpr uint8_t kFa4 = 128 | 14;
+constexpr uint8_t kFa5 = 128 | 15;
+constexpr uint8_t kFa6 = 128 | 16;
+constexpr uint8_t kFa7 = 128 | 17;
+constexpr uint8_t kFs2 = 128 | 18;
+constexpr uint8_t kFs3 = 128 | 19;
+constexpr uint8_t kFs4 = 128 | 20;
+constexpr uint8_t kFs5 = 128 | 21;
+constexpr uint8_t kFs6 = 128 | 22;
+constexpr uint8_t kFs7 = 128 | 23;
+constexpr uint8_t kFs8 = 128 | 24;
+constexpr uint8_t kFs9 = 128 | 25;
 constexpr uint8_t kFs10 = 128 | 26;
 constexpr uint8_t kFs11 = 128 | 27;
-constexpr uint8_t kFt8  = 128 | 28;
-constexpr uint8_t kFt9  = 128 | 29;
+constexpr uint8_t kFt8 = 128 | 28;
+constexpr uint8_t kFt9 = 128 | 29;
 constexpr uint8_t kFt10 = 128 | 30;
 constexpr uint8_t kFt11 = 128 | 31;
 
@@ -197,8 +197,8 @@ enum Opcode {
   INSR_FSUB_S,
   INSR_FMUL_S,
   INSR_FDIV_S,
-  INSR_FSQRT_S,    // (not used)
-  INSR_FSGNJ_S,    // (opt only)
+  INSR_FSQRT_S,  // (not used)
+  INSR_FSGNJ_S,  // (opt only)
   INSR_FSGNJN_S,
   INSR_FSGNJX_S,   // (opt only)
   INSR_FMIN_S,     // (opt only)
@@ -246,14 +246,14 @@ enum Opcode {
   kFloatingPointInsr,
 
   /*** Pseudo-instructions ***/
-  PINSR_J,     // Jump (+dest ID)
-  PINSR_CALL,  // Call function (+dest ID)
-  PINSR_TAIL,  // Tail call function (+dest ID) (opt only)
-  PINSR_RET,   // Return (no arg)
-  PINSR_LA,    // Load absolute address
-  PINSR_MV,    // Copy (can be optimized!)
-  PINSR_FMV_S, // Floating-point copy (can be optimized!)
-  PINSR_PUSH_SP, // push stack pointer here
+  PINSR_J,        // Jump (+dest ID)
+  PINSR_CALL,     // Call function (+dest ID)
+  PINSR_TAIL,     // Tail call function (+dest ID) (opt only)
+  PINSR_RET,      // Return (no arg)
+  PINSR_LA,       // Load absolute address
+  PINSR_MV,       // Copy (can be optimized!)
+  PINSR_FMV_S,    // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP,  // push stack pointer here
   kPseudoInsr
 };
 
@@ -284,51 +284,51 @@ constexpr CString<N> ToInsr(const CString<N>& s) {
 const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
 #define INSR_PAIR(x) \
   { INSR_##x, ToInsr(CString(#x)) }
-    INSR_PAIR(LUI),       INSR_PAIR(AUIPC),     INSR_PAIR(JAL),
-    INSR_PAIR(JALR),      INSR_PAIR(BEQ),       INSR_PAIR(BNE),
-    INSR_PAIR(BLT),       INSR_PAIR(BGE),       INSR_PAIR(BLTU),
-    INSR_PAIR(BGEU),      INSR_PAIR(LB),        INSR_PAIR(LH),
-    INSR_PAIR(LW),        INSR_PAIR(LD),        INSR_PAIR(LBU),
-    INSR_PAIR(LHU),       INSR_PAIR(LWU),       INSR_PAIR(SB),
-    INSR_PAIR(SH),        INSR_PAIR(SW),        INSR_PAIR(SD),
-    INSR_PAIR(ADDI),      INSR_PAIR(SLTI),      INSR_PAIR(SLTIU),
-    INSR_PAIR(XORI),      INSR_PAIR(ORI),       INSR_PAIR(ANDI),
-    INSR_PAIR(SLLI),      INSR_PAIR(SRLI),      INSR_PAIR(SRAI),
-    INSR_PAIR(ADDIW),     INSR_PAIR(SLLIW),     INSR_PAIR(SRLIW),
-    INSR_PAIR(SRAIW),     INSR_PAIR(ADD),       INSR_PAIR(SUB),
-    INSR_PAIR(SLL),       INSR_PAIR(SLT),       INSR_PAIR(SLTU),
-    INSR_PAIR(XOR),       INSR_PAIR(SRL),       INSR_PAIR(SRA),
-    INSR_PAIR(OR),        INSR_PAIR(AND),       INSR_PAIR(ADDW),
-    INSR_PAIR(SUBW),      INSR_PAIR(SLLW),      INSR_PAIR(SRLW),
-    INSR_PAIR(SRAW),      INSR_PAIR(MUL),       INSR_PAIR(MULH),
-    INSR_PAIR(MULHSU),    INSR_PAIR(MULHU),     INSR_PAIR(DIV),
-    INSR_PAIR(DIVU),      INSR_PAIR(REM),       INSR_PAIR(REMU),
-    INSR_PAIR(MULW),      INSR_PAIR(DIVW),      INSR_PAIR(DIVUW),
-    INSR_PAIR(REMW),      INSR_PAIR(REMUW),     INSR_PAIR(FLW),
-    INSR_PAIR(FLD),       INSR_PAIR(FSW),       INSR_PAIR(FSD),
-    INSR_PAIR(FMADD_S),   INSR_PAIR(FMSUB_S),   INSR_PAIR(FNMADD_S),
-    INSR_PAIR(FNMSUB_S),  INSR_PAIR(FMADD_D),   INSR_PAIR(FMSUB_D),
-    INSR_PAIR(FNMADD_D),  INSR_PAIR(FNMSUB_D),  INSR_PAIR(FADD_S),
-    INSR_PAIR(FSUB_S),    INSR_PAIR(FMUL_S),    INSR_PAIR(FDIV_S),
-    INSR_PAIR(FSQRT_S),   INSR_PAIR(FSGNJ_S),   INSR_PAIR(FSGNJN_S),
-    INSR_PAIR(FSGNJX_S),  INSR_PAIR(FMIN_S),    INSR_PAIR(FMAX_S),
-    INSR_PAIR(FADD_D),    INSR_PAIR(FSUB_D),    INSR_PAIR(FMUL_D),
-    INSR_PAIR(FDIV_D),    INSR_PAIR(FSQRT_D),   INSR_PAIR(FSGNJ_D),
-    INSR_PAIR(FSGNJN_D),  INSR_PAIR(FSGNJX_D),  INSR_PAIR(FMIN_D),
-    INSR_PAIR(FMAX_D),    INSR_PAIR(FCVT_W_S),  INSR_PAIR(FCVT_WU_S),
-    INSR_PAIR(FCVT_L_S),  INSR_PAIR(FCVT_LU_S), INSR_PAIR(FCVT_W_D),
-    INSR_PAIR(FCVT_WU_D), INSR_PAIR(FCVT_L_D),  INSR_PAIR(FCVT_LU_D),
-    INSR_PAIR(FCVT_S_W),  INSR_PAIR(FCVT_S_WU), INSR_PAIR(FCVT_S_L),
-    INSR_PAIR(FCVT_S_LU), INSR_PAIR(FCVT_D_W),  INSR_PAIR(FCVT_D_WU),
-    INSR_PAIR(FCVT_D_L),  INSR_PAIR(FCVT_D_LU), INSR_PAIR(FCVT_S_D),
-    INSR_PAIR(FCVT_D_S),  INSR_PAIR(FMV_X_W),   INSR_PAIR(FMV_X_D),
-    INSR_PAIR(FMV_W_X),   INSR_PAIR(FMV_D_X),   INSR_PAIR(FEQ_S),
-    INSR_PAIR(FLT_S),     INSR_PAIR(FLE_S),     INSR_PAIR(FEQ_D),
-    INSR_PAIR(FLT_D),     INSR_PAIR(FLE_D),     INSR_PAIR(FCLASS_S),
+    INSR_PAIR(LUI),        INSR_PAIR(AUIPC),     INSR_PAIR(JAL),
+    INSR_PAIR(JALR),       INSR_PAIR(BEQ),       INSR_PAIR(BNE),
+    INSR_PAIR(BLT),        INSR_PAIR(BGE),       INSR_PAIR(BLTU),
+    INSR_PAIR(BGEU),       INSR_PAIR(LB),        INSR_PAIR(LH),
+    INSR_PAIR(LW),         INSR_PAIR(LD),        INSR_PAIR(LBU),
+    INSR_PAIR(LHU),        INSR_PAIR(LWU),       INSR_PAIR(SB),
+    INSR_PAIR(SH),         INSR_PAIR(SW),        INSR_PAIR(SD),
+    INSR_PAIR(ADDI),       INSR_PAIR(SLTI),      INSR_PAIR(SLTIU),
+    INSR_PAIR(XORI),       INSR_PAIR(ORI),       INSR_PAIR(ANDI),
+    INSR_PAIR(SLLI),       INSR_PAIR(SRLI),      INSR_PAIR(SRAI),
+    INSR_PAIR(ADDIW),      INSR_PAIR(SLLIW),     INSR_PAIR(SRLIW),
+    INSR_PAIR(SRAIW),      INSR_PAIR(ADD),       INSR_PAIR(SUB),
+    INSR_PAIR(SLL),        INSR_PAIR(SLT),       INSR_PAIR(SLTU),
+    INSR_PAIR(XOR),        INSR_PAIR(SRL),       INSR_PAIR(SRA),
+    INSR_PAIR(OR),         INSR_PAIR(AND),       INSR_PAIR(ADDW),
+    INSR_PAIR(SUBW),       INSR_PAIR(SLLW),      INSR_PAIR(SRLW),
+    INSR_PAIR(SRAW),       INSR_PAIR(MUL),       INSR_PAIR(MULH),
+    INSR_PAIR(MULHSU),     INSR_PAIR(MULHU),     INSR_PAIR(DIV),
+    INSR_PAIR(DIVU),       INSR_PAIR(REM),       INSR_PAIR(REMU),
+    INSR_PAIR(MULW),       INSR_PAIR(DIVW),      INSR_PAIR(DIVUW),
+    INSR_PAIR(REMW),       INSR_PAIR(REMUW),     INSR_PAIR(FLW),
+    INSR_PAIR(FLD),        INSR_PAIR(FSW),       INSR_PAIR(FSD),
+    INSR_PAIR(FMADD_S),    INSR_PAIR(FMSUB_S),   INSR_PAIR(FNMADD_S),
+    INSR_PAIR(FNMSUB_S),   INSR_PAIR(FMADD_D),   INSR_PAIR(FMSUB_D),
+    INSR_PAIR(FNMADD_D),   INSR_PAIR(FNMSUB_D),  INSR_PAIR(FADD_S),
+    INSR_PAIR(FSUB_S),     INSR_PAIR(FMUL_S),    INSR_PAIR(FDIV_S),
+    INSR_PAIR(FSQRT_S),    INSR_PAIR(FSGNJ_S),   INSR_PAIR(FSGNJN_S),
+    INSR_PAIR(FSGNJX_S),   INSR_PAIR(FMIN_S),    INSR_PAIR(FMAX_S),
+    INSR_PAIR(FADD_D),     INSR_PAIR(FSUB_D),    INSR_PAIR(FMUL_D),
+    INSR_PAIR(FDIV_D),     INSR_PAIR(FSQRT_D),   INSR_PAIR(FSGNJ_D),
+    INSR_PAIR(FSGNJN_D),   INSR_PAIR(FSGNJX_D),  INSR_PAIR(FMIN_D),
+    INSR_PAIR(FMAX_D),     INSR_PAIR(FCVT_W_S),  INSR_PAIR(FCVT_WU_S),
+    INSR_PAIR(FCVT_L_S),   INSR_PAIR(FCVT_LU_S), INSR_PAIR(FCVT_W_D),
+    INSR_PAIR(FCVT_WU_D),  INSR_PAIR(FCVT_L_D),  INSR_PAIR(FCVT_LU_D),
+    INSR_PAIR(FCVT_S_W),   INSR_PAIR(FCVT_S_WU), INSR_PAIR(FCVT_S_L),
+    INSR_PAIR(FCVT_S_LU),  INSR_PAIR(FCVT_D_W),  INSR_PAIR(FCVT_D_WU),
+    INSR_PAIR(FCVT_D_L),   INSR_PAIR(FCVT_D_LU), INSR_PAIR(FCVT_S_D),
+    INSR_PAIR(FCVT_D_S),   INSR_PAIR(FMV_X_W),   INSR_PAIR(FMV_X_D),
+    INSR_PAIR(FMV_W_X),    INSR_PAIR(FMV_D_X),   INSR_PAIR(FEQ_S),
+    INSR_PAIR(FLT_S),      INSR_PAIR(FLE_S),     INSR_PAIR(FEQ_D),
+    INSR_PAIR(FLT_D),      INSR_PAIR(FLE_D),     INSR_PAIR(FCLASS_S),
     INSR_PAIR(FCLASS_D),
 #undef INSR_PAIR
-    {PINSR_J, "j"},       {PINSR_CALL, "call"}, {PINSR_TAIL, "tail"},
-    {PINSR_RET, "ret"},   {PINSR_LA, "la"},     {PINSR_MV, "mv"},
+    {PINSR_J, "j"},        {PINSR_CALL, "call"}, {PINSR_TAIL, "tail"},
+    {PINSR_RET, "ret"},    {PINSR_LA, "la"},     {PINSR_MV, "mv"},
     {PINSR_FMV_S, "fmv.s"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
@@ -406,16 +406,15 @@ struct IRInsr {
     Register(size_t x, bool is_real = false) : id(x), is_real(is_real) {}
   };
   enum ImmType {
-    kConst, // a constant
-    kLabel, // a label ID referring to a IR label array position
-    kData,  // a data ID referring to a CodeData array position
-    kRoundingMode // rounding mode (refer to rv64::kRoundingMode)
+    kConst,        // a constant
+    kLabel,        // a label ID referring to a IR label array position
+    kData,         // a data ID referring to a CodeData array position
+    kRoundingMode  // rounding mode (refer to rv64::kRoundingMode)
   };
   IRInsr() {}
   IRInsr(Opcode op) : op(op) {}
   template <class RD, class RS1>
-  IRInsr(Opcode op, RD rd, RS1 rs1)
-      : op(op), rd(rd), rs1(rs1) {}
+  IRInsr(Opcode op, RD rd, RS1 rs1) : op(op), rd(rd), rs1(rs1) {}
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
       : op(op), rd(rd), rs1(rs1), rs2(rs2) {}
@@ -568,6 +567,8 @@ class InsrGen {
 
   template <class... Args>
   void GenerateInsr(Opcode op, Args&&... args);
+  template <class... Args>
+  void GeneratePInsr(Opcode op, Args&&... args);
 
   void GenerateRTypeInsr(const IRInsr& insr, std::vector<MemoryLocation>& mem);
 

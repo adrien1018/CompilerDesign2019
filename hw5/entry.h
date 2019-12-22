@@ -35,8 +35,7 @@ struct VariableAttr {
   bool is_param, local;
 
   VariableAttr() = default;
-  VariableAttr(DataType type)
-      : data_type(type), size(4) {}
+  VariableAttr(DataType type) : data_type(type), size(4) {}
 
   template <class V>
   VariableAttr(DataType type, V&& dim)
@@ -45,8 +44,7 @@ struct VariableAttr {
     for (size_t d : dims) size *= d;
   }
 
-  VariableAttr(const TypeAttr& rhs)
-      : data_type(rhs.data_type), dims(rhs.dims) {
+  VariableAttr(const TypeAttr& rhs) : data_type(rhs.data_type), dims(rhs.dims) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
