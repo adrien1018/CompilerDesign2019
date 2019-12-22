@@ -3,9 +3,6 @@
 #include <iomanip>
 #include <iostream>
 
-#include "analysis.h"
-#include "error.h"
-
 namespace {
 
 void RecursiveDelete(AstNode* nd) {

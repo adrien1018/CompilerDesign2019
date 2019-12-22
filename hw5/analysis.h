@@ -7,7 +7,6 @@
 
 #include "entry.h"
 #include "error.h"
-#include "symtab.h"
 
 constexpr size_t kNumBuiltinFunction = 3;
 constexpr std::array<DataType, kNumBuiltinFunction> kBuiltinReturnType = {

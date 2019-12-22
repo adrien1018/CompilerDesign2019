@@ -1,3 +1,5 @@
+#include "gv.h"
+
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -5,8 +7,6 @@
 #include <string>
 #include <unordered_map>
 #include <variant>
-
-#include "ast.h"
 
 namespace {
 
