@@ -129,9 +129,15 @@ enum Opcode {
   INSR_JALR,   // Jump and Link Register
   // branch rs1, rs2, LABEL ->
   //     [negative branch] rs1, rs2, NEXT
-  //     j LABEL
+  //     jal x0, LABEL
   //   NEXT: [next instruction]
-  //   if LABEL is too far away to fit into immediate
+  //   if LABEL is too far away to fit into immediate, or
+  //     [negative branch] rs1, rs2, NEXT
+  //     la [tmp], LABEL
+  //     jalr x0, 0(la)
+  //   NEXT: [next instruction]
+  //   if LABEL is even far away to fit into jal's immediate
+  //   (clang and gcc both appear to fail in this case...)
   //   ("negative branch" means taken and not taken reversed, e.g. beq <-> bne)
   INSR_BEQ,   // Branch Equal
   INSR_BNE,   // Branch Not Equal
@@ -144,6 +150,10 @@ enum Opcode {
   //     add [tmp], [tmp], r2
   //     load/store r1, [lsb(imm)]([tmp])
   //   if imm is too large to fit into immediate
+  // the base address can be omitted if imm_type == kData
+  //   in this case, the instruction will be expanded to
+  //     lui [tmp], %hi(data label)
+  //     load/store r1, %lo(data label)([tmp])
   INSR_LB,   // Load Byte (not used)
   INSR_LH,   // Load Half (not used)
   INSR_LW,   // Load Word
@@ -204,6 +214,7 @@ enum Opcode {
   kIntegerInsr,
 
   /*** Floating point instructions ***/
+  // refer to descriptions of INSR_LW
   INSR_FLW,       // load
   INSR_FLD,       // (not used)
   INSR_FSW,       // store
@@ -501,7 +512,7 @@ class InsrGen {
   // Construct InsrGen with the output file name.
   explicit InsrGen(const std::string& file) : ofs_(file) {}
 
-  // The instructions will be flushed upon descruction.
+  // The instructions will be flushed upon destruction.
   ~InsrGen() { Flush(); }
 
   // Flush the instructions in the buffer to the output file.

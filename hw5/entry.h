@@ -27,10 +27,10 @@ struct VariableAttr {
   DataType data_type;
   std::vector<size_t> dims;
   size_t size;
-  // if array: base address = local ?
+  // if array or global: base address = local ?
   //   (is_param ? value of register `offset` : sp - `offset`) :
   //   data label ID `offset`
-  // if var: register `offset`
+  // if local var: register `offset`
   size_t offset;
   bool is_param, local;
 
