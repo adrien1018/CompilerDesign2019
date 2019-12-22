@@ -41,7 +41,37 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   size_t start_reg = cur_register_;
   switch (expr->node_type) {
     case CONVERSION_NODE: {
-      size_t chval = AllocRegister(attr);
+      auto& value = std::get<ConversionSemanticValue>(expr->semantic_value);
+      size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE ?
+          AllocRegister(attr) : dest;
+      VisitRelopExpr(expr->child.front(), attr, chval);
+      switch (value.from) {
+        case FLOAT_TYPE: {
+          if (value.to == INT_TYPE) {
+            ir_.emplace_back(INSR_FCVT_W_S, dest, chval,
+                             IRInsr::kRoundingMode, rv64::kRTZ);
+            ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst, 0);
+          } else if (value.to == BOOLEAN_TYPE) {
+            size_t tmp = AllocRegister(attr);
+            ir_.emplace_back(INSR_FMV_W_X, tmp, Reg(rv64::kZero));
+            ir_.emplace_back(INSR_FEQ_S, dest, chval, tmp);
+            ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
+          }
+          break;
+        }
+        case INT_TYPE:
+        case BOOLEAN_TYPE: {
+          if (value.to == BOOLEAN_TYPE) {
+            if (value.from == INT_TYPE) {
+              // TODO: check if this is unnecessary?
+            }
+          } else if (value.to == FLOAT_TYPE) {
+            ir_.emplace_back(INSR_FCVT_S_W, dest, chval);
+          }
+          break;
+        }
+      }
+      break;
     }
     case EXPR_NODE: {
       auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
@@ -49,7 +79,8 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       if (value.kind == BINARY_OPERATION) {
         BinaryOperator op = std::get<BinaryOperator>(value.op);
         if (op == BINARY_OP_OR || op == BINARY_OP_AND) { // short-circuit
-          // assuming both type are BOOL (int with only 0/1)
+          assert(child_type == BOOLEAN_TYPE);
+          assert((*std::next(expr->child.begin()))->data_type == BOOLEAN_TYPE);
           VisitRelopExpr(expr->child.front(), attr, dest);
           ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ,
                            IRInsr::kNoRD, dest, Reg(rv64::kZero),
@@ -58,7 +89,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
           labels_.emplace_back(ir_.size());
           break;
         }
-        if (child_type == INT_TYPE) { // TODO: BOOL_TYPE
+        if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
           size_t chval = AllocRegister(attr);
           VisitRelopExpr(expr->child.front(), attr, dest);
           VisitRelopExpr(*std::next(expr->child.begin()), attr, chval);
@@ -121,12 +152,12 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
               ir_.emplace_back(INSR_FDIV_S, dest, chval1, chval2); break;
           }
         } else {
-          throw;
+          assert(false);
         }
       } else { // UNARY_OPERATION
         VisitRelopExpr(expr->child.front(), attr, dest);
         UnaryOperator op = std::get<UnaryOperator>(value.op);
-        if (child_type == INT_TYPE) { // TODO: BOOL_TYPE
+        if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
           switch (op) {
             case UNARY_OP_POSITIVE: break; // do nothing
             case UNARY_OP_NEGATIVE:
@@ -142,7 +173,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
             case UNARY_OP_LOGICAL_NEGATION: throw;
           }
         } else {
-          throw;
+          assert(false);
         }
       }
       break;

@@ -75,8 +75,8 @@ struct VariableAttr {
 struct FunctionAttr {
   DataType return_type;
   std::vector<size_t> params;
-  size_t label;
-  size_t sp_offset, tot_pseudo_reg;
+  size_t label = 0;
+  size_t sp_offset = 0, tot_pseudo_reg = 0;
 
   FunctionAttr() = default;
   FunctionAttr(DataType type) : return_type(type) {}

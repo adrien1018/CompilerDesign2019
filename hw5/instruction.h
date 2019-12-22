@@ -87,6 +87,12 @@ constexpr uint8_t kFt9  = 128 | 29;
 constexpr uint8_t kFt10 = 128 | 30;
 constexpr uint8_t kFt11 = 128 | 31;
 
+constexpr uint8_t kRNE = 0;
+constexpr uint8_t kRTZ = 1;
+constexpr uint8_t kRDN = 2;
+constexpr uint8_t kRUP = 3;
+constexpr uint8_t kRMM = 4;
+
 constexpr std::array<uint8_t, kNumCalleeSaved> kCalleeSaved = {
     2, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
 
@@ -103,6 +109,8 @@ const std::string kRegisterName[] = {
     "zero", "ra", "sp", "gp", "tp",  "t0",  "t1", "t2", "s0", "s1", "a0",
     "a1",   "a2", "a3", "a4", "a5",  "a6",  "a7", "s2", "s3", "s4", "s5",
     "s6",   "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"};
+
+const std::string kRoundingModeName[] = {"rne", "rtz", "rdn", "rup", "rmm"};
 
 }  // namespace rv64
 
@@ -400,7 +408,8 @@ struct IRInsr {
   enum ImmType {
     kConst, // a constant
     kLabel, // a label ID referring to a IR label array position
-    kData   // a data ID referring to a CodeData array position
+    kData,  // a data ID referring to a CodeData array position
+    kRoundingMode // rounding mode (refer to rv64::kRoundingMode)
   };
   IRInsr() {}
   IRInsr(Opcode op) : op(op) {}
