@@ -98,7 +98,7 @@ enum Opcode {
   INSR_SD,      // Store Double
   INSR_ADDI,    // Add Immediate
   INSR_SLTI,    // Set Less Than Immediate
-  INSR_SLTIU,   // Set Less Than Immediate Unsigned (not used)
+  INSR_SLTIU,   // Set Less Than Immediate Unsigned
   INSR_XORI,    // Xor Immediate
   INSR_ORI,     // Or Immediate
   INSR_ANDI,    // And Immediate
@@ -113,7 +113,7 @@ enum Opcode {
   INSR_SUB,     // Subtract
   INSR_SLL,     // Shift Left Logical
   INSR_SLT,     // Set Less Than
-  INSR_SLTU,    // Set Less Than Unsigned (not used)
+  INSR_SLTU,    // Set Less Than Unsigned
   INSR_XOR,     // Xor
   INSR_SRL,     // Shift Right Logical
   INSR_SRA,     // Shift Right Arithmetic
@@ -158,7 +158,7 @@ enum Opcode {
   INSR_FDIV_S,
   INSR_FSQRT_S,    // (not used)
   INSR_FSGNJ_S,    // (opt only)
-  INSR_FSGNJN_S,   // (opt only)
+  INSR_FSGNJN_S,
   INSR_FSGNJX_S,   // (opt only)
   INSR_FMIN_S,     // (opt only)
   INSR_FMAX_S,     // (opt only)
@@ -210,6 +210,7 @@ enum Opcode {
   PINSR_TAIL,  // Tail call function (+dest ID) (opt only)
   PINSR_RET,   // Return (no arg)
   PINSR_LA,    // Load absolute address
+  PINSR_MV,    // Copy (can be optimized!)
   kPseudoInsr
 };
 
@@ -284,7 +285,7 @@ const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
     INSR_PAIR(FCLASS_D),
 #undef INSR_PAIR
     {PINSR_J, "J"},       {PINSR_CALL, "CALL"}, {PINSR_TAIL, "TAIL"},
-    {PINSR_RET, "RET"},   {PINSR_LA, "LA"}};
+    {PINSR_RET, "RET"},   {PINSR_LA, "LA"},     {PINSR_MV, "MV"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_LUI, U_TYPE},       {INSR_AUIPC, J_TYPE},
@@ -351,17 +352,32 @@ const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_FCLASS_S, R0_TYPE}, {INSR_FCLASS_D, R0_TYPE}};
 
 struct IRInsr {
+  struct NoRD {};
+  static const NoRD kNoRD;
   struct Register {
-    bool is_real;
     size_t id;
+    bool is_real;
+    Register() {}
+    Register(NoRD) {}
+    Register(size_t x, bool is_real = false) : id(x), is_real(is_real) {}
   };
   enum ImmType {
     kConst, // a constant
     kLabel, // a label ID referring to a IR label array position
     kData   // a data ID referring to a CodeData array position
   };
+  IRInsr() {}
+  template <class RD, class RS1, class RS2>
+  IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
+      : rd(rd), rs1(rs1), rs2(rs2) {}
+  template <class RD, class RS1>
+  IRInsr(Opcode op, RD rd, RS1 rs1, ImmType imm_type, int64_t imm)
+      : rd(rd), rs1(rs1), imm_type(imm_type), imm(imm) {}
+  template <class RD, class RS1, class RS2>
+  IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2, ImmType imm_type, int64_t imm)
+      : rd(rd), rs1(rs1), rs2(rs2), imm_type(imm_type), imm(imm) {}
   Opcode op;
-  Register rs1, rs2, rs3, rd;
+  Register rd, rs1, rs2, rs3;
   ImmType imm_type;
   int64_t imm;
 };
@@ -377,7 +393,8 @@ struct MemoryLocation {
   std::variant<uint8_t, int64_t> mem;
 };
 
-// num or initialized array, string constant or uninitialized array
+// num (or initialized array, not used in this project),
+//   string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
 
 /**

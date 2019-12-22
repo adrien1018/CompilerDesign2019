@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+const IRInsr::NoRD IRInsr::kNoRD;
+
 namespace {
 
 #define RD(v) (v.op < kIntegerInsr ? "x" : "f") << int(v.rd)
