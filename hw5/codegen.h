@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "entry.h"
+#include "instruction.h"
 
 class CodeGen {
  public:
@@ -22,16 +23,24 @@ class CodeGen {
     DATA_SECTION,
     TEXT_SECTION
   } section_ = UNKNOWN_SECTION;
+  std::vector<IRInsr> ir_;
+  std::vector<size_t> labels_;
+  std::vector<CodeData> data_;
 
   /*** first pass: calculate the offset (to fp) of each local variables ***/
+  size_t cur_stack_, cur_register_;
+  void ResetState();
+  size_t AllocStack(FunctionAttr&, size_t);
+  size_t AllocRegister(FunctionAttr&);
   void VisitProgram(AstNode *prog);
   void VisitGlobalDecl(AstNode *prog);
   void VisitFunctionDecl(AstNode *decl);
-  void VisitStmtList(AstNode *stmt_list, size_t &offset);
-  void VisitStatement(AstNode *stmt, size_t &offset);
-  void VisitDeclList(AstNode *decl_list, size_t &offset);
-  void VisitVariableDecl(AstNode *decl, size_t &offset);
-  void VisitBlock(AstNode *block, size_t &offset);
+  void VisitStmtList(AstNode *stmt_list, FunctionAttr&);
+  void VisitStatement(AstNode *stmt, FunctionAttr&);
+  void VisitDeclList(AstNode *decl_list, FunctionAttr&);
+  void VisitVariableDecl(AstNode *decl, FunctionAttr&);
+  void VisitBlock(AstNode *block, FunctionAttr&);
+  void VisitRelopExpr(AstNode* expr, FunctionAttr&, size_t dest);
 
   /*** second pass: generate RISC-V assembly ***/
   void GenerateVariableDecl(AstNode *var_decl, bool global);

@@ -27,27 +27,37 @@ struct VariableAttr {
   DataType data_type;
   std::vector<size_t> dims;
   size_t size;
-  int32_t offset;
+  // if array: base address = local ?
+  //   (indirect ? value of register `offset` : sp - `offset`) :
+  //   data label ID `offset`
+  // if var: register `offset`
+  size_t offset;
+  bool indirect; // true when array argument
+  bool local;
 
   VariableAttr() = default;
-  VariableAttr(DataType type) : data_type(type), size(4), offset(0) {}
+  VariableAttr(DataType type)
+      : data_type(type), size(4), offset(0), indirect(false), local(false) {}
 
   template <class V>
   VariableAttr(DataType type, V&& dim)
-      : data_type(type), dims(std::forward<V>(dim)), offset(0) {
+      : data_type(type), dims(std::forward<V>(dim)), offset(0),
+        indirect(false), local(false) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
 
   VariableAttr(const TypeAttr& rhs)
-      : data_type(rhs.data_type), dims(rhs.dims), offset(0) {
+      : data_type(rhs.data_type), dims(rhs.dims), offset(0),
+        indirect(false), local(false) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
 
   template <class Iterator>
   VariableAttr(DataType type, Iterator bg, Iterator ed)
-      : data_type(type), dims(bg, ed) {
+      : data_type(type), dims(bg, ed), offset(0),
+        indirect(false), local(false) {
     size = 4;
     for (size_t d : dims) size *= d;
   }
@@ -69,14 +79,15 @@ struct VariableAttr {
 struct FunctionAttr {
   DataType return_type;
   std::vector<size_t> params;
-  size_t sp_offset, fp_offset;
+  size_t sp_offset, tot_pseudo_reg;
 
   FunctionAttr() = default;
   FunctionAttr(DataType type) : return_type(type) {}
 
   template <class V>
   FunctionAttr(DataType type, V&& params_)
-      : return_type(type), params(std::forward<V>(params_)) {}
+      : return_type(type), params(std::forward<V>(params_)),
+        sp_offset(0), tot_pseudo_reg(0) {}
 
   DataType GetReturnType() const noexcept { return return_type; }
   size_t NumParam() const noexcept { return params.size(); }
