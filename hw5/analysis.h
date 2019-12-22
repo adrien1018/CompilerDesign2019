@@ -52,11 +52,11 @@ class Analyzer {
   void BuildVariableDecl(AstNode* var_decl) noexcept;
   void BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept;
 
-  std::pair<VariableAttr, TableEntry> BuildParam(AstNode* param);
+  TableEntry BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(AstNode* parent);
-  void InsertSymTab(std::variant<std::string, Identifier>& id,
-                    TableEntry&& entry, AstNode*, bool is_param = false);
-  void InsertParam(AstNode* param, TableEntry&& entry);
+  size_t InsertSymTab(std::variant<std::string, Identifier>& id,
+                      TableEntry&& entry, AstNode*, bool is_param = false);
+  size_t InsertParam(AstNode* param, TableEntry&& entry);
   TypeAttr BuildType(AstNode* nd);
 
   void AnalyzeProgram(AstNode* prog);

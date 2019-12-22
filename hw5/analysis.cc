@@ -106,37 +106,36 @@ TypeAttr Analyzer::BuildType(AstNode* nd) {
   }
 }
 
-void Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
-                            TableEntry&& entry, AstNode* nd, bool is_param) {
+size_t Analyzer::InsertSymTab(std::variant<std::string, Identifier>& id,
+                              TableEntry&& entry, AstNode* nd, bool is_param) {
   auto id_num = mp_.Insert(std::get<std::string>(id));
   if (id_num.second) {
     tab_.emplace_back(std::move(entry));
     id = id_num.first;
-  } else {
-    auto& prev_entry = tab_[id_num.first.first];
-    if (entry.GetType() == TYPE_ALIAS && prev_entry.GetType() == TYPE_ALIAS &&
-        entry.GetValue<TypeAttr>() == prev_entry.GetValue<TypeAttr>()) {
-      // typedef can be redeclared
-      id = id_num.first;
-      return;
-    }
-    success_ = false;
-    MsgType msg =
-        is_param ? ERR_REDECL_PARAM
-                 : entry.GetType() != prev_entry.GetType()
-                       ? ERR_REDECL_TYPE
-                       : ((entry.GetType() == VARIABLE &&
-                           entry.GetValue<VariableAttr>() ==
-                               prev_entry.GetValue<VariableAttr>()) ||
-                          (entry.GetType() == FUNCTION &&
-                           entry.GetValue<FunctionAttr>().return_type ==
-                               prev_entry.GetValue<FunctionAttr>().return_type))
-                             ? ERR_REDECL
-                             : ERR_REDECL_CONFLICT;
-    PrintMsg(file_, nd->loc, msg, prev_entry.GetNode()->loc,
-             id_num.first.second);
-    throw StopExpression();
+    return id_num.first.first;
   }
+  auto& prev_entry = tab_[id_num.first.first];
+  if (entry.GetType() == TYPE_ALIAS && prev_entry.GetType() == TYPE_ALIAS &&
+      entry.GetValue<TypeAttr>() == prev_entry.GetValue<TypeAttr>()) {
+    // typedef can be redeclared
+    id = id_num.first;
+    return id_num.first.first;
+  }
+  success_ = false;
+  MsgType msg =
+      is_param ? ERR_REDECL_PARAM
+               : entry.GetType() != prev_entry.GetType()
+                     ? ERR_REDECL_TYPE
+                     : ((entry.GetType() == VARIABLE &&
+                         entry.GetValue<VariableAttr>() ==
+                             prev_entry.GetValue<VariableAttr>()) ||
+                        (entry.GetType() == FUNCTION &&
+                         entry.GetValue<FunctionAttr>().return_type ==
+                             prev_entry.GetValue<FunctionAttr>().return_type))
+                           ? ERR_REDECL
+                           : ERR_REDECL_CONFLICT;
+  PrintMsg(file_, nd->loc, msg, prev_entry.GetNode()->loc, id_num.first.second);
+  throw StopExpression();
 }
 
 std::vector<size_t> Analyzer::ParseDimDecl(AstNode* parent) {
@@ -249,21 +248,17 @@ void Analyzer::BuildTypeDecl(AstNode* type_decl) noexcept {
   }
 }
 
-std::pair<VariableAttr, TableEntry> Analyzer::BuildParam(AstNode* param) {
+TableEntry Analyzer::BuildParam(AstNode* param) {
   try {
     const TypeAttr& attr = BuildType(*param->child.begin());
     AstNode* identifier = *std::next(param->child.begin());
     auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
     if (value.kind == NORMAL_ID) {
-      return std::make_pair(
-          VariableAttr(attr),
-          BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims));
+      return BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims);
     }
     auto dims = ParseDimDecl(identifier);
     dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
-    VariableAttr res(attr.data_type, dims);
-    return std::make_pair(
-        res, BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims)));
+    return BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims));
   } catch (...) {
     // rethrow
     throw;
@@ -479,10 +474,10 @@ void Analyzer::BuildBlock(AstNode* block) noexcept {
   mp_.PopScope();
 }
 
-void Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
+size_t Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
   AstNode* identifier = *std::next(param->child.begin());
   auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
-  InsertSymTab(value.identifier, std::move(entry), param, true);
+  return InsertSymTab(value.identifier, std::move(entry), param, true);
 }
 
 void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
@@ -503,31 +498,26 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
       throw StopExpression();
     }
     Debug_("func_name = ", std::get<std::string>(func_name), '\n');
-    std::vector<VariableAttr> param_list;
     std::vector<TableEntry> entries;
     AstNode* param_list_node = *it++;
     for (AstNode* param : param_list_node->child) {
       Debug_("BuildParam", '\n');
-      auto res = BuildParam(param);
-      param_list.push_back(std::move(res.first));
-      entries.push_back(std::move(res.second));
+      entries.push_back(BuildParam(param));
     }
-    InsertSymTab(
-        func_name,
-        BuildEntry<FUNCTION>(id_node, attr.data_type, std::move(param_list)),
-        id_node);
-    Debug_("PushScope:function\n");
+    auto entry = BuildEntry<FUNCTION>(id_node, attr.data_type);
+    size_t f = InsertSymTab(func_name, std::move(entry), id_node);
+    std::vector<size_t>& refs = tab_[f].GetValue<FunctionAttr>().params;
     mp_.PushScope();  // push scope for the function parameters
     flag = true;
     size_t i = 0;
     for (AstNode* param : param_list_node->child) {
-      auto& entry = entries[i++];
-      InsertParam(param, std::move(entry));
+      auto& et = entries[i++];
+      size_t pos = InsertParam(param, std::move(et));
+      refs.push_back(pos);
     }
     BuildBlock(*it);
   } catch (StopExpression&) {
   }
-  if (flag) Debug_("PopScope:function\n");
   if (flag) mp_.PopScope();  // pop scope
 }
 
@@ -665,7 +655,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   for (auto it = relop_expr_list->child.begin();
        it != relop_expr_list->child.end();) {
     AstNode* nd = *it;
-    auto& args = func.params[i++];
+    auto& args = tab_[func.params[i++]].GetValue<VariableAttr>();
     auto param = GetPrototype(nd, tab_);
     MsgType x = CheckConvertibility(args, param);
     if (x != ERR_NOTHING) {

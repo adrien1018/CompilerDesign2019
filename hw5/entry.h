@@ -68,29 +68,15 @@ struct VariableAttr {
 
 struct FunctionAttr {
   DataType return_type;
-  std::vector<VariableAttr> params;
-  size_t fp_offset, sp_offset;
-  // fp_offset: fp = old_sp - fp_offset
-  // sp_offset: sp = old_sp - sp_offset
+  std::vector<size_t> params;
+  size_t sp_offset, fp_offset;
 
   FunctionAttr() = default;
+  FunctionAttr(DataType type) : return_type(type) {}
 
   template <class V>
   FunctionAttr(DataType type, V&& params_)
-      : return_type(type), params(std::forward<V>(params_)) {
-    fp_offset = 8;
-    for (auto& v : params) {
-      v.offset = fp_offset + 8;
-      if (v.IsArray()) {
-        // pointer type
-        fp_offset += 8;
-      } else {
-        // int or float
-        fp_offset += 4;
-      }
-    }
-    sp_offset = fp_offset + 8;  // old fp
-  }
+      : return_type(type), params(std::forward<V>(params_)) {}
 
   DataType GetReturnType() const noexcept { return return_type; }
   size_t NumParam() const noexcept { return params.size(); }
