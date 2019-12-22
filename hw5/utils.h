@@ -64,4 +64,32 @@ struct CString {
 template <size_t N>
 CString(const char (&lit)[N])->CString<N - 1>;
 
+// Debug message printer
+#ifndef NDEBUG
+#include <iostream>
+
+template <class T>
+static inline void DebugX_(T&& a) {
+  std::cerr << a;
+}
+
+template <class U, class... T>
+static inline void DebugX_(U&& u, T&&... tail) {
+  DebugX_(u);
+  DebugX_(std::forward<T>(tail)...);
+}
+
+template <class... T>
+static inline void Debug_(T&&... args) {
+  DebugX_(std::forward<T>(args)...);
+  std::cerr << std::flush;
+}
+
+#else
+
+template <class... T>
+static inline void Debug_(T&&...) {}
+
+#endif  // NDEBUG
+
 #endif  // UTILS_H_

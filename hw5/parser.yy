@@ -82,8 +82,8 @@ struct Wider {
 };
 
 template <>
-struct Wider<int, int> {
-  using type = int;
+struct Wider<int32_t, int32_t> {
+  using type = int32_t;
 };
 
 // TODO: Optimize this stuff
@@ -115,7 +115,7 @@ typename Wider<T, U>::type DoArithmaticOperation(BinaryOperator op, T x, U y) {
 }
 
 template <typename T, typename U>
-int DoLogicalOperation(BinaryOperator op, T x, U y) {
+int32_t DoLogicalOperation(BinaryOperator op, T x, U y) {
   switch (op) {
     case BINARY_OP_EQ:
       return x == y;
@@ -146,7 +146,7 @@ AstNode* UnaryConstNode(UnaryOperator op, AstNode* nd, const Location& loc) {
   switch (op) {
     case UNARY_OP_NEGATIVE: {
       if (type == INT_TYPE) {
-        val = -std::get<int>(val);
+        val = -std::get<int32_t>(val);
       } else {
         val = -std::get<FloatType>(val);
       }
@@ -154,9 +154,9 @@ AstNode* UnaryConstNode(UnaryOperator op, AstNode* nd, const Location& loc) {
     }
     case UNARY_OP_LOGICAL_NEGATION: {
       if (type == INT_TYPE) {
-        val = !std::get<int>(val);
+        val = !std::get<int32_t>(val);
       } else if (type == FLOAT_TYPE) {
-        val = (int)!std::get<FloatType>(val); 
+        val = (int32_t)!std::get<FloatType>(val);
       } else {
         val = 1;
       }
@@ -189,16 +189,18 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
   if (lhs->data_type == INT_TYPE) {
     if (rhs->data_type == INT_TYPE) {
       if (!b) {
-        cv = DoArithmaticOperation(op, std::get<int>(lcv), std::get<int>(rcv));
+        cv = DoArithmaticOperation(
+            op, std::get<int32_t>(lcv), std::get<int32_t>(rcv));
       } else {
-        cv = DoLogicalOperation(op, std::get<int>(lcv), std::get<int>(rcv));
+        cv = DoLogicalOperation(
+            op, std::get<int32_t>(lcv), std::get<int32_t>(rcv));
       }
     } else {
       if (!b) {
-        cv = DoArithmaticOperation(op, std::get<int>(lcv),
-                                   std::get<FloatType>(rcv));
+        cv = DoArithmaticOperation(
+            op, std::get<int32_t>(lcv), std::get<FloatType>(rcv));
       } else {
-        cv = DoLogicalOperation(op, std::get<int>(lcv),
+        cv = DoLogicalOperation(op, std::get<int32_t>(lcv),
                                 std::get<FloatType>(rcv));
       }
     }
@@ -206,10 +208,10 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
     if (rhs->data_type == INT_TYPE) {
       if (!b) {
         cv = DoArithmaticOperation(op, std::get<FloatType>(lcv),
-                                   std::get<int>(rcv));
+                                   std::get<int32_t>(rcv));
       } else {
         cv = DoLogicalOperation(op, std::get<FloatType>(lcv),
-                                std::get<int>(rcv));
+                                std::get<int32_t>(rcv));
       }
     } else {
       if (!b) {
@@ -277,7 +279,7 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
                       std::list<AstNode*>&& ch) {
   AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
-  expr_node->semantic_value = ExprSemanticValue{expr_kind, 0};
+  expr_node->semantic_value = ExprSemanticValue{expr_kind};
   MakeChild(expr_node, ch);
   auto &op = std::get<ExprSemanticValue>(expr_node->semantic_value).op;
   if (expr_kind == BINARY_OPERATION) {

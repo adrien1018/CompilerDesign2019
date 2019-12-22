@@ -6,6 +6,8 @@
 #include <utility>
 #include <variant>
 
+#include "utils.h"
+
 /*** Note
  * Errors being caught in the first pass:
  *  - 1.a ID <name> undeclared.
@@ -19,33 +21,6 @@
  *  - 3.c Array <name> passed to scalar parameter <name>. / Scalar <name> passed
  * to array parameter <name>.
  */
-
-#ifndef NDEBUG
-#include <iostream>
-
-template <class T>
-static inline void DebugX_(T&& a) {
-  std::cerr << a;
-}
-
-template <class U, class... T>
-static inline void DebugX_(U&& u, T&&... tail) {
-  DebugX_(u);
-  DebugX_(std::forward<T>(tail)...);
-}
-
-template <class... T>
-inline void Debug_(T&&... args) {
-  DebugX_(std::forward<T>(args)...);
-  std::cerr << std::flush;
-}
-
-#else
-
-template <class... T>
-static inline void Debug_(T&&...) {}
-
-#endif  // NDEBUG
 
 struct StopExpression {};
 
@@ -153,7 +128,7 @@ std::vector<size_t> Analyzer::ParseDimDecl(AstNode* parent) {
       throw StopExpression();
     }
     ConstValue& cv = std::get<ConstValue>(cexpr->semantic_value);
-    int size = std::get<int>(cv);
+    int32_t size = std::get<int32_t>(cv);
     if (size < 0) {
       success_ = false;
       PrintMsg(file_, cexpr->loc, ERR_DIMEN_NEG, GetName(parent));

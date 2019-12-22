@@ -1,10 +1,10 @@
 #include "codegen.h"
 
 #include <cassert>
-#include <iostream>
-#include <variant>
+#include <cstring>
 
 #include "ast.h"
+#include "utils.h"
 
 namespace {
 
@@ -35,6 +35,111 @@ inline size_t CodeGen::AllocStack(FunctionAttr& attr, size_t sz) {
 inline size_t CodeGen::AllocRegister(FunctionAttr& attr) {
   if (cur_register_ == attr.tot_pseudo_reg) attr.tot_pseudo_reg++;
   return cur_register_++;
+}
+
+void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
+  DataType child_type = expr->child.front()->data_type;
+  if (value.kind == BINARY_OPERATION) {
+    BinaryOperator op = std::get<BinaryOperator>(value.op);
+    if (op == BINARY_OP_OR || op == BINARY_OP_AND) { // short-circuit
+      assert(child_type == BOOLEAN_TYPE);
+      assert((*std::next(expr->child.begin()))->data_type == BOOLEAN_TYPE);
+      VisitRelopExpr(expr->child.front(), attr, dest);
+      ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ,
+                        IRInsr::kNoRD, dest, Reg(rv64::kZero),
+                        IRInsr::kLabel, labels_.size());
+      VisitRelopExpr(expr->child.front(), attr, dest);
+      labels_.emplace_back(ir_.size());
+      return;
+    }
+    if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
+      size_t chval = AllocRegister(attr);
+      VisitRelopExpr(expr->child.front(), attr, dest);
+      VisitRelopExpr(*std::next(expr->child.begin()), attr, chval);
+      switch (op) {
+        case BINARY_OP_OR:
+        case BINARY_OP_AND: __builtin_unreachable();
+        case BINARY_OP_LT:
+          ir_.emplace_back(INSR_SLT, dest, dest, chval); break;
+        case BINARY_OP_LE:
+          ir_.emplace_back(INSR_SLT, dest, chval, dest);
+          ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
+        case BINARY_OP_GT:
+          ir_.emplace_back(INSR_SLT, dest, chval, dest); break;
+        case BINARY_OP_GE:
+          ir_.emplace_back(INSR_SLT, dest, dest, chval);
+          ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
+        case BINARY_OP_EQ:
+          ir_.emplace_back(INSR_XOR, dest, dest, chval);
+          ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1); break;
+        case BINARY_OP_NE:
+          ir_.emplace_back(INSR_XOR, dest, dest, chval);
+          ir_.emplace_back(INSR_SLTU, dest, Reg(rv64::kZero), dest); break;
+        case BINARY_OP_ADD:
+          ir_.emplace_back(INSR_ADDW, dest, dest, chval); break;
+        case BINARY_OP_SUB:
+          ir_.emplace_back(INSR_SUBW, dest, dest, chval); break;
+        case BINARY_OP_MUL:
+          ir_.emplace_back(INSR_MULW, dest, dest, chval); break;
+        case BINARY_OP_DIV:
+          ir_.emplace_back(INSR_DIVW, dest, dest, chval); break;
+      }
+    } else if (child_type == FLOAT_TYPE) {
+      size_t chval1 = AllocRegister(attr);
+      size_t chval2 = expr->data_type == INT_TYPE ? AllocRegister(attr) : dest;
+      VisitRelopExpr(expr->child.front(), attr, chval1);
+      VisitRelopExpr(*std::next(expr->child.begin()), attr, chval2);
+      switch (op) {
+        case BINARY_OP_OR:
+        case BINARY_OP_AND: __builtin_unreachable();
+        case BINARY_OP_LT:
+          ir_.emplace_back(INSR_FLT_S, dest, chval1, chval2); break;
+        case BINARY_OP_LE:
+          ir_.emplace_back(INSR_FLE_S, dest, chval1, chval2); break;
+        case BINARY_OP_GT:
+          ir_.emplace_back(INSR_FLE_S, dest, chval2, chval1); break;
+        case BINARY_OP_GE:
+          ir_.emplace_back(INSR_FLT_S, dest, chval2, chval1); break;
+        case BINARY_OP_EQ:
+          ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2); break;
+        case BINARY_OP_NE:
+          ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2);
+          ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
+        case BINARY_OP_ADD:
+          ir_.emplace_back(INSR_FADD_S, dest, chval1, chval2); break;
+        case BINARY_OP_SUB:
+          ir_.emplace_back(INSR_FSUB_S, dest, chval1, chval2); break;
+        case BINARY_OP_MUL:
+          ir_.emplace_back(INSR_FMUL_S, dest, chval1, chval2); break;
+        case BINARY_OP_DIV:
+          ir_.emplace_back(INSR_FDIV_S, dest, chval1, chval2); break;
+      }
+    } else {
+      assert(false);
+    }
+  } else { // UNARY_OPERATION
+    VisitRelopExpr(expr->child.front(), attr, dest);
+    UnaryOperator op = std::get<UnaryOperator>(value.op);
+    if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
+      switch (op) {
+        case UNARY_OP_POSITIVE: break; // do nothing
+        case UNARY_OP_NEGATIVE:
+          ir_.emplace_back(INSR_SUBW, dest, Reg(rv64::kZero), dest); break;
+        case UNARY_OP_LOGICAL_NEGATION:
+          ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1); break;
+      }
+    } else if (child_type == FLOAT_TYPE) {
+      switch (op) {
+        case UNARY_OP_POSITIVE: break; // do nothing
+        case UNARY_OP_NEGATIVE:
+          ir_.emplace_back(INSR_FSGNJN_S, dest, dest, dest); break;
+        case UNARY_OP_LOGICAL_NEGATION: throw;
+      }
+    } else {
+      assert(false);
+    }
+  }
 }
 
 void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
@@ -74,107 +179,39 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       break;
     }
     case EXPR_NODE: {
-      auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
-      DataType child_type = expr->child.front()->data_type;
-      if (value.kind == BINARY_OPERATION) {
-        BinaryOperator op = std::get<BinaryOperator>(value.op);
-        if (op == BINARY_OP_OR || op == BINARY_OP_AND) { // short-circuit
-          assert(child_type == BOOLEAN_TYPE);
-          assert((*std::next(expr->child.begin()))->data_type == BOOLEAN_TYPE);
-          VisitRelopExpr(expr->child.front(), attr, dest);
-          ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ,
-                           IRInsr::kNoRD, dest, Reg(rv64::kZero),
-                           IRInsr::kLabel, labels_.size());
-          VisitRelopExpr(expr->child.front(), attr, dest);
-          labels_.emplace_back(ir_.size());
-          break;
-        }
-        if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
-          size_t chval = AllocRegister(attr);
-          VisitRelopExpr(expr->child.front(), attr, dest);
-          VisitRelopExpr(*std::next(expr->child.begin()), attr, chval);
-          switch (op) {
-            case BINARY_OP_OR:
-            case BINARY_OP_AND: __builtin_unreachable();
-            case BINARY_OP_LT:
-              ir_.emplace_back(INSR_SLT, dest, dest, chval); break;
-            case BINARY_OP_LE:
-              ir_.emplace_back(INSR_SLT, dest, chval, dest);
-              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
-            case BINARY_OP_GT:
-              ir_.emplace_back(INSR_SLT, dest, chval, dest); break;
-            case BINARY_OP_GE:
-              ir_.emplace_back(INSR_SLT, dest, dest, chval);
-              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
-            case BINARY_OP_EQ:
-              ir_.emplace_back(INSR_XOR, dest, dest, chval);
-              ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1); break;
-            case BINARY_OP_NE:
-              ir_.emplace_back(INSR_XOR, dest, dest, chval);
-              ir_.emplace_back(INSR_SLTU, dest, Reg(rv64::kZero), dest); break;
-            case BINARY_OP_ADD:
-              ir_.emplace_back(INSR_ADDW, dest, dest, chval); break;
-            case BINARY_OP_SUB:
-              ir_.emplace_back(INSR_SUBW, dest, dest, chval); break;
-            case BINARY_OP_MUL:
-              ir_.emplace_back(INSR_MULW, dest, dest, chval); break;
-            case BINARY_OP_DIV:
-              ir_.emplace_back(INSR_DIVW, dest, dest, chval); break;
-          }
-        } else if (child_type == FLOAT_TYPE) {
-          size_t chval1 = AllocRegister(attr);
-          size_t chval2 = expr->data_type == INT_TYPE ? AllocRegister(attr) : dest;
-          VisitRelopExpr(expr->child.front(), attr, chval1);
-          VisitRelopExpr(*std::next(expr->child.begin()), attr, chval2);
-          switch (op) {
-            case BINARY_OP_OR:
-            case BINARY_OP_AND: __builtin_unreachable();
-            case BINARY_OP_LT:
-              ir_.emplace_back(INSR_FLT_S, dest, chval1, chval2); break;
-            case BINARY_OP_LE:
-              ir_.emplace_back(INSR_FLE_S, dest, chval1, chval2); break;
-            case BINARY_OP_GT:
-              ir_.emplace_back(INSR_FLE_S, dest, chval2, chval1); break;
-            case BINARY_OP_GE:
-              ir_.emplace_back(INSR_FLT_S, dest, chval2, chval1); break;
-            case BINARY_OP_EQ:
-              ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2); break;
-            case BINARY_OP_NE:
-              ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2);
-              ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1); break;
-            case BINARY_OP_ADD:
-              ir_.emplace_back(INSR_FADD_S, dest, chval1, chval2); break;
-            case BINARY_OP_SUB:
-              ir_.emplace_back(INSR_FSUB_S, dest, chval1, chval2); break;
-            case BINARY_OP_MUL:
-              ir_.emplace_back(INSR_FMUL_S, dest, chval1, chval2); break;
-            case BINARY_OP_DIV:
-              ir_.emplace_back(INSR_FDIV_S, dest, chval1, chval2); break;
-          }
+      VisitOpr(expr, attr, dest);
+      break;
+    }
+    case CONST_VALUE_NODE: {
+      auto& value = std::get<ConstValue>(expr->semantic_value);
+      if (expr->data_type == CONST_STRING_TYPE) {
+        ir_.emplace_back(PINSR_LOAD_DATA_ADDR, dest,
+                         IRInsr::kData, data_.size());
+        data_.emplace_back(std::get<std::string>(value));
+      } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
+        size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
+        uint32_t x;
+        if (expr->data_type == INT_TYPE) {
+          memcpy(&x, &std::get<int32_t>(value), 4);
         } else {
-          assert(false);
+          memcpy(&x, &std::get<FloatType>(value), 4);
         }
-      } else { // UNARY_OPERATION
-        VisitRelopExpr(expr->child.front(), attr, dest);
-        UnaryOperator op = std::get<UnaryOperator>(value.op);
-        if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
-          switch (op) {
-            case UNARY_OP_POSITIVE: break; // do nothing
-            case UNARY_OP_NEGATIVE:
-              ir_.emplace_back(INSR_SUBW, dest, Reg(rv64::kZero), dest); break;
-            case UNARY_OP_LOGICAL_NEGATION:
-              ir_.emplace_back(INSR_SLTIU, dest, dest, IRInsr::kConst, 1); break;
-          }
-        } else if (child_type == FLOAT_TYPE) {
-          switch (op) {
-            case UNARY_OP_POSITIVE: break; // do nothing
-            case UNARY_OP_NEGATIVE:
-              ir_.emplace_back(INSR_FSGNJN_S, dest, dest, dest); break;
-            case UNARY_OP_LOGICAL_NEGATION: throw;
-          }
+        if (x >= 0xfffff800 || x < 0x800) {
+          ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero),
+                           IRInsr::kConst, (int32_t)x);
         } else {
-          assert(false);
+          uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
+          ir_.emplace_back(INSR_LUI, chval, IRInsr::kConst, tx >> 12);
+          if (x != tx) {
+            ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero),
+                            IRInsr::kConst, (int32_t)(x - tx));
+          }
         }
+        if (expr->data_type == FLOAT_TYPE) {
+          ir_.emplace_back(INSR_FMV_W_X, dest, chval);
+        }
+      } else {
+        assert(false);
       }
       break;
     }
@@ -278,7 +315,7 @@ void CodeGen::VisitFunctionDecl(AstNode *decl) {
   }
   ir_.emplace_back(PINSR_PUSH_SP);
   VisitBlock(block, attr);
-  std::cerr << "sp_offset = " << attr.sp_offset << '\n';
+  Debug_("sp_offset = ", attr.sp_offset, '\n');
 }
 
 void CodeGen::VisitGlobalDecl(AstNode *decl) {

@@ -233,7 +233,7 @@ enum Opcode {
   INSR_FCVT_D_S,   // (not used)
   INSR_FMV_X_W,    // bitwise float to int (not used)
   INSR_FMV_X_D,    // (not used)
-  INSR_FMV_W_X,    // bitwise int to float (opt only)
+  INSR_FMV_W_X,    // bitwise int to float
   INSR_FMV_D_X,    // (not used)
   INSR_FEQ_S,      // compare
   INSR_FLT_S,
@@ -254,6 +254,9 @@ enum Opcode {
   PINSR_MV,    // Copy (can be optimized!)
   PINSR_FMV_S, // Floating-point copy (can be optimized!)
   PINSR_PUSH_SP, // push stack pointer here
+  PINSR_LOAD_DATA_ADDR, // imm_type == kData; expands to
+                        //   lui rd, %hi([imm_label])
+                        //   addi rd, rd, %lo([imm_label])
   kPseudoInsr
 };
 
@@ -419,6 +422,9 @@ struct IRInsr {
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
       : op(op), rd(rd), rs1(rs1), rs2(rs2) {}
+  template <class RD>
+  IRInsr(Opcode op, RD rd, ImmType imm_type, int64_t imm)
+      : op(op), rd(rd), imm_type(imm_type), imm(imm) {}
   template <class RD, class RS1>
   IRInsr(Opcode op, RD rd, RS1 rs1, ImmType imm_type, int64_t imm)
       : op(op), rd(rd), rs1(rs1), imm_type(imm_type), imm(imm) {}
