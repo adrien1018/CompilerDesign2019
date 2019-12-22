@@ -79,11 +79,11 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       assert(child_type == BOOLEAN_TYPE);
       assert((*std::next(expr->child.begin()))->data_type == BOOLEAN_TYPE);
       VisitRelopExpr(expr->child.front(), attr, dest);
+      size_t now_label = ir_.size();
       ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ, IRInsr::kNoRD,
                        dest, Reg(rv64::kZero), IRInsr::kLabel, 0);
-      int64_t& now_label = ir_.back().imm;
       VisitRelopExpr(expr->child.front(), attr, dest);
-      now_label = labels_.size();
+      ir_[now_label].imm = labels_.size();
       labels_.emplace_back(ir_.size());
       return;
     }
@@ -236,7 +236,29 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
   }
 }
 
-void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {}
+void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
+  const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
+  const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
+  assert(var_attr.data_type == FLOAT_TYPE || var_attr.data_type == INT_TYPE);
+  if (var_attr.IsArray()) {
+    // TODO
+  } else {
+    if (var_attr.local) {
+      if (var_attr.data_type == FLOAT_TYPE) {
+        ir_.emplace_back(PINSR_FMV_S, dest, var_attr.offset);
+      } else {
+        ir_.emplace_back(PINSR_MV, dest, var_attr.offset);
+      }
+    } else {
+      if (var_attr.data_type == FLOAT_TYPE) {
+        ir_.emplace_back(INSR_FLW, dest, IRInsr::kData, var_attr.offset);
+      } else {
+        ir_.emplace_back(INSR_LW, dest, IRInsr::kData, var_attr.offset);
+      }
+    }
+  }
+}
 
 void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
                                 size_t dest) {
@@ -364,6 +386,8 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr) {
         VisitRelopExpr(init_val, attr, var_attr.offset);
       }
     }
+    var_attr.local = true;
+    var_attr.is_param = false;
   }
 }
 
