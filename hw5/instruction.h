@@ -21,38 +21,71 @@ constexpr size_t kNumTempRegisters = 6;
 
 // RISC-V register ABI names
 constexpr uint8_t kZero = 0;
-constexpr uint8_t kRa = 1;
-constexpr uint8_t kSp = 2;
-constexpr uint8_t kGp = 3;
-constexpr uint8_t kTp = 4;
-constexpr uint8_t kT0 = 5;
-constexpr uint8_t kT1 = 6;
-constexpr uint8_t kT2 = 7;
-constexpr uint8_t kFp = 8;
-constexpr uint8_t kS0 = 8;
-constexpr uint8_t kS1 = 9;
-constexpr uint8_t kA0 = 10;
-constexpr uint8_t kA1 = 11;
-constexpr uint8_t kA2 = 12;
-constexpr uint8_t kA3 = 13;
-constexpr uint8_t kA4 = 14;
-constexpr uint8_t kA5 = 15;
-constexpr uint8_t kA6 = 16;
-constexpr uint8_t kA7 = 17;
-constexpr uint8_t kS2 = 18;
-constexpr uint8_t kS3 = 19;
-constexpr uint8_t kS4 = 20;
-constexpr uint8_t kS5 = 21;
-constexpr uint8_t kS6 = 22;
-constexpr uint8_t kS7 = 23;
-constexpr uint8_t kS8 = 24;
-constexpr uint8_t kS9 = 25;
-constexpr uint8_t kS10 = 26;
-constexpr uint8_t kS11 = 27;
-constexpr uint8_t kT3 = 28;
-constexpr uint8_t kT4 = 29;
-constexpr uint8_t kT5 = 30;
-constexpr uint8_t kT6 = 31;
+constexpr uint8_t kRa   = 1;
+constexpr uint8_t kSp   = 2;
+constexpr uint8_t kGp   = 3;
+constexpr uint8_t kTp   = 4;
+constexpr uint8_t kT0   = 5;
+constexpr uint8_t kT1   = 6;
+constexpr uint8_t kT2   = 7;
+constexpr uint8_t kFp   = 8;
+constexpr uint8_t kS0   = 8;
+constexpr uint8_t kS1   = 9;
+constexpr uint8_t kA0   = 10;
+constexpr uint8_t kA1   = 11;
+constexpr uint8_t kA2   = 12;
+constexpr uint8_t kA3   = 13;
+constexpr uint8_t kA4   = 14;
+constexpr uint8_t kA5   = 15;
+constexpr uint8_t kA6   = 16;
+constexpr uint8_t kA7   = 17;
+constexpr uint8_t kS2   = 18;
+constexpr uint8_t kS3   = 19;
+constexpr uint8_t kS4   = 20;
+constexpr uint8_t kS5   = 21;
+constexpr uint8_t kS6   = 22;
+constexpr uint8_t kS7   = 23;
+constexpr uint8_t kS8   = 24;
+constexpr uint8_t kS9   = 25;
+constexpr uint8_t kS10  = 26;
+constexpr uint8_t kS11  = 27;
+constexpr uint8_t kT3   = 28;
+constexpr uint8_t kT4   = 29;
+constexpr uint8_t kT5   = 30;
+constexpr uint8_t kT6   = 31;
+// floating-point registers
+constexpr uint8_t kFt0  = 128 | 0;
+constexpr uint8_t kFt1  = 128 | 1;
+constexpr uint8_t kFt2  = 128 | 2;
+constexpr uint8_t kFt3  = 128 | 3;
+constexpr uint8_t kFt4  = 128 | 4;
+constexpr uint8_t kFt5  = 128 | 5;
+constexpr uint8_t kFt6  = 128 | 6;
+constexpr uint8_t kFt7  = 128 | 7;
+constexpr uint8_t kFs0  = 128 | 8;
+constexpr uint8_t kFs1  = 128 | 9;
+constexpr uint8_t kFa0  = 128 | 10;
+constexpr uint8_t kFa1  = 128 | 11;
+constexpr uint8_t kFa2  = 128 | 12;
+constexpr uint8_t kFa3  = 128 | 13;
+constexpr uint8_t kFa4  = 128 | 14;
+constexpr uint8_t kFa5  = 128 | 15;
+constexpr uint8_t kFa6  = 128 | 16;
+constexpr uint8_t kFa7  = 128 | 17;
+constexpr uint8_t kFs2  = 128 | 18;
+constexpr uint8_t kFs3  = 128 | 19;
+constexpr uint8_t kFs4  = 128 | 20;
+constexpr uint8_t kFs5  = 128 | 21;
+constexpr uint8_t kFs6  = 128 | 22;
+constexpr uint8_t kFs7  = 128 | 23;
+constexpr uint8_t kFs8  = 128 | 24;
+constexpr uint8_t kFs9  = 128 | 25;
+constexpr uint8_t kFs10 = 128 | 26;
+constexpr uint8_t kFs11 = 128 | 27;
+constexpr uint8_t kFt8  = 128 | 28;
+constexpr uint8_t kFt9  = 128 | 29;
+constexpr uint8_t kFt10 = 128 | 30;
+constexpr uint8_t kFt11 = 128 | 31;
 
 constexpr std::array<uint8_t, kNumCalleeSaved> kCalleeSaved = {
     2, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
@@ -211,6 +244,8 @@ enum Opcode {
   PINSR_RET,   // Return (no arg)
   PINSR_LA,    // Load absolute address
   PINSR_MV,    // Copy (can be optimized!)
+  PINSR_FMV_S, // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP, // push stack pointer here
   kPseudoInsr
 };
 
@@ -233,7 +268,7 @@ constexpr CString<N> ToInsr(const CString<N>& s) {
     if (s.str[i] == '_')
       ret.str[i] = '.';
     else
-      ret.str[i] = s.str[i];
+      ret.str[i] = s.str[i] ^ 32;
   }
   return ret;
 }
@@ -284,8 +319,9 @@ const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
     INSR_PAIR(FLT_D),     INSR_PAIR(FLE_D),     INSR_PAIR(FCLASS_S),
     INSR_PAIR(FCLASS_D),
 #undef INSR_PAIR
-    {PINSR_J, "J"},       {PINSR_CALL, "CALL"}, {PINSR_TAIL, "TAIL"},
-    {PINSR_RET, "RET"},   {PINSR_LA, "LA"},     {PINSR_MV, "MV"}};
+    {PINSR_J, "j"},       {PINSR_CALL, "call"}, {PINSR_TAIL, "tail"},
+    {PINSR_RET, "ret"},   {PINSR_LA, "la"},     {PINSR_MV, "mv"},
+    {PINSR_FMV_S, "fmv.s"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_LUI, U_TYPE},       {INSR_AUIPC, J_TYPE},
@@ -367,15 +403,19 @@ struct IRInsr {
     kData   // a data ID referring to a CodeData array position
   };
   IRInsr() {}
+  IRInsr(Opcode op) : op(op) {}
+  template <class RD, class RS1>
+  IRInsr(Opcode op, RD rd, RS1 rs1)
+      : op(op), rd(rd), rs1(rs1) {}
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
-      : rd(rd), rs1(rs1), rs2(rs2) {}
+      : op(op), rd(rd), rs1(rs1), rs2(rs2) {}
   template <class RD, class RS1>
   IRInsr(Opcode op, RD rd, RS1 rs1, ImmType imm_type, int64_t imm)
-      : rd(rd), rs1(rs1), imm_type(imm_type), imm(imm) {}
+      : op(op), rd(rd), rs1(rs1), imm_type(imm_type), imm(imm) {}
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2, ImmType imm_type, int64_t imm)
-      : rd(rd), rs1(rs1), rs2(rs2), imm_type(imm_type), imm(imm) {}
+      : op(op), rd(rd), rs1(rs1), rs2(rs2), imm_type(imm_type), imm(imm) {}
   Opcode op;
   Register rd, rs1, rs2, rs3;
   ImmType imm_type;
@@ -391,6 +431,14 @@ struct RV64Insr {
 struct MemoryLocation {
   bool in_register;
   std::variant<uint8_t, int64_t> mem;
+};
+
+struct Label {
+  size_t ir_pos;
+  bool is_func;
+  Label() {}
+  Label(size_t ir_pos, bool is_func = false)
+      : ir_pos(ir_pos), is_func(is_func) {}
 };
 
 // num (or initialized array, not used in this project),

@@ -24,12 +24,12 @@ class CodeGen {
     TEXT_SECTION
   } section_ = UNKNOWN_SECTION;
   std::vector<IRInsr> ir_;
-  std::vector<size_t> labels_;
+  std::vector<Label> labels_;
   std::vector<CodeData> data_;
 
   /*** first pass: calculate the offset (to fp) of each local variables ***/
   size_t cur_stack_, cur_register_;
-  void ResetState();
+  void InitState(FunctionAttr&);
   size_t AllocStack(FunctionAttr&, size_t);
   size_t AllocRegister(FunctionAttr&);
   void VisitProgram(AstNode *prog);

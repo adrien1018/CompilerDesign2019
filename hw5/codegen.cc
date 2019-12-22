@@ -21,9 +21,11 @@ inline IRInsr::Register Reg(size_t x) {
 
 }  // namespace
 
-inline void CodeGen::ResetState() {
-  cur_stack_ = 0;
-  cur_register_ = 0;
+inline void CodeGen::InitState(FunctionAttr& attr) {
+  cur_stack_ = attr.sp_offset = 0;
+  cur_register_ = attr.tot_pseudo_reg = attr.params.size();
+  attr.label = labels_.size();
+  labels_.emplace_back(ir_.size(), true);
 }
 inline size_t CodeGen::AllocStack(FunctionAttr& attr, size_t sz) {
   cur_stack_ += sz;
@@ -39,7 +41,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   size_t start_reg = cur_register_;
   switch (expr->node_type) {
     case CONVERSION_NODE: {
-
+      size_t chval = AllocRegister(attr);
     }
     case EXPR_NODE: {
       auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
@@ -53,7 +55,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
                            IRInsr::kNoRD, dest, Reg(rv64::kZero),
                            IRInsr::kLabel, labels_.size());
           VisitRelopExpr(expr->child.front(), attr, dest);
-          labels_.push_back(ir_.size());
+          labels_.emplace_back(ir_.size());
           break;
         }
         if (child_type == INT_TYPE) { // TODO: BOOL_TYPE
@@ -220,8 +222,30 @@ void CodeGen::VisitFunctionDecl(AstNode *decl) {
   AstNode *id = *std::next(decl->child.begin());
   FunctionAttr &attr = GetAttribute<FunctionAttr>(id, tab_);
   AstNode *block = *std::prev(decl->child.end());
-  ResetState();
-  // TODO: Move parameters to pseudo-registers and set their entry
+  InitState(attr);
+  for (size_t i = 0, ival = 0, fval = 0, stk = 0; i < attr.params.size(); i++) {
+    VariableAttr& param = tab_[attr.params[i]].GetValue<VariableAttr>();
+    if (param.IsArray() || param.data_type == INT_TYPE) {
+      if (ival >= 8) {
+        ir_.emplace_back(param.IsArray() ? INSR_LD : INSR_LW,
+                         i, Reg(rv64::kSp), stk++ * 8);
+      } else {
+        ir_.emplace_back(PINSR_MV, i, Reg(rv64::kA0 + ival));
+      }
+      ival++;
+    } else {
+      if (fval >= 8) {
+        ir_.emplace_back(INSR_FLW, i, Reg(rv64::kSp), stk++ * 8);
+      } else {
+        ir_.emplace_back(PINSR_FMV_S, i, Reg(rv64::kFa0 + ival));
+      }
+      fval++;
+    }
+    param.local = true;
+    param.is_param = true;
+    param.offset = i;
+  }
+  ir_.emplace_back(PINSR_PUSH_SP);
   VisitBlock(block, attr);
   std::cerr << "sp_offset = " << attr.sp_offset << '\n';
 }
