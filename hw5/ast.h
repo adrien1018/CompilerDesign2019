@@ -44,6 +44,7 @@ enum DataType {
   INT_PTR_TYPE,       // for parameter passing
   FLOAT_PTR_TYPE,     // for parameter passing
   CONST_STRING_TYPE,  // for "const string"
+  BOOLEAN_TYPE,       // for conversion from float to condition expression
   NONE_TYPE,          // for nodes like PROGRAM_NODE which has no type
   UNKNOWN_TYPE        // typedef; leave it to sematics stage
 };

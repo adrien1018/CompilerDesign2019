@@ -40,7 +40,7 @@ static const std::unordered_map<IdentifierKind, std::string> kIdTypeMap = {
 static const std::unordered_map<DataType, std::string> kDataTypeMap = {
     MD_PAIR(INT_TYPE),     MD_PAIR(FLOAT_TYPE),     MD_PAIR(VOID_TYPE),
     MD_PAIR(INT_PTR_TYPE), MD_PAIR(FLOAT_PTR_TYPE), MD_PAIR(CONST_STRING_TYPE),
-    MD_PAIR(NONE_TYPE),    MD_PAIR(UNKNOWN_TYPE)};
+    MD_PAIR(BOOLEAN_TYPE), MD_PAIR(NONE_TYPE),      MD_PAIR(UNKNOWN_TYPE)};
 
 static const std::unordered_map<StmtKind, std::string> kStmtTypeMap = {
     MD_PAIR(WHILE_STMT), MD_PAIR(FOR_STMT),     MD_PAIR(ASSIGN_STMT),

@@ -558,6 +558,22 @@ bool Analyzer::BuildSymbolTable(AstNode* prog) {
   return success_;
 }
 
+namespace {
+
+AstNode* MakeConvNode(DataType from, DataType to, AstNode* fa, AstNode* ch) {
+  assert(from == INT_TYPE || from == FLOAT_TYPE || from == BOOLEAN_TYPE);
+  assert(to == INT_TYPE || to == FLOAT_TYPE || to == BOOLEAN_TYPE);
+  AstNode* conv = new AstNode(CONVERSION_NODE);
+  conv->semantic_value = ConversionSemanticValue{from, to};
+  conv->parent = fa;
+  conv->child.push_back(ch);
+  conv->data_type = to;
+  ch->parent = conv;
+  return conv;
+}
+
+}  // namespace
+
 void Analyzer::AnalyzeVarRef(AstNode* var) {
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
@@ -675,13 +691,8 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
     if (!args.IsArray() && !param.IsArray()) {
-      AstNode* conv = new AstNode(CONVERSION_NODE);
-      conv->semantic_value =
-          ConversionSemanticValue{param.data_type, args.data_type};
-      conv->data_type = args.data_type;
-      conv->child.push_back(nd);
-      conv->parent = relop_expr_list;
-      nd->parent = conv;
+      AstNode* conv =
+          MakeConvNode(param.data_type, args.data_type, relop_expr_list, nd);
       it = relop_expr_list->child.erase(it);
       relop_expr_list->child.insert(it, conv);
     } else {
@@ -695,6 +706,27 @@ namespace {
 inline DataType MixDataType(DataType a, DataType b) noexcept {
   if (a == INT_TYPE && b == INT_TYPE) return INT_TYPE;
   return FLOAT_TYPE;
+}
+
+inline bool NeedConversion(DataType from, DataType to) {
+  // boolean can be directly converted to int
+  return from != to && (from != BOOLEAN_TYPE || to != INT_TYPE);
+}
+
+void MergeExpr(AstNode* expr, DataType type) {
+  AstNode* lhs = *expr->child.begin();
+  AstNode* rhs = *std::next(expr->child.begin());
+  if (NeedConversion(lhs->data_type, type)) {
+    AstNode* conv = MakeConvNode(lhs->data_type, type, expr, lhs);
+    expr->child.pop_front();
+    expr->child.push_front(conv);
+  }
+  if (NeedConversion(rhs->data_type, type)) {
+    AstNode* conv = MakeConvNode(rhs->data_type, type, expr, rhs);
+    expr->child.pop_back();
+    expr->child.push_back(conv);
+  }
+  expr->data_type = type;
 }
 
 }  // namespace
@@ -727,38 +759,15 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
           case BINARY_OP_GE:
           case BINARY_OP_EQ:
           case BINARY_OP_NE:
-            expr->data_type = INT_TYPE;
+            MergeExpr(expr, BOOLEAN_TYPE);
+            assert(expr->child.size() == 2);
             break;
           case BINARY_OP_ADD:
           case BINARY_OP_SUB:
           case BINARY_OP_MUL:
-          case BINARY_OP_DIV: {
-            DataType type = MixDataType(types[0], types[1]);
-            AstNode* lhs = *expr->child.begin();
-            AstNode* rhs = *std::next(expr->child.begin());
-            if (lhs->data_type != type) {
-              AstNode* conv = new AstNode(CONVERSION_NODE);
-              conv->data_type = type;
-              conv->child.push_back(lhs);
-              conv->semantic_value =
-                  ConversionSemanticValue{lhs->data_type, type};
-              lhs->parent = conv;
-              expr->child.pop_front();
-              expr->child.push_front(conv);
-            }
-            if (rhs->data_type != type) {
-              AstNode* conv = new AstNode(CONVERSION_NODE);
-              conv->data_type = type;
-              conv->child.push_back(rhs);
-              conv->semantic_value =
-                  ConversionSemanticValue{rhs->data_type, type};
-              rhs->parent = conv;
-              expr->child.pop_back();
-              expr->child.push_back(conv);
-            }
-            expr->data_type = type;
+          case BINARY_OP_DIV:
+            MergeExpr(expr, MixDataType(types[0], types[1]));
             break;
-          }
         }
       } else {
         assert(types.size() == 1);
@@ -807,13 +816,8 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
     assert(relop_expr->data_type == INT_TYPE ||
            relop_expr->data_type == FLOAT_TYPE);
     if (id_node->data_type != relop_expr->data_type) {
-      AstNode* conv = new AstNode(CONVERSION_NODE);
-      conv->semantic_value =
-          ConversionSemanticValue{relop_expr->data_type, id_node->data_type};
-      conv->data_type = id_node->data_type;
-      conv->child.push_back(relop_expr);
-      conv->parent = expr;
-      relop_expr->parent = conv;
+      AstNode* conv = MakeConvNode(relop_expr->data_type, id_node->data_type,
+                                   expr, relop_expr);
       expr->child.pop_back();
       expr->child.push_back(conv);
     }
@@ -845,6 +849,12 @@ void Analyzer::AnalyzeWhileStmt(AstNode* stmt) noexcept {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
   }
+  if (relop_expr->data_type != BOOLEAN_TYPE) {
+    AstNode* conv =
+        MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE, stmt, relop_expr);
+    stmt->child.pop_front();
+    stmt->child.push_front(conv);
+  }
   AnalyzeStatement(*std::next(stmt->child.begin()));
 }
 
@@ -859,6 +869,12 @@ void Analyzer::AnalyzeForStmt(AstNode* stmt) noexcept {
       success_ = false;
       PrintMsg(file_, condition->loc, ERR_VOID_ASSIGN);
     }
+    if (condition->data_type != BOOLEAN_TYPE) {
+      AstNode* conv = MakeConvNode(condition->data_type, BOOLEAN_TYPE,
+                                   relop_expr_list, condition);
+      relop_expr_list->child.pop_back();
+      relop_expr_list->child.push_back(conv);
+    }
   }
   AnalyzeAssignExprList(*it++);
   AnalyzeStatement(*it++);
@@ -872,6 +888,12 @@ void Analyzer::AnalyzeIfStmt(AstNode* stmt) noexcept {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
   }
+  if (relop_expr->data_type != BOOLEAN_TYPE) {
+    AstNode* conv =
+        MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE, stmt, relop_expr);
+    stmt->child.pop_front();
+    stmt->child.push_front(conv);
+  }
   AnalyzeStatement(*it++);
 }
 
@@ -882,6 +904,12 @@ void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) noexcept {
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
+  }
+  if (relop_expr->data_type != BOOLEAN_TYPE) {
+    AstNode* conv =
+        MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE, stmt, relop_expr);
+    stmt->child.pop_front();
+    stmt->child.push_front(conv);
   }
   AnalyzeStatement(*it++);
   AnalyzeStatement(*it++);
@@ -923,16 +951,8 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
             } else {
               PrintMsg(file_, stmt->child.front()->loc, WARN_CONVERSION, type,
                        return_type_);
-              assert(return_type_ == INT_TYPE || return_type_ == FLOAT_TYPE);
-              assert(type == INT_TYPE || type == FLOAT_TYPE);
-              AstNode* conv = new AstNode(CONVERSION_NODE);
-              conv->data_type = return_type_;
-              conv->semantic_value =
-                  ConversionSemanticValue{type, return_type_};
-              conv->parent = stmt;
               AstNode* ret = *stmt->child.begin();
-              conv->child.push_back(ret);
-              ret->parent = conv;
+              AstNode* conv = MakeConvNode(type, return_type_, stmt, ret);
               stmt->child.pop_front();
               stmt->child.push_front(conv);
             }
