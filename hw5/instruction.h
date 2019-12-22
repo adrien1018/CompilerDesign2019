@@ -355,8 +355,14 @@ struct IRInsr {
     bool is_real;
     size_t id;
   };
+  enum ImmType {
+    kConst, // a constant
+    kLabel, // a label ID referring to a IR label array position
+    kData   // a data ID referring to a CodeData array position
+  };
   Opcode op;
   Register rs1, rs2, rs3, rd;
+  ImmType imm_type;
   int64_t imm;
 };
 
