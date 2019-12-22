@@ -2,6 +2,7 @@
 #define INSTRUCTION_H_
 
 #include <array>
+#include <climits>
 #include <fstream>
 #include <string>
 #include <type_traits>
@@ -105,10 +106,16 @@ constexpr std::array<uint8_t, kNumSavedRegisters> kSavedRegisters = {
 constexpr std::array<uint8_t, kNumTempRegisters> kTempRegisters = {
     kT1, kT2, kT3, kT4, kT5, kT6};
 
-const std::string kRegisterName[] = {
+const std::string kIntRegisterName[] = {
     "zero", "ra", "sp", "gp", "tp",  "t0",  "t1", "t2", "s0", "s1", "a0",
     "a1",   "a2", "a3", "a4", "a5",  "a6",  "a7", "s2", "s3", "s4", "s5",
     "s6",   "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"};
+
+const std::string kFloatRegisterName[] = {
+    "ft0", "ft1", "ft2",  "ft3",  "ft4", "ft5", "ft6",  "ft7",
+    "fs0", "fs1", "fa0",  "fa1",  "fa2", "fa3", "fa4",  "fa5",
+    "fa6", "fa7", "fs2",  "fs3",  "fs4", "fs5", "fs6",  "fs7",
+    "fs8", "fs9", "fs10", "fs11", "ft8", "ft9", "ft10", "ft11"};
 
 const std::string kRoundingModeName[] = {"rne", "rtz", "rdn", "rup", "rmm"};
 
@@ -425,9 +432,9 @@ struct IRInsr {
     Register(size_t x, bool is_real = false) : id(x), is_real(is_real) {}
   };
   enum ImmType {
-    kConst,        // a constant
-    kLabel,        // a label ID referring to a IR label array position
-                   // negative label for builtin functions
+    kConst,  // a constant
+    kLabel,  // a label ID referring to a IR label array position
+    // negative label for builtin functions
     kData,         // a data ID referring to a CodeData array position
     kRoundingMode  // rounding mode (refer to rv64::kRoundingMode)
   };
@@ -458,6 +465,7 @@ struct IRInsr {
 struct RV64Insr {
   Opcode op;
   uint8_t rs1, rs2, rs3, rd;
+  IRInsr::ImmType imm_type;
   int64_t imm;
 };
 
@@ -541,7 +549,7 @@ class InsrGen {
 
  private:
   std::ofstream ofs_;
-  std::vector<RV64Insr> insr_;  // instruction buffer
+  std::vector<RV64Insr> buf_, insr_;  // instruction buffer
 
   class RegController {
    public:
@@ -595,18 +603,36 @@ class InsrGen {
   template <class... Args>
   void GeneratePInsr(Opcode op, Args&&... args);
 
-  void GenerateRTypeInsr(const IRInsr& insr, std::vector<MemoryLocation>& mem);
+  void GenerateRTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                         std::vector<uint8_t>& dirty);
+  void GenerateITypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                         std::vector<uint8_t>& dirty);
+  void GenerateSTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                         std::vector<uint8_t>& dirty);
+  void GenerateUTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                         std::vector<uint8_t>& dirty);
+  void GenerateBTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                         std::vector<uint8_t>& dirty);
+  void GenerateJTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                         std::vector<uint8_t>& dirty);
+  void GeneratePseudoInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                          std::vector<uint8_t>& dirty, int64_t offset);
 
-  void GeneratePrologue(int64_t sp_offset, size_t local);
-  void GenerateEpilogue(int64_t sp_offset, size_t local,
-                        std::vector<RV64Insr>& buf);
+  void GeneratePrologue(size_t local);
+  void GenerateEpilogue(size_t local);
 
   void PushCalleeRegisters(int64_t offset);
+  void PushCallerRegisters(int64_t offset);
   void PopCalleeRegisters(int64_t offset);
+  void PopCallerRegisters(int64_t offset);
+
   uint8_t GetSavedRegister(const IRInsr::Register& reg, bool load,
                            std::vector<MemoryLocation>& loc,
                            std::vector<uint8_t>& dirty);
   uint8_t GetTempRegister(size_t id, std::vector<MemoryLocation>& mem);
+
+  static constexpr int64_t kPosSpOffset = LLONG_MAX;
+  static constexpr int64_t kNegSpOffset = LLONG_MIN;
 };
 
 #endif  // INSTRUCTION_H_

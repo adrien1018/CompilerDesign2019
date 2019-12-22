@@ -1,29 +1,62 @@
 #include "instruction.h"
 
 #include <algorithm>
+#include <cassert>
 
 const IRInsr::NoRD IRInsr::kNoRD;
 
+// TODO: Support floating point instructions
+
 namespace {
 
-#define RD(v) (v.op < kIntegerInsr ? "x" : "f") << int(v.rd)
-#define RS1(v) (v.op < kIntegerInsr ? "x" : "f") << int(v.rs1)
-#define RS2(v) (v.op < kIntegerInsr ? "x" : "f") << int(v.rs2)
-#define RS3(v) (v.op < kIntegerInsr ? "x" : "f") << int(v.rs3)
-#define IMM(v) (v.imm)
+#define RD(v)                               \
+  (v.rd < 32 ? rv64::kIntRegisterName[v.rd] \
+             : rv64::kFloatRegisterName[v.rd - 128])
+#define RS1(v)                                \
+  (v.rs1 < 32 ? rv64::kIntRegisterName[v.rs1] \
+              : rv64::kFloatRegisterName[v.rs1 - 128])
+#define RS2(v)                                \
+  (v.rs2 < 32 ? rv64::kIntRegisterName[v.rs2] \
+              : rv64::kFloatRegisterName[v.rs2 - 128])
+#define RS3(v)                                \
+  (v.rs3 < 32 ? rv64::kIntRegisterName[v.rs3] \
+              : rv64::kFloatRegisterName[v.rs3 - 128])
+
+#define IMM(v) v.imm
+#define LABEL(v) ".L" << v.imm
+#define DATA(v) ".D" << v.imm
 
 void PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr) {
   switch (insr.op) {
     case PINSR_J:
     case PINSR_CALL:
     case PINSR_TAIL:
-      ofs << IMM(insr);
+      if (insr.imm_type == IRInsr::kConst) {
+        ofs << IMM(insr);
+      } else {
+        assert(insr.imm_type == IRInsr::kLabel);
+        ofs << LABEL(insr);
+      }
       break;
     case PINSR_LA:
-      ofs << RD(insr) << ", " << IMM(insr);
+      assert(insr.imm_type == IRInsr::kData);
+      ofs << RD(insr) << ", " << DATA(insr);
+      break;
+    case PINSR_MV:
+      ofs << RD(insr) << ", " << RS1(insr);
       break;
   }
 }
+
+namespace {
+
+constexpr bool IsLoadOp(Opcode op) {
+  return op == INSR_LB || op == INSR_LH || op == INSR_LW || op == INSR_LD ||
+         op == INSR_LBU || op == INSR_LHU || op == INSR_LWU || op == INSR_LHU ||
+         op == INSR_LWU || op == INSR_FLW || op == INSR_FLD;
+}
+
+}  // namespace
 
 // Serialize RV64 instructions
 std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
@@ -36,7 +69,12 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
         ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr);
         break;
       case I_TYPE:
-        ofs << RD(insr) << ", " << RS1(insr) << IMM(insr);
+        assert(insr.imm_type == IRInsr::kConst);
+        if (insr.op == INSR_JALR || IsLoadOp(insr.op)) {
+          ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+        } else {
+          ofs << RD(insr) << ", " << RS1(insr) << "," << IMM(insr);
+        }
         break;
       case U_TYPE:
         ofs << RD(insr) << ", " << IMM(insr);
@@ -45,10 +83,20 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
         ofs << RS2(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
         break;
       case B_TYPE:
-        ofs << RS1(insr) << ", " << RS2(insr) << ", " << IMM(insr);
+        if (insr.imm_type == IRInsr::kConst) {
+          ofs << RS1(insr) << ", " << RS2(insr) << ", " << IMM(insr);
+        } else {
+          assert(insr.imm_type == IRInsr::kLabel);
+          ofs << RS1(insr) << ", " << RS2(insr) << ", " << LABEL(insr);
+        }
         break;
       case J_TYPE:
-        ofs << RD(insr) << ", " << IMM(insr);
+        if (insr.imm_type == IRInsr::kConst) {
+          ofs << RD(insr) << ", " << IMM(insr);
+        } else {
+          assert(insr.imm_type == IRInsr::kLabel);
+          ofs << RD(insr) << ", " << LABEL(insr);
+        }
         break;
       case R0_TYPE:
         ofs << RD(insr) << ", " << RS1(insr);
@@ -101,13 +149,21 @@ void InsrGen::GeneratePInsr(Opcode op, Args &&... args) {
   switch (op) {
     case PINSR_J:
     case PINSR_CALL:
-    case PINSR_TAIL:
-      insr_.push_back({op, 0, 0, 0, 0, param[0]});
+    case PINSR_TAIL: {
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[0]);
+      insr_.push_back({op, 0, 0, 0, 0, imm_type, param[1]});
       break;
+    }
     case PINSR_LA: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
-      int64_t imm = param[1];
-      insr_.push_back({op, 0, 0, 0, rd, imm});
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
+      insr_.push_back({op, 0, 0, 0, rd, imm_type, param[2]});
+      break;
+    }
+    case PINSR_MV: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      uint8_t rs = static_cast<uint8_t>(param[1]);
+      insr_.push_back({op, rs, 0, 0, rd, IRInsr::kConst, 0});
       break;
     }
   }
@@ -122,46 +178,51 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
       uint8_t rs2 = static_cast<uint8_t>(param[2]);
-      insr_.push_back({op, rs1, rs2, 0, rd, 0});
+      buf_.push_back({op, rs1, rs2, 0, rd, IRInsr::kConst, 0});
       break;
     }
     case I_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
-      int64_t imm = param[2];
-      insr_.push_back({op, rs1, 0, 0, rd, imm});
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[2]);
+      int64_t imm = param[3];
+      buf_.push_back({op, rs1, 0, 0, rd, imm_type, imm});
       break;
     }
     case U_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
-      int64_t imm = param[1];
-      insr_.push_back({op, 0, 0, 0, rd, imm});
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
+      int64_t imm = param[2];
+      buf_.push_back({op, 0, 0, 0, rd, imm_type, imm});
       break;
     }
     case S_TYPE: {
       uint8_t rs2 = static_cast<uint8_t>(param[0]);
-      int64_t imm = param[1];
-      uint8_t rs1 = static_cast<uint8_t>(param[2]);
-      insr_.push_back({op, rs1, rs2, 0, 0, imm});
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
+      int64_t imm = param[2];
+      uint8_t rs1 = static_cast<uint8_t>(param[3]);
+      buf_.push_back({op, rs1, rs2, 0, 0, imm_type, imm});
       break;
     }
     case B_TYPE: {
       uint8_t rs1 = static_cast<uint8_t>(param[0]);
       uint8_t rs2 = static_cast<uint8_t>(param[1]);
-      int64_t imm = param[2];
-      insr_.push_back({op, rs1, rs2, 0, 0, imm});
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[2]);
+      int64_t imm = param[3];
+      buf_.push_back({op, rs1, rs2, 0, 0, imm_type, imm});
       break;
     }
     case J_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
-      int64_t imm = param[1];
-      insr_.push_back({op, 0, 0, 0, rd, imm});
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
+      int64_t imm = param[2];
+      buf_.push_back({op, 0, 0, 0, rd, imm_type, imm});
       break;
     }
     case R0_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
-      insr_.push_back({op, rs1, 0, 0, rd, 0});
+      buf_.push_back({op, rs1, 0, 0, rd, IRInsr::kConst, 0});
       break;
     }
     case R4_TYPE: {
@@ -169,7 +230,7 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
       uint8_t rs2 = static_cast<uint8_t>(param[2]);
       uint8_t rs3 = static_cast<uint8_t>(param[3]);
-      insr_.push_back({op, rs1, rs2, rs3, rd, 0});
+      buf_.push_back({op, rs1, rs2, rs3, rd, IRInsr::kConst, 0});
       break;
     }
   }
@@ -177,42 +238,162 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
 
 void InsrGen::PushCalleeRegisters(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp,
-                 offset + 8 * int64_t(i));
+    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(rv64::kCalleeSaved[i]));
+  }
+}
+
+void InsrGen::PushCallerRegisters(int64_t offset) {
+  // For now the caller saved registers will not be used.
+  return;
+  for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+    GenerateInsr(INSR_SD, rv64::kCallerSaved[i], rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(rv64::kCallerSaved[i]));
   }
 }
 
 void InsrGen::PopCalleeRegisters(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp,
+    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, IRInsr::kConst,
                  offset + 8 * int64_t(i));
   }
 }
 
-void InsrGen::GeneratePrologue(int64_t sp_offset, size_t local) {
-  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, 0);  // addi fp, sp, 0
-  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp,
-               -sp_offset);  // addi sp, sp, -offset
+void InsrGen::PopCallerRegisters(int64_t offset) {
+  // For now the caller saved registers will not be used.
+  return;
+  for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+    GenerateInsr(INSR_LD, rv64::kCallerSaved[i], rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(rv64::kCallerSaved[i]));
+  }
+}
+
+void InsrGen::GeneratePrologue(size_t local) {
+  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, 0);
+  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
   PushCalleeRegisters(local);
 }
 
-void InsrGen::GenerateEpilogue(int64_t sp_offset, size_t local,
-                               std::vector<RV64Insr> &buf) {
+void InsrGen::GenerateEpilogue(size_t local) {
   PopCalleeRegisters(local);
-  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp,
-               sp_offset);  // addi sp, sp, offset
+  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
+}
+
+void InsrGen::GenerateRTypeInsr(const IRInsr &ir,
+                                std::vector<MemoryLocation> &loc,
+                                std::vector<uint8_t> &dirty) {
+  uint8_t rd = GetSavedRegister(ir.rd, false, loc, dirty);
+  uint8_t rs1 = GetSavedRegister(ir.rs1, true, loc, dirty);
+  uint8_t rs2 = GetSavedRegister(ir.rs2, true, loc, dirty);
+  dirty[ir.rd.id] = 1;
+  GenerateInsr(ir.op, rd, rs1, rs2);
+}
+
+void InsrGen::GenerateITypeInsr(const IRInsr &ir,
+                                std::vector<MemoryLocation> &loc,
+                                std::vector<uint8_t> &dirty) {
+  uint8_t rd = GetSavedRegister(ir.rd, false, loc, dirty);
+  uint8_t rs1 = GetSavedRegister(ir.rs1, true, loc, dirty);
+  dirty[ir.rd.id] = 1;
+  GenerateInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
+}
+
+void InsrGen::GenerateSTypeInsr(const IRInsr &ir,
+                                std::vector<MemoryLocation> &loc,
+                                std::vector<uint8_t> &dirty) {
+  uint8_t rs1 = GetSavedRegister(ir.rs1, true, loc, dirty);
+  uint8_t rs2 = GetSavedRegister(ir.rs2, true, loc, dirty);
+  assert(ir.imm_type == IRInsr::kConst);
+  GenerateInsr(ir.op, rs2, rs1, ir.imm_type, ir.imm);
+}
+
+void InsrGen::GenerateUTypeInsr(const IRInsr &ir,
+                                std::vector<MemoryLocation> &loc,
+                                std::vector<uint8_t> &dirty) {
+  uint8_t rd = GetSavedRegister(ir.rd, false, loc, dirty);
+  dirty[ir.rd.id] = 1;
+  assert(ir.imm_type == IRInsr::kConst);
+  GenerateInsr(ir.op, rd, ir.imm_type, ir.imm);
+}
+
+void InsrGen::GenerateBTypeInsr(const IRInsr &ir,
+                                std::vector<MemoryLocation> &loc,
+                                std::vector<uint8_t> &dirty) {
+  uint8_t rs1 = GetSavedRegister(ir.rs1, true, loc, dirty);
+  uint8_t rs2 = GetSavedRegister(ir.rs2, true, loc, dirty);
+  GenerateInsr(ir.op, rs1, rs2, ir.imm_type, ir.imm);
+}
+
+void InsrGen::GenerateJTypeInsr(const IRInsr &ir,
+                                std::vector<MemoryLocation> &loc,
+                                std::vector<uint8_t> &dirty) {
+  uint8_t rd = GetSavedRegister(ir.rd, false, loc, dirty);
+  if (ir.op == INSR_JAL) dirty[ir.rd.id] = 1;
+  GenerateInsr(ir.op, rd, ir.imm_type, ir.imm);
+}
+
+void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
+                                 std::vector<MemoryLocation> &loc,
+                                 std::vector<uint8_t> &dirty, int64_t offset) {
+  switch (ir.op) {
+    case PINSR_J:
+    case PINSR_LA:
+      GeneratePInsr(ir.op, ir.imm_type, ir.imm);
+      break;
+    case PINSR_CALL:
+      PushCallerRegisters(offset);
+      GeneratePInsr(ir.op, ir.imm_type, ir.imm);
+      PopCallerRegisters(offset);
+      break;
+    case PINSR_RET:
+      GenerateEpilogue(offset);
+      GeneratePInsr(ir.op, ir.imm_type, ir.imm);
+      break;
+  }
 }
 
 void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
                          size_t num_register) {
-  std::vector<RV64Insr> buf;
+  buf_.clear();
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
   int64_t sp_offset = 0;  // TODO
-  GeneratePrologue(sp_offset, local);
-  GenerateEpilogue(sp_offset, local, buf);
+  for (const IRInsr &v : ir) {
+    if (v.op == PINSR_PUSH_SP) {
+      GeneratePrologue(local);
+      continue;
+    }
+    switch (kRV64InsrFormat.at(v.op)) {
+      case R_TYPE:
+        GenerateRTypeInsr(v, loc, dirty);
+        break;
+      case I_TYPE:
+        GenerateITypeInsr(v, loc, dirty);
+        break;
+      case S_TYPE:
+        GenerateSTypeInsr(v, loc, dirty);
+        break;
+      case U_TYPE:
+        GenerateRTypeInsr(v, loc, dirty);
+        break;
+      case B_TYPE:
+        GenerateITypeInsr(v, loc, dirty);
+        break;
+      case J_TYPE:
+        GenerateSTypeInsr(v, loc, dirty);
+        break;
+      case PSEUDO:
+        GeneratePseudoInsr(v, loc, dirty, local);
+        break;
+    }
+  }
+  GenerateEpilogue(local);
+  for (auto &v : buf_) {
+    if (v.imm == kPosSpOffset) v.imm = sp_offset;
+    if (v.imm == kNegSpOffset) v.imm = -sp_offset;
+  }
   // move all the instructions in the buffer to insr_
-  std::move(buf.begin(), buf.end(), std::back_inserter(insr_));
+  std::move(buf_.begin(), buf_.end(), std::back_inserter(insr_));
 }
 
 void InsrGen::Flush() {
