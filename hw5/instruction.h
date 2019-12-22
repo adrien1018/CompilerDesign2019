@@ -497,12 +497,12 @@ class InsrGen {
 
   void GenerateRTypeInsr(const IRInsr& insr, std::vector<MemoryLocation>& mem);
 
-  void GeneratePrologue(size_t sp_offset, size_t local);
-  void GenerateEpilogue(size_t sp_offset, size_t local,
+  void GeneratePrologue(int64_t sp_offset, size_t local);
+  void GenerateEpilogue(int64_t sp_offset, size_t local,
                         std::vector<RV64Insr>& buf);
 
-  void PushCalleeRegisters(size_t offset);
-  void PopCalleeRegisters(size_t offset);
+  void PushCalleeRegisters(int64_t offset);
+  void PopCalleeRegisters(int64_t offset);
   uint8_t GetSavedRegister(const IRInsr::Register& reg, bool load,
                            std::vector<MemoryLocation>& loc,
                            std::vector<uint8_t>& dirty);

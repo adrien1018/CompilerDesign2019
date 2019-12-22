@@ -688,6 +688,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
       AstNode* conv = new AstNode(CONVERSION_NODE);
       conv->semantic_value =
           ConversionSemanticValue{param.data_type, args.data_type};
+      conv->data_type = args.data_type;
       conv->child.push_back(nd);
       conv->parent = relop_expr_list;
       nd->parent = conv;
@@ -741,9 +742,33 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
           case BINARY_OP_ADD:
           case BINARY_OP_SUB:
           case BINARY_OP_MUL:
-          case BINARY_OP_DIV:
-            expr->data_type = MixDataType(types[0], types[1]);
+          case BINARY_OP_DIV: {
+            DataType type = MixDataType(types[0], types[1]);
+            AstNode* lhs = *expr->child.begin();
+            AstNode* rhs = *std::next(expr->child.begin());
+            if (lhs->data_type != type) {
+              AstNode* conv = new AstNode(CONVERSION_NODE);
+              conv->data_type = type;
+              conv->child.push_back(lhs);
+              conv->semantic_value =
+                  ConversionSemanticValue{lhs->data_type, type};
+              lhs->parent = conv;
+              expr->child.pop_front();
+              expr->child.push_front(conv);
+            }
+            if (rhs->data_type != type) {
+              AstNode* conv = new AstNode(CONVERSION_NODE);
+              conv->data_type = type;
+              conv->child.push_back(rhs);
+              conv->semantic_value =
+                  ConversionSemanticValue{rhs->data_type, type};
+              rhs->parent = conv;
+              expr->child.pop_back();
+              expr->child.push_back(conv);
+            }
+            expr->data_type = type;
             break;
+          }
         }
       } else {
         assert(types.size() == 1);
@@ -795,6 +820,7 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       AstNode* conv = new AstNode(CONVERSION_NODE);
       conv->semantic_value =
           ConversionSemanticValue{relop_expr->data_type, id_node->data_type};
+      conv->data_type = id_node->data_type;
       conv->child.push_back(relop_expr);
       conv->parent = expr;
       relop_expr->parent = conv;

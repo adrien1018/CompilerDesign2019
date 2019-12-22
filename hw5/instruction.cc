@@ -94,28 +94,32 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
 }
 
 template <class... Args>
-void InsrGen::GenerateInsr(Opcode op, Args &&... args) {}
+void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
+  std::initializer_list<int64_t> param{args...};
+}
 
-void InsrGen::PushCalleeRegisters(size_t offset) {
+void InsrGen::PushCalleeRegisters(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp, offset + 8 * i);
+    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp,
+                 offset + 8 * int64_t(i));
   }
 }
 
-void InsrGen::PopCalleeRegisters(size_t offset) {
+void InsrGen::PopCalleeRegisters(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, offset + 8 * i);
+    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp,
+                 offset + 8 * int64_t(i));
   }
 }
 
-void InsrGen::GeneratePrologue(size_t sp_offset, size_t local) {
+void InsrGen::GeneratePrologue(int64_t sp_offset, size_t local) {
   GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, 0);  // addi fp, sp, 0
   GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp,
-               -int64_t(sp_offset));  // addi sp, sp, -offset
+               -sp_offset);  // addi sp, sp, -offset
   PushCalleeRegisters(local);
 }
 
-void InsrGen::GenerateEpilogue(size_t sp_offset, size_t local,
+void InsrGen::GenerateEpilogue(int64_t sp_offset, size_t local,
                                std::vector<RV64Insr> &buf) {
   PopCalleeRegisters(local);
   GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp,
@@ -127,7 +131,7 @@ void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
   std::vector<RV64Insr> buf;
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
-  size_t sp_offset = 0;  // TODO
+  int64_t sp_offset = 0;  // TODO
   GeneratePrologue(sp_offset, local);
   GenerateEpilogue(sp_offset, local, buf);
   // move all the instructions in the buffer to insr_
