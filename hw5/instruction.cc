@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <regex>
 
 const IRInsr::NoRD IRInsr::kNoRD;
 
@@ -465,7 +466,56 @@ void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
   std::move(buf_.begin(), buf_.end(), std::back_inserter(insr_));
 }
 
+namespace {
+
+void PrintData(std::ofstream &ofs, const CodeData &data) {
+  size_t idx = data.index();
+  switch (idx) {
+    case 0: {  // std::vector<uint8_t>
+      auto &v = std::get<std::vector<uint8_t>>(data);
+      ofs << ".word";
+      if (!v.empty()) {
+        ofs << " ";
+        int32_t init = 0;
+        assert(v.size() == 4);
+        for (size_t i = 0; i < 4; ++i) init |= v[i] << (i << 3);
+        ofs << init;
+      }
+      break;
+    }
+    case 1: {  // std::string
+      std::string s = std::get<std::string>(data);
+      s = std::regex_replace(s, std::regex("(\r)"), "\\r");
+      s = std::regex_replace(s, std::regex("(\n)"), "\\n");
+      s = std::regex_replace(s, std::regex("(\t)"), "\\t");
+      ofs << ".string \"" << s << "\"";
+      break;
+    }
+    case 2: {  // size_t
+      ofs << ".space " << std::get<size_t>(data);
+      break;
+    }
+  }
+}
+
+}  // namespace
+
+void InsrGen::GenerateData(const std::vector<CodeData> &data) {
+  data_.insert(data_.end(), data.begin(), data.end());
+}
+
+void InsrGen::GenerateData(std::vector<CodeData> &&data) {
+  std::move(data.begin(), data.end(), std::back_inserter(data_));
+}
+
 void InsrGen::Flush() {
+  ofs_ << ".data\n";
+  for (size_t i = 0; i < data_.size(); ++i) {
+    ofs_ << ".D" << i << ": ";
+    PrintData(ofs_, data_[i]);
+    ofs_ << "\n";
+  }
+  ofs_ << ".text\n";
   for (auto &x : insr_) ofs_ << x << "\n";
   insr_.clear();
 }

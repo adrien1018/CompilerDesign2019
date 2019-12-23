@@ -620,15 +620,12 @@ class InsrGen {
    * Generate a list of global variables (`.data` section in the RV64 assembly).
    */
   void GenerateData(const std::vector<CodeData>& data);
-
-  /*
-   * Generate a single global variable.
-   */
-  void GenerateData(const CodeData& data);
+  void GenerateData(std::vector<CodeData>&& data);
 
  private:
   std::ofstream ofs_;
   std::vector<RV64Insr> buf_, insr_;  // instruction buffer
+  std::vector<CodeData> data_;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
 
