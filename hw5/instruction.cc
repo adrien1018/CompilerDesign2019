@@ -258,9 +258,15 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
 
 void InsrGen::PushCalleeRegs(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    if (rv64::kCalleeSaved[i] == rv64::kSp) continue;
-    GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(rv64::kCalleeSaved[i]));
+    uint8_t reg = rv64::kCalleeSaved[i];
+    if (reg == rv64::kSp) continue;
+    GenerateInsr(INSR_SD, reg, rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(reg));
+  }
+  for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
+    uint8_t reg = rv64::kFloatSavedRegs[i];
+    GenerateInsr(INSR_SD, reg, rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(reg - 96));
   }
 }
 
@@ -275,9 +281,15 @@ void InsrGen::PushCallerRegs(int64_t offset) {
 
 void InsrGen::PopCalleeRegs(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    if (rv64::kCalleeSaved[i] == rv64::kSp) continue;
-    GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(rv64::kCalleeSaved[i]));
+    uint8_t reg = rv64::kCalleeSaved[i];
+    if (reg == rv64::kSp) continue;
+    GenerateInsr(INSR_LD, reg, rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(reg));
+  }
+  for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
+    uint8_t reg = rv64::kFloatSavedRegs[i];
+    GenerateInsr(INSR_LD, reg, rv64::kSp, IRInsr::kConst,
+                 offset + 8 * int64_t(reg - 96));
   }
 }
 
@@ -413,7 +425,7 @@ void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
   buf_.clear();
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
-  int64_t sp_offset = 8 * 32 + 8 * num_register;  // TODO
+  int64_t sp_offset = 8 * 64 + 8 * num_register;  // TODO: reduce this number
   for (const IRInsr &v : ir) {
     if (v.op == PINSR_PUSH_SP) {
       GeneratePrologue(local);
