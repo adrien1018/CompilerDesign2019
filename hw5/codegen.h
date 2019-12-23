@@ -29,23 +29,23 @@ class CodeGen {
 
   /*** first pass: calculate the offset (to fp) of each local variables ***/
   size_t cur_stack_, cur_register_;
-  void InitState(FunctionAttr&);
-  size_t AllocStack(FunctionAttr&, size_t);
-  size_t AllocRegister(FunctionAttr&);
+  void InitState(FunctionAttr &);
+  size_t AllocStack(FunctionAttr &, size_t);
+  size_t AllocRegister(FunctionAttr &);
   void VisitProgram(AstNode *prog);
   void VisitGlobalDecl(AstNode *prog);
   void VisitFunctionDecl(AstNode *decl);
-  void VisitStmtList(AstNode *stmt_list, FunctionAttr&);
-  void VisitStatement(AstNode *stmt, FunctionAttr&);
-  void VisitDeclList(AstNode *decl_list, FunctionAttr&);
-  void VisitVariableDecl(AstNode *decl, FunctionAttr&);
-  void VisitBlock(AstNode *block, FunctionAttr&);
-  void VisitRelopExpr(AstNode* expr, FunctionAttr&, size_t dest);
-  void VisitConversion(AstNode* expr, FunctionAttr&, size_t dest);
-  void VisitOpr(AstNode* expr, FunctionAttr&, size_t dest);
-  void VisitConst(AstNode* expr, FunctionAttr&, size_t dest);
-  void VisitIdentifier(AstNode* expr, FunctionAttr&, size_t dest);
-  void VisitFunctionCall(AstNode* expr, FunctionAttr&, size_t dest);
+  void VisitStmtList(AstNode *stmt_list, FunctionAttr &);
+  void VisitStatement(AstNode *stmt, FunctionAttr &);
+  void VisitDeclList(AstNode *decl_list, FunctionAttr &);
+  void VisitVariableDecl(AstNode *decl, FunctionAttr &);
+  void VisitBlock(AstNode *block, FunctionAttr &);
+  void VisitRelopExpr(AstNode *expr, FunctionAttr &, size_t dest);
+  void VisitConversion(AstNode *expr, FunctionAttr &, size_t dest);
+  void VisitOpr(AstNode *expr, FunctionAttr &, size_t dest);
+  void VisitConst(AstNode *expr, FunctionAttr &, size_t dest);
+  void VisitIdentifier(AstNode *expr, FunctionAttr &, size_t dest);
+  void VisitFunctionCall(AstNode *expr, FunctionAttr &, size_t dest);
 
   /*** second pass: generate RISC-V assembly ***/
   void GenerateVariableDecl(AstNode *var_decl, bool global);

@@ -524,10 +524,10 @@ class RegCtrl {
   // there is a clean register. Try to avoid returning dirty register (an
   // extra store required).
   template <size_t N>
-  uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced,
-                      const std::vector<uint8_t>& dirty) {
+  uint8_t GetReg(const std::array<uint8_t, N>& pool, size_t& replaced,
+                 const std::vector<uint8_t>& dirty) {
     bool found = false;
-    uint8_t rg;
+    uint8_t rg = 0;
     for (size_t i = 0; i < N; ++i) {
       if (regs_[pool[i]] == kEmpty) return pool[i];
       if (regs_[pool[i]] != kReserved) {
@@ -541,19 +541,18 @@ class RegCtrl {
     return rg;
   }
 
-  uint8_t GetSavedRegister(size_t& replaced,
-                           const std::vector<uint8_t>& dirty) {
+  uint8_t GetSavedReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
     if constexpr (std::is_same_v<T, int>) {
-      return GetRegister(rv64::kIntSavedRegs, replaced, dirty);
+      return GetReg(rv64::kIntSavedRegs, replaced, dirty);
     } else {
-      return GetRegister(rv64::kFloatSavedRegs, replaced, dirty);
+      return 128 | GetReg(rv64::kFloatSavedRegs, replaced, dirty);
     }
   }
-  uint8_t GetTempRegister(size_t& replaced, const std::vector<uint8_t>& dirty) {
+  uint8_t GetTempReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
     if constexpr (std::is_same_v<T, int>) {
-      return GetRegister(rv64::kIntTempRegs, replaced, dirty);
+      return GetReg(rv64::kIntTempRegs, replaced, dirty);
     } else {
-      return GetRegister(rv64::kFloatTempRegs, replaced, dirty);
+      return 128 | GetReg(rv64::kFloatTempRegs, replaced, dirty);
     }
   }
 
@@ -656,15 +655,15 @@ class InsrGen {
   size_t GeneratePrologue(size_t local);
   void GenerateEpilogue(size_t local);
 
-  void PushCalleeRegisters(int64_t offset);
-  void PushCallerRegisters(int64_t offset);
-  void PopCalleeRegisters(int64_t offset);
-  void PopCallerRegisters(int64_t offset);
+  void PushCalleeRegs(int64_t offset);
+  void PushCallerRegs(int64_t offset);
+  void PopCalleeRegs(int64_t offset);
+  void PopCallerRegs(int64_t offset);
 
-  uint8_t GetSavedRegister(const IRInsr::Register& reg, bool load,
-                           std::vector<MemoryLocation>& loc,
-                           std::vector<uint8_t>& dirty);
-  uint8_t GetTempRegister(size_t id, std::vector<MemoryLocation>& mem);
+  template <class T>
+  uint8_t GetSavedReg(const IRInsr::Register& reg, bool load,
+                      std::vector<MemoryLocation>& loc,
+                      std::vector<uint8_t>& dirty, RegCtrl<T>& ctrl);
 
   static constexpr int64_t kPosSpOffset = LLONG_MAX;
   static constexpr int64_t kNegSpOffset = LLONG_MIN;
