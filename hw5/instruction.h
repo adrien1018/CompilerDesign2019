@@ -280,14 +280,14 @@ enum Opcode {
   kFloatingPointInsr,
 
   /*** Pseudo-instructions ***/
-  PINSR_J,       // Jump (+dest ID)
-  PINSR_CALL,    // Call function (+dest ID)
-  PINSR_TAIL,    // Tail call function (+dest ID) (opt only)
-  PINSR_RET,     // Return (no arg)
-  PINSR_LA,      // Load absolute address
-  PINSR_MV,      // Copy (can be optimized!)
-  PINSR_FMV_S,   // Floating-point copy (can be optimized!)
-  PINSR_PUSH_SP, // push stack pointer here
+  PINSR_J,        // Jump (+dest ID)
+  PINSR_CALL,     // Call function (+dest ID)
+  PINSR_TAIL,     // Tail call function (+dest ID) (opt only)
+  PINSR_RET,      // Return (no arg)
+  PINSR_LA,       // Load absolute address
+  PINSR_MV,       // Copy (can be optimized!)
+  PINSR_FMV_S,    // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP,  // push stack pointer here
   kPseudoInsr
 };
 
@@ -428,6 +428,9 @@ const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_FLE_S, R_TYPE},     {INSR_FEQ_D, R_TYPE},
     {INSR_FLT_D, R_TYPE},     {INSR_FLE_D, R_TYPE},
     {INSR_FCLASS_S, R0_TYPE}, {INSR_FCLASS_D, R0_TYPE}};
+
+const std::string kBuiltinLabel[] = {"_write_str", "_write_int", "_write_float",
+                                     "_read_int", "_read_float"};
 
 struct IRInsr {
   struct NoRD {};
@@ -626,7 +629,7 @@ class InsrGen {
   void GeneratePseudoInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
                           std::vector<uint8_t>& dirty, int64_t offset);
 
-  void GeneratePrologue(size_t local);
+  size_t GeneratePrologue(size_t local);
   void GenerateEpilogue(size_t local);
 
   void PushCalleeRegisters(int64_t offset);

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 
 const IRInsr::NoRD IRInsr::kNoRD;
 
@@ -22,9 +23,10 @@ namespace {
   (v.rs3 < 32 ? rv64::kIntRegisterName[v.rs3] \
               : rv64::kFloatRegisterName[v.rs3 - 128])
 
-#define IMM(v) v.imm
-#define LABEL(v) ".L" << v.imm
-#define DATA(v) ".D" << v.imm
+#define LABEL(v) \
+  (v.imm < 0 ? kBuiltinLabel[~v.imm] : ".L" + std::to_string(v.imm))
+#define IMM(v) (v.imm)
+#define DATA(v) (".D" + std::to_string(v.imm))
 
 void PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr) {
   switch (insr.op) {
@@ -73,7 +75,7 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
         if (insr.op == INSR_JALR || IsLoadOp(insr.op)) {
           ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
         } else {
-          ofs << RD(insr) << ", " << RS1(insr) << "," << IMM(insr);
+          ofs << RD(insr) << ", " << RS1(insr) << ", " << IMM(insr);
         }
         break;
       case U_TYPE:
@@ -136,9 +138,10 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
   }
   loc[id].in_register = true;
   loc[id].mem = rg;
+  reg_.SetPseudoReg(rg, id);
   if (load) {
     // load the pseudo register from memory
-    GenerateInsr(INSR_LD, rg, rv64::kFp, -int64_t(id) * 8);
+    GenerateInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, -int64_t(id) * 8);
   }
   return rg;
 }
@@ -151,19 +154,19 @@ void InsrGen::GeneratePInsr(Opcode op, Args &&... args) {
     case PINSR_CALL:
     case PINSR_TAIL: {
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[0]);
-      insr_.push_back({op, 0, 0, 0, 0, imm_type, param[1]});
+      buf_.push_back({op, 0, 0, 0, 0, imm_type, param[1]});
       break;
     }
     case PINSR_LA: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
-      insr_.push_back({op, 0, 0, 0, rd, imm_type, param[2]});
+      buf_.push_back({op, 0, 0, 0, rd, imm_type, param[2]});
       break;
     }
     case PINSR_MV: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs = static_cast<uint8_t>(param[1]);
-      insr_.push_back({op, rs, 0, 0, rd, IRInsr::kConst, 0});
+      buf_.push_back({op, rs, 0, 0, rd, IRInsr::kConst, 0});
       break;
     }
   }
@@ -171,7 +174,10 @@ void InsrGen::GeneratePInsr(Opcode op, Args &&... args) {
 
 template <class... Args>
 void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
-  if (op >= kFloatingPointInsr) GeneratePInsr(op, std::forward<Args>(args)...);
+  if (op >= kFloatingPointInsr) {
+    GeneratePInsr(op, std::forward<Args>(args)...);
+    return;
+  }
   std::vector<int64_t> param{args...};
   switch (kRV64InsrFormat.at(op)) {
     case R_TYPE: {
@@ -198,9 +204,9 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
     }
     case S_TYPE: {
       uint8_t rs2 = static_cast<uint8_t>(param[0]);
-      IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
-      int64_t imm = param[2];
-      uint8_t rs1 = static_cast<uint8_t>(param[3]);
+      uint8_t rs1 = static_cast<uint8_t>(param[1]);
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[2]);
+      int64_t imm = param[3];
       buf_.push_back({op, rs1, rs2, 0, 0, imm_type, imm});
       break;
     }
@@ -238,6 +244,7 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
 
 void InsrGen::PushCalleeRegisters(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+    if (rv64::kCalleeSaved[i] == rv64::kSp) continue;
     GenerateInsr(INSR_SD, rv64::kCalleeSaved[i], rv64::kSp, IRInsr::kConst,
                  offset + 8 * int64_t(rv64::kCalleeSaved[i]));
   }
@@ -254,8 +261,9 @@ void InsrGen::PushCallerRegisters(int64_t offset) {
 
 void InsrGen::PopCalleeRegisters(int64_t offset) {
   for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+    if (rv64::kCalleeSaved[i] == rv64::kSp) continue;
     GenerateInsr(INSR_LD, rv64::kCalleeSaved[i], rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(i));
+                 offset + 8 * int64_t(rv64::kCalleeSaved[i]));
   }
 }
 
@@ -268,10 +276,11 @@ void InsrGen::PopCallerRegisters(int64_t offset) {
   }
 }
 
-void InsrGen::GeneratePrologue(size_t local) {
-  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, 0);
+size_t InsrGen::GeneratePrologue(size_t local) {
   GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
   PushCalleeRegisters(local);
+  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
+  return 8 * 32;
 }
 
 void InsrGen::GenerateEpilogue(size_t local) {
@@ -338,17 +347,24 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
   switch (ir.op) {
     case PINSR_J:
     case PINSR_LA:
-      GeneratePInsr(ir.op, ir.imm_type, ir.imm);
+      GenerateInsr(ir.op, ir.imm_type, ir.imm);
       break;
     case PINSR_CALL:
       PushCallerRegisters(offset);
-      GeneratePInsr(ir.op, ir.imm_type, ir.imm);
+      GenerateInsr(ir.op, ir.imm_type, ir.imm);
       PopCallerRegisters(offset);
       break;
     case PINSR_RET:
       GenerateEpilogue(offset);
-      GeneratePInsr(ir.op, ir.imm_type, ir.imm);
+      GenerateInsr(ir.op, ir.imm_type, ir.imm);
       break;
+    case PINSR_MV: {
+      uint8_t rd = GetSavedRegister(ir.rd, false, loc, dirty);
+      uint8_t rs1 = GetSavedRegister(ir.rs1, true, loc, dirty);
+      dirty[rd] = 1;
+      GenerateInsr(ir.op, rd, rs1);
+      break;
+    }
   }
 }
 
@@ -357,34 +373,35 @@ void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
   buf_.clear();
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
-  int64_t sp_offset = 0;  // TODO
+  int64_t sp_offset = 8 * 32 + 8 * num_register;  // TODO
   for (const IRInsr &v : ir) {
     if (v.op == PINSR_PUSH_SP) {
       GeneratePrologue(local);
       continue;
     }
-    switch (kRV64InsrFormat.at(v.op)) {
-      case R_TYPE:
-        GenerateRTypeInsr(v, loc, dirty);
-        break;
-      case I_TYPE:
-        GenerateITypeInsr(v, loc, dirty);
-        break;
-      case S_TYPE:
-        GenerateSTypeInsr(v, loc, dirty);
-        break;
-      case U_TYPE:
-        GenerateRTypeInsr(v, loc, dirty);
-        break;
-      case B_TYPE:
-        GenerateITypeInsr(v, loc, dirty);
-        break;
-      case J_TYPE:
-        GenerateSTypeInsr(v, loc, dirty);
-        break;
-      case PSEUDO:
-        GeneratePseudoInsr(v, loc, dirty, local);
-        break;
+    if (v.op >= kFloatingPointInsr) {
+      GeneratePseudoInsr(v, loc, dirty, local);
+    } else {
+      switch (kRV64InsrFormat.at(v.op)) {
+        case R_TYPE:
+          GenerateRTypeInsr(v, loc, dirty);
+          break;
+        case I_TYPE:
+          GenerateITypeInsr(v, loc, dirty);
+          break;
+        case S_TYPE:
+          GenerateSTypeInsr(v, loc, dirty);
+          break;
+        case U_TYPE:
+          GenerateRTypeInsr(v, loc, dirty);
+          break;
+        case B_TYPE:
+          GenerateITypeInsr(v, loc, dirty);
+          break;
+        case J_TYPE:
+          GenerateSTypeInsr(v, loc, dirty);
+          break;
+      }
     }
   }
   GenerateEpilogue(local);
