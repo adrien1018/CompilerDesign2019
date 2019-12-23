@@ -126,7 +126,7 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
   size_t id = reg.id;
   if (loc[id].in_register) return std::get<uint8_t>(loc[id].mem);
   size_t to_replace = (size_t)-1;
-  uint8_t rg = reg_.GetSavedRegister(to_replace, dirty);
+  uint8_t rg = int_reg_.GetSavedRegister(to_replace, dirty);
   if (to_replace != (size_t)-1) {
     // store the register back to memory if the register is dirty
     loc[to_replace].in_register = false;
@@ -138,7 +138,7 @@ uint8_t InsrGen::GetSavedRegister(const IRInsr::Register &reg, bool load,
   }
   loc[id].in_register = true;
   loc[id].mem = rg;
-  reg_.SetPseudoReg(rg, id);
+  int_reg_.SetPseudoReg(rg, id);
   if (load) {
     // load the pseudo register from memory
     GenerateInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, -int64_t(id) * 8);

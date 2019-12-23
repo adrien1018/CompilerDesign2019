@@ -17,8 +17,10 @@ namespace rv64 {
 constexpr size_t kRegisters = 32;
 constexpr size_t kNumCalleeSaved = 13;
 constexpr size_t kNumCallerSaved = 16;
-constexpr size_t kNumSavedRegisters = 11;
-constexpr size_t kNumTempRegisters = 6;
+constexpr size_t kNumIntSavedRegs = 11;
+constexpr size_t kNumIntTempRegs = 6;
+constexpr size_t kNumFloatSavedRegs = 12;
+constexpr size_t kNumFloatTempRegs = 11;
 
 // RISC-V register ABI names
 constexpr uint8_t kZero = 0;
@@ -100,11 +102,17 @@ constexpr std::array<uint8_t, kNumCalleeSaved> kCalleeSaved = {
 constexpr std::array<uint8_t, kNumCallerSaved> kCallerSaved = {
     1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31};
 
-constexpr std::array<uint8_t, kNumSavedRegisters> kSavedRegisters = {
+constexpr std::array<uint8_t, kNumIntSavedRegs> kIntSavedRegs = {
     kS1, kS2, kS3, kS4, kS5, kS6, kS7, kS8, kS9, kS10, kS11};
 
-constexpr std::array<uint8_t, kNumTempRegisters> kTempRegisters = {
-    kT1, kT2, kT3, kT4, kT5, kT6};
+constexpr std::array<uint8_t, kNumIntTempRegs> kIntTempRegs = {kT1, kT2, kT3,
+                                                               kT4, kT5, kT6};
+
+constexpr std::array<uint8_t, kNumFloatSavedRegs> kFloatSavedRegs = {
+    kFs0, kFs1, kFs2, kFs3, kFs4, kFs5, kFs6, kFs7, kFs8, kFs9, kFs10, kFs11};
+
+constexpr std::array<uint8_t, kNumFloatTempRegs> kFloatTempRegs = {
+    kFt0, kFt1, kFt2, kFt3, kFt4, kFt5, kFt6, kFt7, kFt8, kFt9, kFt10};
 
 const std::string kIntRegisterName[] = {
     "zero", "ra", "sp", "gp", "tp",  "t0",  "t1", "t2", "s0", "s1", "a0",
@@ -497,6 +505,67 @@ struct Label {
 //   string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
 
+template <class T>
+class RegCtrl {
+ public:
+  explicit RegCtrl() {
+    std::fill(regs_.begin(), regs_.end(), kReserved);
+    if constexpr (std::is_same_v<T, int>) {
+      for (uint8_t p : rv64::kIntSavedRegs) regs_[p] = kEmpty;
+      for (uint8_t p : rv64::kIntTempRegs) regs_[p] = kEmpty;
+    } else {
+      static_assert(std::is_same_v<T, float>);
+      for (uint8_t p : rv64::kFloatSavedRegs) regs_[p] = kEmpty;
+      for (uint8_t p : rv64::kFloatTempRegs) regs_[p] = kEmpty;
+    }
+  }
+
+  // Get available register. If no registers are available, check whether
+  // there is a clean register. Try to avoid returning dirty register (an
+  // extra store required).
+  template <size_t N>
+  uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced,
+                      const std::vector<uint8_t>& dirty) {
+    bool found = false;
+    uint8_t rg;
+    for (size_t i = 0; i < N; ++i) {
+      if (regs_[pool[i]] == kEmpty) return pool[i];
+      if (regs_[pool[i]] != kReserved) {
+        if (!found || !dirty[regs_[pool[i]]]) {
+          found = true;
+          rg = pool[i];
+        }
+      }
+    }
+    replaced = regs_[rg];
+    return rg;
+  }
+
+  uint8_t GetSavedRegister(size_t& replaced,
+                           const std::vector<uint8_t>& dirty) {
+    if constexpr (std::is_same_v<T, int>) {
+      return GetRegister(rv64::kIntSavedRegs, replaced, dirty);
+    } else {
+      return GetRegister(rv64::kFloatSavedRegs, replaced, dirty);
+    }
+  }
+  uint8_t GetTempRegister(size_t& replaced, const std::vector<uint8_t>& dirty) {
+    if constexpr (std::is_same_v<T, int>) {
+      return GetRegister(rv64::kIntTempRegs, replaced, dirty);
+    } else {
+      return GetRegister(rv64::kFloatTempRegs, replaced, dirty);
+    }
+  }
+
+  size_t GetPseudoReg(uint8_t pos) const { return regs_[pos]; };
+  void SetPseudoReg(uint8_t pos, size_t id) { regs_[pos] = id; };
+
+ private:
+  static constexpr size_t kEmpty = (size_t)-1;
+  static constexpr size_t kReserved = (size_t)-2;
+  std::array<size_t, rv64::kRegisters> regs_{};
+};
+
 /**
  * RV64 Instruction Generator
  *
@@ -561,53 +630,8 @@ class InsrGen {
  private:
   std::ofstream ofs_;
   std::vector<RV64Insr> buf_, insr_;  // instruction buffer
-
-  class RegController {
-   public:
-    explicit RegController() {
-      std::fill(regs_.begin(), regs_.end(), kReserved);
-      for (uint8_t p : rv64::kSavedRegisters) regs_[p] = kEmpty;
-      for (uint8_t p : rv64::kTempRegisters) regs_[p] = kEmpty;
-    }
-
-    // Get available register. If no registers are available, check whether
-    // there is a clean register. Try to avoid returning dirty register (an
-    // extra store required).
-    template <size_t N>
-    uint8_t GetRegister(const std::array<uint8_t, N>& pool, size_t& replaced,
-                        const std::vector<uint8_t>& dirty) {
-      bool found = false;
-      uint8_t rg;
-      for (size_t i = 0; i < N; ++i) {
-        if (regs_[pool[i]] == kEmpty) return pool[i];
-        if (regs_[pool[i]] != kReserved) {
-          if (!found || !dirty[regs_[pool[i]]]) {
-            found = true;
-            rg = pool[i];
-          }
-        }
-      }
-      replaced = regs_[rg];
-      return rg;
-    }
-
-    uint8_t GetSavedRegister(size_t& replaced,
-                             const std::vector<uint8_t>& dirty) {
-      return GetRegister(rv64::kSavedRegisters, replaced, dirty);
-    }
-    uint8_t GetTempRegister(size_t& replaced,
-                            const std::vector<uint8_t>& dirty) {
-      return GetRegister(rv64::kTempRegisters, replaced, dirty);
-    }
-
-    size_t GetPseudoReg(uint8_t pos) const { return regs_[pos]; };
-    void SetPseudoReg(uint8_t pos, size_t id) { regs_[pos] = id; };
-
-   private:
-    static constexpr size_t kEmpty = (size_t)-1;
-    static constexpr size_t kReserved = (size_t)-2;
-    std::array<size_t, rv64::kRegisters> regs_{};
-  } reg_;
+  RegCtrl<int> int_reg_;
+  RegCtrl<float> float_reg_;
 
   template <class... Args>
   void GenerateInsr(Opcode op, Args&&... args);
