@@ -207,7 +207,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
 void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
   auto& value = std::get<ConstValue>(expr->semantic_value);
   if (expr->data_type == CONST_STRING_TYPE) {
-    ir_.emplace_back(PINSR_LOAD_DATA_ADDR, dest, IRInsr::kData, data_.size());
+    ir_.emplace_back(PINSR_LA, dest, IRInsr::kData, data_.size());
     data_.emplace_back(std::get<std::string>(value));
   } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
     size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);

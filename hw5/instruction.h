@@ -133,8 +133,8 @@ enum Opcode {
   //   NEXT: [next instruction]
   //   if LABEL is too far away to fit into immediate, or
   //     [negative branch] rs1, rs2, NEXT
-  //     la [tmp], LABEL
-  //     jalr x0, 0(la)
+  //     lui [tmp], %hi(LABEL)
+  //     jalr x0, %lo(label)([tmp])
   //   NEXT: [next instruction]
   //   if LABEL is even far away to fit into jal's immediate
   //   (clang and gcc both appear to fail in this case...)
@@ -280,17 +280,14 @@ enum Opcode {
   kFloatingPointInsr,
 
   /*** Pseudo-instructions ***/
-  PINSR_J,               // Jump (+dest ID)
-  PINSR_CALL,            // Call function (+dest ID)
-  PINSR_TAIL,            // Tail call function (+dest ID) (opt only)
-  PINSR_RET,             // Return (no arg)
-  PINSR_LA,              // Load absolute address
-  PINSR_MV,              // Copy (can be optimized!)
-  PINSR_FMV_S,           // Floating-point copy (can be optimized!)
-  PINSR_PUSH_SP,         // push stack pointer here
-  PINSR_LOAD_DATA_ADDR,  // imm_type == kData; expands to
-                         //   lui rd, %hi([imm_label])
-                         //   addi rd, rd, %lo([imm_label])
+  PINSR_J,       // Jump (+dest ID)
+  PINSR_CALL,    // Call function (+dest ID)
+  PINSR_TAIL,    // Tail call function (+dest ID) (opt only)
+  PINSR_RET,     // Return (no arg)
+  PINSR_LA,      // Load absolute address
+  PINSR_MV,      // Copy (can be optimized!)
+  PINSR_FMV_S,   // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP, // push stack pointer here
   kPseudoInsr
 };
 
