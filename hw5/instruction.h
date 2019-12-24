@@ -603,7 +603,7 @@ class InsrGen {
   explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
                    std::vector<Label>&& label, std::vector<TableEntry>&& tab,
                    std::vector<size_t>&& func);
-  explicit InsrGen(CodeGenInfo&& code_gen);
+  explicit InsrGen(const std::string& file, CodeGenInfo&& code_gen);
 
   // The instructions will be flushed upon destruction.
   ~InsrGen() { Flush(); }

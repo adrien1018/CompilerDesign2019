@@ -201,9 +201,8 @@ std::string EscapeString(const std::string &str) {
 InsrGen::InsrGen(const std::string &file) : ofs_(file) {}
 
 InsrGen::InsrGen(const std::string &file, std::vector<CodeData> &&data,
-                          std::vector<Label> &&label,
-                          std::vector<TableEntry> &&tab,
-                          std::vector<size_t> &&func)
+                 std::vector<Label> &&label, std::vector<TableEntry> &&tab,
+                 std::vector<size_t> &&func)
     : ofs_(file),
       data_(std::move(data)),
       label_(std::move(label)),
@@ -211,7 +210,14 @@ InsrGen::InsrGen(const std::string &file, std::vector<CodeData> &&data,
       tab_(std::move(tab)),
       tot_label_(label_.size()) {}
 
-InsrGen::InsrGen(CodeGenInfo &&code_gen) {}
+InsrGen::InsrGen(const std::string &file, CodeGenInfo &&code_gen)
+    : ofs_(file),
+      data_(std::move(std::get<2>(code_gen))),
+      label_(std::move(std::get<1>(code_gen))),
+      func_(),
+      ir_insr_(std::move(std::get<0>(code_gen))),
+      tab_(std::move(std::get<3>(code_gen))),
+      tot_label_(label_.size()) {}
 
 template <class T>
 uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,

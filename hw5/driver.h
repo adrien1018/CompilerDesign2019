@@ -76,7 +76,7 @@ class Driver : public yyFlexLexer {
   void PrintError(const Location& l, const std::string& m);
 
   bool SemanticAnalysis();
-  void CodeGeneration();
+  void CodeGeneration(const std::string& outfile);
 
   yy::parser::symbol_type yylex_a();
 };
