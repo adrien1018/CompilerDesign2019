@@ -520,7 +520,8 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
         size_t reg = AllocRegister(attr);
         VisitRelopExpr(*it, attr, reg);
         size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
-        ir_.emplace_back(PINSR_MV, Reg(retreg), reg);
+        ir_.emplace_back(attr.return_type == INT_TYPE ? PINSR_MV : PINSR_FMV_S,
+                         Reg(retreg), reg);
         cur_register_ = now_reg;
       }
       ir_.emplace_back(PINSR_RET);

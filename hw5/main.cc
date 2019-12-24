@@ -4,7 +4,7 @@
 #include "driver.h"
 #include "gv.h"
 
-const std::string kDefaultOutput = "AST_Graph.gv";
+const std::string kDefaultOutput = "output.s";
 
 void PrintUsage(const char* name) {
   std::cout << "Usage: " << name << " [-h|--help]\n"

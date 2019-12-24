@@ -613,7 +613,6 @@ inline VariableAttr GetPrototype(AstNode* expr,
   if (expr->node_type != IDENTIFIER_NODE) {
     return VariableAttr(expr->data_type);
   }
-  Debug_("here\n");
   auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
   const TableEntry& entry = tab[std::get<Identifier>(value.identifier).first];
   const VariableAttr& type = entry.GetValue<VariableAttr>();

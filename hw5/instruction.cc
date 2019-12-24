@@ -236,12 +236,15 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     // TODO: Check the current usage of the specified register, and store it
     // back to memory if neccesary. For now the reserved register will not be
     // used, so leave this to optimzation.
-    return reg.id;
+    if constexpr (std::is_same_v<T, int>) return reg.id;
+    return 128 ^ reg.id;
   }
+  std::cerr << "Get id = " << reg.id << "\n";
   size_t id = reg.id;
   if (loc[id].in_register) return std::get<uint8_t>(loc[id].mem);
   size_t to_replace = (size_t)-1;
   uint8_t rg = ctrl.GetSavedReg(to_replace, dirty);
+  std::cerr << "InsrGen::rg = " << int(rg) << "\n";
   if (to_replace != (size_t)-1) {
     // store the register back to memory if the register is dirty
     loc[to_replace].in_register = false;
@@ -371,7 +374,7 @@ void InsrGen::PushCalleeRegs(int64_t offset) {
   }
   for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
     uint8_t reg = rv64::kFloatSavedRegs[i];
-    GenerateInsr(INSR_SD, reg, rv64::kSp, IRInsr::kConst,
+    GenerateInsr(INSR_FSD, reg, rv64::kSp, IRInsr::kConst,
                  offset + 8 * int64_t(reg - 96));
   }
 }
@@ -394,7 +397,7 @@ void InsrGen::PopCalleeRegs(int64_t offset) {
   }
   for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
     uint8_t reg = rv64::kFloatSavedRegs[i];
-    GenerateInsr(INSR_LD, reg, rv64::kSp, IRInsr::kConst,
+    GenerateInsr(INSR_FLD, reg, rv64::kSp, IRInsr::kConst,
                  offset + 8 * int64_t(reg - 96));
   }
 }
@@ -433,7 +436,7 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &ir,
     rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
     rs2 = GetSavedReg(ir.rs2, true, loc, dirty, float_reg_);
   }
-  dirty[ir.rd.id] = 1;
+  if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
   GenerateInsr(ir.op, rd, rs1, rs2);
 }
 
@@ -448,7 +451,7 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir,
     rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
     rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
   }
-  dirty[ir.rd.id] = 1;
+  if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
   GenerateInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
 }
 
@@ -471,7 +474,7 @@ void InsrGen::GenerateUTypeInsr(const IRInsr &ir,
                                 std::vector<MemoryLocation> &loc,
                                 std::vector<uint8_t> &dirty) {
   uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
-  dirty[ir.rd.id] = 1;
+  if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
   assert(ir.imm_type == IRInsr::kConst);
   GenerateInsr(ir.op, rd, ir.imm_type, ir.imm);
 }
@@ -488,7 +491,8 @@ void InsrGen::GenerateJTypeInsr(const IRInsr &ir,
                                 std::vector<MemoryLocation> &loc,
                                 std::vector<uint8_t> &dirty) {
   uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
-  if (ir.op == INSR_JAL) dirty[ir.rd.id] = 1;
+  if (ir.op == INSR_JAL)
+    if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
   GenerateInsr(ir.op, rd, ir.imm_type, ir.imm);
 }
 
@@ -501,17 +505,25 @@ void InsrGen::GenerateR0TypeInsr(const IRInsr &ir,
     if (IsCvtIFOp(ir.op)) {
       rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
       rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
+      assert(ir.imm_type == IRInsr::kRoundingMode);
     } else {
       rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
       rs1 = GetSavedReg(ir.rs1, true, loc, dirty, int_reg_);
     }
-    dirty[rd] = 1;
-    assert(ir.imm_type == IRInsr::kRoundingMode);
+    if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
     GenerateInsr(ir.op, rd, rs1, ir.imm);
   } else {
-    uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
-    uint8_t rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
-    dirty[rd] = 1;
+    uint8_t rd = 0, rs1 = 0;
+    if (ir.op == INSR_FMV_X_W) {
+      rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
+      rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
+    } else {
+      std::cerr << "FVM_W_X\n";
+      rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
+      rs1 = GetSavedReg(ir.rs1, true, loc, dirty, int_reg_);
+      std::cerr << "rd = " << int(rd) << " rs1 = " << int(rs1) << "\n";
+    }
+    if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
     GenerateInsr(ir.op, rd, rs1);
   }
 }
@@ -525,10 +537,16 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
                                  std::vector<MemoryLocation> &loc,
                                  std::vector<uint8_t> &dirty, int64_t offset) {
   switch (ir.op) {
-    case PINSR_J:
-    case PINSR_LA:
+    case PINSR_J: {
       GenerateInsr(ir.op, ir.imm_type, ir.imm);
       break;
+    }
+    case PINSR_LA: {
+      uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
+      if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
+      GenerateInsr(ir.op, rd, ir.imm_type, ir.imm);
+      break;
+    }
     case PINSR_CALL:
       PushCallerRegs(offset);
       GenerateInsr(ir.op, ir.imm_type, ir.imm);
@@ -542,14 +560,15 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
     case PINSR_MV: {
       uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
       uint8_t rs1 = GetSavedReg(ir.rs1, true, loc, dirty, int_reg_);
-      dirty[ir.rd.id] = 1;
+      // std::cerr << "Rd = " << ir.rd.id << "\n";
+      if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
       GenerateInsr(ir.op, rd, rs1);
       break;
     }
     case PINSR_FMV_S: {
       uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
       uint8_t rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
-      dirty[ir.rd.id] = 1;
+      if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
       GenerateInsr(ir.op, rd, rs1);
       break;
     }
@@ -567,11 +586,11 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v,
     case S_TYPE:
       return GenerateSTypeInsr(v, loc, dirty);
     case U_TYPE:
-      return GenerateRTypeInsr(v, loc, dirty);
+      return GenerateUTypeInsr(v, loc, dirty);
     case B_TYPE:
-      return GenerateITypeInsr(v, loc, dirty);
+      return GenerateBTypeInsr(v, loc, dirty);
     case J_TYPE:
-      return GenerateSTypeInsr(v, loc, dirty);
+      return GenerateJTypeInsr(v, loc, dirty);
     case R0_TYPE:
       return GenerateR0TypeInsr(v, loc, dirty);
     case R4_TYPE:
@@ -584,18 +603,21 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
   int_reg_.Clear();
   float_reg_.Clear();
   buf_.clear();
+  std::cerr << "num_register = " << num_register << "\n";
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
   std::vector<std::pair<size_t, size_t>> lab;
   int64_t sp_offset = 8 * 64 + 8 * num_register;  // TODO: optimize this number
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
+  std::cerr << "ir_pos_ = " << ir_pos_ << " ed = " << ed << "\n";
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
+    std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
     if (v.op == PINSR_PUSH_SP) {
       GeneratePrologue(local);
     } else if (IsPseudoOp(v.op)) {
@@ -679,21 +701,17 @@ void InsrGen::Flush() {
     } catch (std::bad_variant_access &) {
     }
   }
-  for (size_t p = 0, f = 0; p < insr_.size(); ++p) {
+  for (size_t p = 0; p < insr_.size(); ++p) {
     try {
       pref[p] = PrintInsr(ofs_, std::get<RV64Insr>(insr_[p]), p, pos, pref);
       ofs_ << "\n";
     } catch (std::bad_variant_access &) {
       size_t lb = std::get<size_t>(insr_[p]);
-      // std::cerr << "lb = " << lb << "\n";
       if (lb < label_.size() && label_[lb].is_func) {
-        assert(f < func_.size());
-        std::string s(func_[f++].second);
-        // std::cerr << "s = " << s << "\n";
-        if (s == "main") s = "_start_MAIN";
-        ofs_ << s << ":\n";
+        if (label_func_[lb] == "main") ofs_ << "_start_MAIN:\n";
+        else ofs_ << label_func_[lb] << ":\n";
       } else if (lb >= label_.size()) {
-        // epilogue
+        ofs_ << "_end_" << func_name_[lb - label_.size()] << ":\n";
       } else {
         ofs_ << ".L" << lb << ":\n";
       }
@@ -703,7 +721,20 @@ void InsrGen::Flush() {
   insr_.clear();
 }
 
+void InsrGen::InitLabel() {
+  func_name_.resize(func_.size());
+  label_func_.resize(label_.size());
+  for (size_t i = 0, j = 0; i < label_.size(); ++i) {
+    if (label_[i].is_func) {
+      std::string str(func_[j].second);
+      func_name_[j++] = str;
+      label_func_[i] = str;
+    }
+  }
+}
+
 void InsrGen::GenerateRV64() {
+  InitLabel();
   assert(label_.empty() || label_[0].is_func);
   for (size_t i = 0; i < func_.size(); ++i) {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();

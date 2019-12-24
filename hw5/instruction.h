@@ -531,6 +531,8 @@ struct RV64Insr {
 struct MemoryLocation {
   bool in_register;
   std::variant<uint8_t, int64_t> mem;
+
+  MemoryLocation() : in_register(false) {}
 };
 
 struct Label {
@@ -569,14 +571,14 @@ class RegCtrl {
     if constexpr (std::is_same_v<T, int>) {
       return GetReg(rv64::kIntSavedRegs, replaced, dirty);
     } else {
-      return 128 | GetReg(rv64::kFloatSavedRegs, replaced, dirty);
+      return GetReg(rv64::kFloatSavedRegs, replaced, dirty);
     }
   }
   uint8_t GetTempReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
     if constexpr (std::is_same_v<T, int>) {
       return GetReg(rv64::kIntTempRegs, replaced, dirty);
     } else {
-      return 128 | GetReg(rv64::kFloatTempRegs, replaced, dirty);
+      return GetReg(rv64::kFloatTempRegs, replaced, dirty);
     }
   }
 
@@ -594,18 +596,25 @@ class RegCtrl {
   template <size_t N>
   uint8_t GetReg(const std::array<uint8_t, N>& pool, size_t& replaced,
                  const std::vector<uint8_t>& dirty) {
+    constexpr auto Convert = [](size_t p) {
+      if constexpr (std::is_same_v<T, int>) return p;
+      return p ^ 128;
+    };
     bool found = false;
     uint8_t rg = 0;
     for (size_t i = 0; i < N; ++i) {
-      if (regs_[pool[i]] == kEmpty) return pool[i];
-      if (regs_[pool[i]] != kReserved) {
-        if (!found || !dirty[regs_[pool[i]]]) {
+      if constexpr (std::is_same_v<T, float>) std::cerr << "pool[i] = " << int(pool[i]) << "\n";
+      size_t idx = Convert(pool[i]);
+      if (regs_[idx] == kEmpty) return pool[i];
+      if (regs_[idx] != kReserved) {
+        if (!found || !dirty[regs_[idx]]) {
           found = true;
           rg = pool[i];
         }
       }
     }
-    replaced = regs_[rg];
+    replaced = regs_[Convert(rg)];
+    std::cerr << "rg = " << int(rg) << "\n";
     return rg;
   }
 };
@@ -680,6 +689,7 @@ class InsrGen {
   std::vector<Identifier> func_;
   std::vector<IRInsr> ir_insr_;
   std::vector<TableEntry> tab_;
+  std::vector<std::string> label_func_, func_name_;
   size_t ir_pos_ = 0, label_pos_ = 0, tot_label_;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
@@ -717,6 +727,8 @@ class InsrGen {
   void PushCallerRegs(int64_t offset);
   void PopCalleeRegs(int64_t offset);
   void PopCallerRegs(int64_t offset);
+
+  void InitLabel();
 
   template <class T>
   uint8_t GetSavedReg(const IRInsr::Register& reg, bool load,
