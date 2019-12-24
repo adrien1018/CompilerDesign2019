@@ -60,15 +60,22 @@ constexpr bool IsCvtFFOp(Opcode op) {
   (v.rs3 < 32 ? rv64::kIntRegisterName[v.rs3] \
               : rv64::kFloatRegisterName[v.rs3 - 128])
 
-#define LABEL(v) \
-  (v.imm < 0 ? kBuiltinLabel[~v.imm] : ".L" + std::to_string(v.imm))
 #define IMM(v) (v.imm)
 #define DATA(v) (".D" + std::to_string(v.imm))
 #define ROUND(v) (rv64::kRoundingModeName[v.imm])
 
-size_t PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
-                       const std::vector<size_t> &pos,
-                       const std::vector<size_t> &pref) {
+}  // namespace
+
+inline std::string InsrGen::GetLabel(const RV64Insr &insr) const {
+  if (insr.imm < 0) return kBuiltinLabel[~insr.imm];
+  if (insr.imm >= label_.size()) return "_end_" + func_name_[insr.imm - label_.size()];
+  if (label_[insr.imm].is_func) return label_func_[insr.imm];
+  return ".L" + std::to_string(insr.imm);
+}
+
+size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
+                                size_t p, const std::vector<size_t> &pos,
+                                const std::vector<size_t> &pref) const {
   static constexpr size_t kJumpThreshold = 1 << 17;
   if (insr.op != PINSR_J) ofs << kRV64InsrCode.at(insr.op) << ' ';
   switch (insr.op) {
@@ -82,11 +89,11 @@ size_t PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
       if ((size_t)insr.imm < p) dist -= pref[p] - pref[insr.imm];
       if (((size_t)std::abs(dist) << 2) > kJumpThreshold) {
         // TODO: Check whether t0 is dirty.
-        ofs << "lui t0, \%hi(" << LABEL(insr) << ")\n";
-        ofs << "jalr x0, \%lo(" << LABEL(insr) << ")(t0)\n";
+        ofs << "lui t0, \%hi(" << GetLabel(insr) << ")\n";
+        ofs << "jalr x0, \%lo(" << GetLabel(insr) << ")(t0)\n";
         return 1;
       } else {
-        ofs << kRV64InsrCode.at(insr.op) << ' ' << LABEL(insr);
+        ofs << kRV64InsrCode.at(insr.op) << ' ' << GetLabel(insr);
         return 0;
       }
     }
@@ -96,7 +103,7 @@ size_t PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
         ofs << IMM(insr);
       } else {
         assert(insr.imm_type == IRInsr::kLabel);
-        ofs << LABEL(insr);
+        ofs << GetLabel(insr);
       }
       break;
     case PINSR_LA:
@@ -111,8 +118,9 @@ size_t PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
 }
 
 // Serialize RV64 instructions
-size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
-                 const std::vector<size_t> &pos, std::vector<size_t> &pref) {
+size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
+                          const std::vector<size_t> &pos,
+                          std::vector<size_t> &pref) const {
   ofs << "\t";
   if (insr.op >= kFloatingPointInsr) {
     return PrintPseudoInsr(ofs, insr, p, pos, pref);
@@ -151,7 +159,7 @@ size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
         ofs << RS1(insr) << ", " << RS2(insr) << ", " << IMM(insr);
       } else {
         assert(insr.imm_type == IRInsr::kLabel);
-        ofs << RS1(insr) << ", " << RS2(insr) << ", " << LABEL(insr);
+        ofs << RS1(insr) << ", " << RS2(insr) << ", " << GetLabel(insr);
       }
       break;
     case J_TYPE:
@@ -159,7 +167,7 @@ size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
         ofs << RD(insr) << ", " << IMM(insr);
       } else {
         assert(insr.imm_type == IRInsr::kLabel);
-        ofs << RD(insr) << ", " << LABEL(insr);
+        ofs << RD(insr) << ", " << GetLabel(insr);
       }
       break;
     case R0_TYPE: {
@@ -177,6 +185,8 @@ size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
   }
   return 0;
 }
+
+namespace {
 
 std::string EscapeString(const std::string &str) {
   std::string ret;
@@ -239,12 +249,12 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     if constexpr (std::is_same_v<T, int>) return reg.id;
     return 128 ^ reg.id;
   }
-  std::cerr << "Get id = " << reg.id << "\n";
+  // std::cerr << "Get id = " << reg.id << "\n";
   size_t id = reg.id;
   if (loc[id].in_register) return std::get<uint8_t>(loc[id].mem);
   size_t to_replace = (size_t)-1;
   uint8_t rg = ctrl.GetSavedReg(to_replace, dirty);
-  std::cerr << "InsrGen::rg = " << int(rg) << "\n";
+  // std::cerr << "InsrGen::rg = " << int(rg) << "\n";
   if (to_replace != (size_t)-1) {
     // store the register back to memory if the register is dirty
     loc[to_replace].in_register = false;
@@ -523,10 +533,10 @@ void InsrGen::GenerateR0TypeInsr(const IRInsr &ir,
       rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
       rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
     } else {
-      std::cerr << "FVM_W_X\n";
+      // std::cerr << "FVM_W_X\n";
       rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
       rs1 = GetSavedReg(ir.rs1, true, loc, dirty, int_reg_);
-      std::cerr << "rd = " << int(rd) << " rs1 = " << int(rs1) << "\n";
+      // std::cerr << "rd = " << int(rd) << " rs1 = " << int(rs1) << "\n";
     }
     if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
     GenerateInsr(ir.op, rd, rs1);
@@ -608,21 +618,21 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
   int_reg_.Clear();
   float_reg_.Clear();
   buf_.clear();
-  std::cerr << "num_register = " << num_register << "\n";
+  // std::cerr << "num_register = " << num_register << "\n";
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
   std::vector<std::pair<size_t, size_t>> lab;
   int64_t sp_offset = 8 * 64 + 8 * num_register;  // TODO: optimize this number
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
-  std::cerr << "ir_pos_ = " << ir_pos_ << " ed = " << ed << "\n";
+  // std::cerr << "ir_pos_ = " << ir_pos_ << " ed = " << ed << "\n";
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
-    std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
+    // std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
     if (v.op == PINSR_PUSH_SP) {
       GeneratePrologue(local);
     } else if (IsPseudoOp(v.op)) {

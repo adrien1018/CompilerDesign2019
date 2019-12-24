@@ -603,7 +603,8 @@ class RegCtrl {
     bool found = false;
     uint8_t rg = 0;
     for (size_t i = 0; i < N; ++i) {
-      if constexpr (std::is_same_v<T, float>) std::cerr << "pool[i] = " << int(pool[i]) << "\n";
+      if constexpr (std::is_same_v<T, float>)
+        std::cerr << "pool[i] = " << int(pool[i]) << "\n";
       size_t idx = Convert(pool[i]);
       if (regs_[idx] == kEmpty) return pool[i];
       if (regs_[idx] != kReserved) {
@@ -729,6 +730,13 @@ class InsrGen {
   void PopCallerRegs(int64_t offset);
 
   void InitLabel();
+  std::string GetLabel(const RV64Insr& insr) const;
+  size_t PrintInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
+                   const std::vector<size_t>& pos,
+                   std::vector<size_t>& pref) const;
+  size_t PrintPseudoInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
+                         const std::vector<size_t>& pos,
+                         const std::vector<size_t>& pref) const;
 
   template <class T>
   uint8_t GetSavedReg(const IRInsr::Register& reg, bool load,
