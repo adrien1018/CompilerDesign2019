@@ -401,8 +401,9 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
       PopCallerRegs(offset);
       break;
     case PINSR_RET:
-      GenerateEpilogue(offset);
-      GenerateInsr(ir.op, ir.imm_type, ir.imm);
+      GenerateInsr(PINSR_J, IRInsr::kLabel, int64_t(epilogue_));
+      // GenerateEpilogue(offset);
+      // GenerateInsr(ir.op, ir.imm_type, ir.imm);
       break;
     case PINSR_MV: {
       uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
@@ -465,6 +466,7 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func) {
     }
     ir_pos_++;
   }
+  lab.emplace_back(buf_.size(), epilogue_++);
   GenerateEpilogue(local);
   for (auto &v : buf_) {
     if (v.imm == kPosSpOffset) v.imm = sp_offset;

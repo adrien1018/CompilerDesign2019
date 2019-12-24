@@ -594,7 +594,10 @@ class InsrGen {
   explicit InsrGen(const std::string& file) : ofs_(file) {}
   explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
                    std::vector<Label>&& label)
-      : ofs_(file), data_(std::move(data)), label_(std::move(label)) {}
+      : ofs_(file),
+        data_(std::move(data)),
+        label_(std::move(label)),
+        epilogue_(label_.size()) {}
 
   // The instructions will be flushed upon destruction.
   ~InsrGen() { Flush(); }
@@ -647,7 +650,7 @@ class InsrGen {
   std::vector<size_t> func_;
   std::vector<IRInsr> ir_insr_;
   std::vector<TableEntry> tab_;
-  size_t ir_pos_ = 0, label_pos_ = 0;
+  size_t ir_pos_ = 0, label_pos_ = 0, epilogue_;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
 
