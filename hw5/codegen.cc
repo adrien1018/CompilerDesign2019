@@ -211,7 +211,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
           ir_.emplace_back(INSR_FSGNJN_S, dest, dest, dest);
           break;
         case UNARY_OP_LOGICAL_NEGATION:
-          throw;
+          assert(false);
       }
     } else {
       assert(false);
@@ -435,7 +435,7 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
   assert(var_attr.data_type == FLOAT_TYPE || var_attr.data_type == INT_TYPE);
   if (var_attr.IsArray()) {
     size_t reg = AllocRegister(attr);
-    if (VisitArray(expr, attr, reg)) throw;
+    if (VisitArray(expr, attr, reg)) assert(false);
     if (var_attr.data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg, reg, IRInsr::kConst, 0);
     } else {
@@ -556,8 +556,7 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
             data_.emplace_back(std::move(v));
           } else {
             // should not be here because of constant folding!
-            // assert(false);
-            throw;
+            assert(false);
           }
         } else {
           data_.push_back(var_attr.size);

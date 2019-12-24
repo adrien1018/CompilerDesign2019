@@ -15,7 +15,8 @@ int main() {
     a = -x;
     c = -!b;
   } else {
-    int d = a + b * !!-(!!(-c + !g / e) < a > (b <= b) >= g != c) == x;
+    /*int d = a + b * !!-(!!(-c + !g / e) < a > (b <= b) >= g != c) == x;*/
+    int d = a + b;
     c = 4;
   }
 }
