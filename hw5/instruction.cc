@@ -34,6 +34,22 @@ constexpr bool IsCvtOp(Opcode op) {
          op == INSR_FCVT_D_LU || op == INSR_FCVT_S_D || op == INSR_FCVT_D_S;
 }
 
+constexpr bool IsCvtIFOp(Opcode op) {
+  return op == INSR_FCVT_W_S || op == INSR_FCVT_WU_S || op == INSR_FCVT_L_S ||
+         op == INSR_FCVT_LU_S || op == INSR_FCVT_W_D || op == INSR_FCVT_WU_D ||
+         op == INSR_FCVT_L_D || op == INSR_FCVT_LU_D;
+}
+
+constexpr bool IsCvtFIOp(Opcode op) {
+  return op == INSR_FCVT_S_W || op == INSR_FCVT_S_WU || op == INSR_FCVT_S_L ||
+         op == INSR_FCVT_S_LU || op == INSR_FCVT_D_W || op == INSR_FCVT_D_WU ||
+         op == INSR_FCVT_D_L || op == INSR_FCVT_D_LU;
+}
+
+constexpr bool IsCvtFFOp(Opcode op) {
+  return op == INSR_FCVT_S_D || op == INSR_FCVT_D_S;
+}
+
 #define RD(v)                               \
   (v.rd < 32 ? rv64::kIntRegisterName[v.rd] \
              : rv64::kFloatRegisterName[v.rd - 128])
@@ -51,6 +67,7 @@ constexpr bool IsCvtOp(Opcode op) {
   (v.imm < 0 ? kBuiltinLabel[~v.imm] : ".L" + std::to_string(v.imm))
 #define IMM(v) (v.imm)
 #define DATA(v) (".D" + std::to_string(v.imm))
+#define ROUND(v) (rv64::kRoundingModeName[v.imm])
 
 void PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr) {
   switch (insr.op) {
@@ -114,9 +131,14 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
           ofs << RD(insr) << ", " << LABEL(insr);
         }
         break;
-      case R0_TYPE:
-        ofs << RD(insr) << ", " << RS1(insr);
+      case R0_TYPE: {
+        if (insr.imm_type == IRInsr::kRoundingMode) {
+          ofs << RD(insr) << ", " << RS1(insr) << ", " << ROUND(insr);
+        } else {
+          ofs << RD(insr) << ", " << RS1(insr);
+        }
         break;
+      }
       case R4_TYPE:
         ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr) << ", "
             << RS3(insr);
@@ -243,7 +265,12 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
     case R0_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
-      buf_.emplace_back(op, rs1, 0, 0, rd, IRInsr::kConst, 0);
+      if (param.size() == 3) {
+        int64_t imm = param[2];
+        buf_.emplace_back(op, rs1, 0, 0, rd, IRInsr::kRoundingMode, imm);
+      } else {
+        buf_.emplace_back(op, rs1, 0, 0, rd, IRInsr::kConst, 0);
+      }
       break;
     }
     case R4_TYPE: {
@@ -387,6 +414,35 @@ void InsrGen::GenerateJTypeInsr(const IRInsr &ir,
   GenerateInsr(ir.op, rd, ir.imm_type, ir.imm);
 }
 
+void InsrGen::GenerateR0TypeInsr(const IRInsr &ir,
+                                 std::vector<MemoryLocation> &loc,
+                                 std::vector<uint8_t> &dirty) {
+  if (IsCvtOp(ir.op)) {
+    assert(!IsCvtFFOp(ir.op));  // double is not supported
+    uint8_t rd, rs1;
+    if (IsCvtIFOp(ir.op)) {
+      rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
+      rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
+    } else {
+      rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
+      rs1 = GetSavedReg(ir.rs1, true, loc, dirty, int_reg_);
+    }
+    dirty[rd] = 1;
+    assert(ir.imm_type == IRInsr::kRoundingMode);
+    GenerateInsr(ir.op, rd, rs1, ir.imm);
+  } else {
+    uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
+    uint8_t rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
+    dirty[rd] = 1;
+    GenerateInsr(ir.op, rd, rs1);
+  }
+}
+
+// optimization only
+void InsrGen::GenerateR4TypeInsr(const IRInsr &ir,
+                                 std::vector<MemoryLocation> &loc,
+                                 std::vector<uint8_t> &dirty) {}
+
 void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
                                  std::vector<MemoryLocation> &loc,
                                  std::vector<uint8_t> &dirty, int64_t offset) {
@@ -438,6 +494,10 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v,
       return GenerateITypeInsr(v, loc, dirty);
     case J_TYPE:
       return GenerateSTypeInsr(v, loc, dirty);
+    case R0_TYPE:
+      return GenerateR0TypeInsr(v, loc, dirty);
+    case R4_TYPE:
+      return GenerateR4TypeInsr(v, loc, dirty);
   }
 }
 

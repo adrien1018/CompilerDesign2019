@@ -296,12 +296,12 @@ enum Opcode {
   PINSR_J,
   // call LABEL, the assembler will handle immediate
   PINSR_CALL,
-  PINSR_TAIL,    // Tail call function (+dest ID) (opt only)
-  PINSR_RET,     // Return (no arg)
-  PINSR_LA,      // Load absolute address
-  PINSR_MV,      // Copy (can be optimized!)
-  PINSR_FMV_S,   // Floating-point copy (can be optimized!)
-  PINSR_PUSH_SP, // push stack pointer here
+  PINSR_TAIL,     // Tail call function (+dest ID) (opt only)
+  PINSR_RET,      // Return (no arg)
+  PINSR_LA,       // Load absolute address
+  PINSR_MV,       // Copy (can be optimized!)
+  PINSR_FMV_S,    // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP,  // push stack pointer here
   kPseudoInsr
 };
 
@@ -598,10 +598,13 @@ class InsrGen {
   explicit InsrGen() = default;
   explicit InsrGen(const std::string& file) : ofs_(file) {}
   explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
-                   std::vector<Label>&& label)
+                   std::vector<Label>&& label, std::vector<TableEntry>&& tab,
+                   std::vector<size_t>&& func)
       : ofs_(file),
         data_(std::move(data)),
         label_(std::move(label)),
+        func_(std::move(func)),
+        tab_(std::move(tab)),
         epilogue_(label_.size()) {}
 
   // The instructions will be flushed upon destruction.
@@ -678,6 +681,10 @@ class InsrGen {
                          std::vector<uint8_t>& dirty);
   void GenerateJTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
                          std::vector<uint8_t>& dirty);
+  void GenerateR0TypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                          std::vector<uint8_t>& dirty);
+  void GenerateR4TypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
+                          std::vector<uint8_t>& dirty);
   void GeneratePseudoInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
                           std::vector<uint8_t>& dirty, int64_t offset);
 
