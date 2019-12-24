@@ -68,9 +68,30 @@ constexpr bool IsCvtFFOp(Opcode op) {
 #define DATA(v) (".D" + std::to_string(v.imm))
 #define ROUND(v) (rv64::kRoundingModeName[v.imm])
 
-void PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr) {
+size_t PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
+                       const std::vector<size_t> &pos,
+                       const std::vector<size_t> &pref) {
+  static constexpr size_t kJumpThreshold = 1 << 17;
+  if (insr.op != PINSR_J) ofs << kRV64InsrCode.at(insr.op) << ' ';
   switch (insr.op) {
-    case PINSR_J:
+    case PINSR_J: {
+      if (insr.imm_type == IRInsr::kConst) {
+        ofs << kRV64InsrCode.at(insr.op) << ' ' << IMM(insr);
+        return 0;
+      }
+      assert(insr.imm_type == IRInsr::kLabel);
+      int64_t dist = int64_t(p) - insr.imm;
+      if ((size_t)insr.imm < p) dist -= pref[p] - pref[insr.imm];
+      if (((size_t)std::abs(dist) << 2) > kJumpThreshold) {
+        // TODO: Check whether t0 is dirty.
+        ofs << "lui t0, \%hi(" << LABEL(insr) << ")\n";
+        ofs << "jalr x0, \%lo(" << LABEL(insr) << ")(t0)\n";
+        return 1;
+      } else {
+        ofs << kRV64InsrCode.at(insr.op) << ' ' << LABEL(insr);
+        return 0;
+      }
+    }
     case PINSR_CALL:
     case PINSR_TAIL:
       if (insr.imm_type == IRInsr::kConst) {
@@ -88,66 +109,67 @@ void PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr) {
       ofs << RD(insr) << ", " << RS1(insr);
       break;
   }
+  return 0;
 }
 
 // Serialize RV64 instructions
-std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
-  ofs << kRV64InsrCode.at(insr.op) << ' ';
+size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
+                 const std::vector<size_t> &pos, std::vector<size_t> &pref) {
   if (insr.op >= kFloatingPointInsr) {
-    PrintPseudoInsr(ofs, insr);
-  } else {
-    switch (kRV64InsrFormat.at(insr.op)) {
-      case R_TYPE:
-        ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr);
-        break;
-      case I_TYPE:
-        assert(insr.imm_type == IRInsr::kConst);
-        if (insr.op == INSR_JALR || IsLoadOp(insr.op)) {
-          ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
-        } else {
-          ofs << RD(insr) << ", " << RS1(insr) << ", " << IMM(insr);
-        }
-        break;
-      case U_TYPE:
-        ofs << RD(insr) << ", " << IMM(insr);
-        break;
-      case S_TYPE:
-        ofs << RS2(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
-        break;
-      case B_TYPE:
-        if (insr.imm_type == IRInsr::kConst) {
-          ofs << RS1(insr) << ", " << RS2(insr) << ", " << IMM(insr);
-        } else {
-          assert(insr.imm_type == IRInsr::kLabel);
-          ofs << RS1(insr) << ", " << RS2(insr) << ", " << LABEL(insr);
-        }
-        break;
-      case J_TYPE:
-        if (insr.imm_type == IRInsr::kConst) {
-          ofs << RD(insr) << ", " << IMM(insr);
-        } else {
-          assert(insr.imm_type == IRInsr::kLabel);
-          ofs << RD(insr) << ", " << LABEL(insr);
-        }
-        break;
-      case R0_TYPE: {
-        if (insr.imm_type == IRInsr::kRoundingMode) {
-          ofs << RD(insr) << ", " << RS1(insr) << ", " << ROUND(insr);
-        } else {
-          ofs << RD(insr) << ", " << RS1(insr);
-        }
-        break;
-      }
-      case R4_TYPE:
-        ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr) << ", "
-            << RS3(insr);
-        break;
-    }
+    return PrintPseudoInsr(ofs, insr, p, pos, pref);
   }
-  return ofs;
+  ofs << kRV64InsrCode.at(insr.op) << ' ';
+  switch (kRV64InsrFormat.at(insr.op)) {
+    case R_TYPE:
+      ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr);
+      break;
+    case I_TYPE:
+      assert(insr.imm_type == IRInsr::kConst);
+      if (insr.op == INSR_JALR || IsLoadOp(insr.op)) {
+        ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+      } else {
+        ofs << RD(insr) << ", " << RS1(insr) << ", " << IMM(insr);
+      }
+      break;
+    case U_TYPE:
+      ofs << RD(insr) << ", " << IMM(insr);
+      break;
+    case S_TYPE:
+      ofs << RS2(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+      break;
+    case B_TYPE:
+      if (insr.imm_type == IRInsr::kConst) {
+        ofs << RS1(insr) << ", " << RS2(insr) << ", " << IMM(insr);
+      } else {
+        assert(insr.imm_type == IRInsr::kLabel);
+        ofs << RS1(insr) << ", " << RS2(insr) << ", " << LABEL(insr);
+      }
+      break;
+    case J_TYPE:
+      if (insr.imm_type == IRInsr::kConst) {
+        ofs << RD(insr) << ", " << IMM(insr);
+      } else {
+        assert(insr.imm_type == IRInsr::kLabel);
+        ofs << RD(insr) << ", " << LABEL(insr);
+      }
+      break;
+    case R0_TYPE: {
+      if (insr.imm_type == IRInsr::kRoundingMode) {
+        ofs << RD(insr) << ", " << RS1(insr) << ", " << ROUND(insr);
+      } else {
+        ofs << RD(insr) << ", " << RS1(insr);
+      }
+      break;
+    }
+    case R4_TYPE:
+      ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr) << ", "
+          << RS3(insr);
+      break;
+  }
+  return 0;
 }
 
-std::string EscapeString(const std::string& str) {
+std::string EscapeString(const std::string &str) {
   std::string ret;
   for (char i : str) {
     if (i == '\"' || i == '\\' || i == '\'') {
@@ -483,7 +505,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
       PopCallerRegs(offset);
       break;
     case PINSR_RET:
-      GenerateInsr(PINSR_J, IRInsr::kLabel, int64_t(epilogue_));
+      GenerateInsr(PINSR_J, IRInsr::kLabel, int64_t(tot_label_));
       // GenerateEpilogue(offset);
       // GenerateInsr(ir.op, ir.imm_type, ir.imm);
       break;
@@ -552,7 +574,7 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func) {
     }
     ir_pos_++;
   }
-  lab.emplace_back(buf_.size(), epilogue_++);
+  lab.emplace_back(buf_.size(), tot_label_++);
   GenerateEpilogue(local);
   for (auto &v : buf_) {
     if (v.imm == kPosSpOffset) v.imm = sp_offset;
@@ -615,12 +637,23 @@ void InsrGen::Flush() {
   }
   data_.clear();
   ofs_ << ".text\n";
-  for (auto &x : insr_) {
+  std::vector<size_t> pos(tot_label_);
+  std::vector<size_t> pref(tot_label_);
+  for (size_t p = 0; p < insr_.size(); ++p) {
     try {
-      ofs_ << std::get<RV64Insr>(x) << "\n";
+      size_t l = std::get<size_t>(insr_[p]);
+      pos[l] = p;
     } catch (std::bad_variant_access &) {
-      ofs_ << ".L" << std::get<size_t>(x) << ": \n";
     }
+  }
+  for (size_t p = 0; p < insr_.size(); ++p) {
+    try {
+      pref[p] = PrintInsr(ofs_, std::get<RV64Insr>(insr_[p]), p, pos, pref);
+      ofs_ << "\n";
+    } catch (std::bad_variant_access &) {
+      ofs_ << ".L" << std::get<size_t>(insr_[p]) << ": \n";
+    }
+    if (p > 0) pref[p] += pref[p - 1];
   }
   insr_.clear();
 }
@@ -631,6 +664,6 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i]].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
-    // GenerateAR();
+    GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos);
   }
 }

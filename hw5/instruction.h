@@ -605,7 +605,7 @@ class InsrGen {
         label_(std::move(label)),
         func_(std::move(func)),
         tab_(std::move(tab)),
-        epilogue_(label_.size()) {}
+        tot_label_(label_.size()) {}
 
   // The instructions will be flushed upon destruction.
   ~InsrGen() { Flush(); }
@@ -658,7 +658,7 @@ class InsrGen {
   std::vector<size_t> func_;
   std::vector<IRInsr> ir_insr_;
   std::vector<TableEntry> tab_;
-  size_t ir_pos_ = 0, label_pos_ = 0, epilogue_;
+  size_t ir_pos_ = 0, label_pos_ = 0, tot_label_;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
 
