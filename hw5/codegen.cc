@@ -338,6 +338,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
   const FunctionAttr* func_attr;
   size_t func_label;
   DataType return_type;
+  Debug_("Function call ", id, '\n');
   if (id > ~kBuiltinFunctionNum) {  // built-in function
     func_attr = nullptr;
     func_label = id;
@@ -360,7 +361,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
         ir_.emplace_back(type == INT_TYPE ? INSR_SW : INSR_SD, IRInsr::kNoRD,
-                         dest, Reg(rv64::kSp), IRInsr::kConst, 0);
+                         Reg(rv64::kSp), dest, IRInsr::kConst, 0);
       } else {
         ir_.emplace_back(PINSR_MV, Reg(rv64::kA0 + ival), dest);
       }
@@ -368,7 +369,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     } else if (type == FLOAT_TYPE) {
       if (fval >= 8) {
         stk_store.push_back(ir_.size());
-        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, dest, Reg(rv64::kSp),
+        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, Reg(rv64::kSp), dest,
                          IRInsr::kConst, 0);
       } else {
         ir_.emplace_back(PINSR_FMV_S, Reg(rv64::kFa0 + fval), dest);
@@ -394,6 +395,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     case FLOAT_TYPE:
       ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0));
       break;
+    case VOID_TYPE: break;
     default:
       assert(false);
   }
@@ -415,7 +417,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       VisitIdentifier(expr, attr, dest);
       break;
     case STMT_NODE:
-      VisitIdentifier(expr, attr, dest);
+      VisitFunctionCall(expr, attr, dest);
       break;
     default:
       assert(false);
@@ -437,9 +439,9 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
     size_t reg = AllocRegister(attr);
     if (VisitArray(expr, attr, reg)) assert(false);
     if (var_attr.data_type == FLOAT_TYPE) {
-      ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg, reg, IRInsr::kConst, 0);
+      ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, reg, valreg, IRInsr::kConst, 0);
     } else {
-      ir_.emplace_back(INSR_SW, IRInsr::kNoRD, valreg, reg, IRInsr::kConst, 0);
+      ir_.emplace_back(INSR_SW, IRInsr::kNoRD, reg, valreg, IRInsr::kConst, 0);
     }
   } else {
     if (var_attr.local) {
@@ -450,10 +452,10 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
       }
     } else {
       if (var_attr.data_type == FLOAT_TYPE) {
-        ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg, IRInsr::kData,
+        ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, 0, valreg, IRInsr::kData,
                          var_attr.offset);
       } else {
-        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, valreg, IRInsr::kData,
+        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, 0, valreg, IRInsr::kData,
                          var_attr.offset);
       }
     }
@@ -526,6 +528,12 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     }
     case ASSIGN_STMT: {
       VisitAssignment(stmt, attr);
+      break;
+    }
+    case FUNCTION_CALL_STMT: {
+      size_t now_reg = cur_register_;
+      VisitFunctionCall(stmt, attr, AllocRegister(attr));
+      cur_register_ = now_reg;
       break;
     }
   }
