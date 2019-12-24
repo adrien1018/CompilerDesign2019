@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
-#include <regex>
 
 const IRInsr::NoRD IRInsr::kNoRD;
 
@@ -146,6 +145,21 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
     }
   }
   return ofs;
+}
+
+std::string EscapeString(const std::string& str) {
+  std::string ret;
+  for (char i : str) {
+    if (i >= 0x20 && i <= 0x7e) {
+      ret.push_back(i);
+    } else {
+      ret.push_back('\\');
+      ret.push_back((i >> 6 & 3) + '0');
+      ret.push_back((i >> 3 & 7) + '0');
+      ret.push_back((i & 7) + '0');
+    }
+  }
+  return ret;
 }
 
 }  // namespace
@@ -560,10 +574,7 @@ void PrintData(std::ofstream &ofs, const CodeData &data) {
     }
     case 1: {  // std::string
       std::string s = std::get<std::string>(data);
-      s = std::regex_replace(s, std::regex("(\r)"), "\\r");
-      s = std::regex_replace(s, std::regex("(\n)"), "\\n");
-      s = std::regex_replace(s, std::regex("(\t)"), "\\t");
-      ofs << ".string \"" << s << "\"";
+      ofs << ".string \"" << EscapeString(s) << "\"";
       break;
     }
     case 2: {  // size_t

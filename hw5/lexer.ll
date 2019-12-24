@@ -17,6 +17,75 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
   {"while",   yy::parser::token::R_WHILE},
 };
 
+std::string UnescapeString(const char* str) {
+  std::string ret;
+  for (size_t escape = 0, val = 0, len = 0; *str; str++) {
+    switch (escape) {
+      case 0: {
+        if (*str == '\\') {
+          escape = 1;
+        } else {
+          ret.push_back(*str);
+        }
+        break;
+      }
+      case 1: {
+        switch (*str) {
+          case 'a':  ret.push_back(0x07); escape = 0; break;
+          case 'b':  ret.push_back(0x08); escape = 0; break;
+          case 'e':  ret.push_back(0x1b); escape = 0; break;
+          case 'f':  ret.push_back(0x0c); escape = 0; break;
+          case 'n':  ret.push_back(0x0a); escape = 0; break;
+          case 'r':  ret.push_back(0x0d); escape = 0; break;
+          case 't':  ret.push_back(0x09); escape = 0; break;
+          case 'v':  ret.push_back(0x0b); escape = 0; break;
+          case 'x':  escape = 2; val = 0; len = 0; break;
+          case '0': case '1': case '2': case '3':
+          case '4': case '5': case '6': case '7':
+            escape = 3; val = *str - '0'; len = 1;
+            break;
+          default:   /** TODO: emit warning **/
+          case '\\':
+          case '\'':
+          case '\"': /** " **/
+          case '?':  ret.push_back(*str); escape = 0; break;
+        }
+        break;
+      }
+      case 2: {
+        if (*str >= '0' && *str <= '9') {
+          val = val * 16 + *str - '0';
+        } else if (*str >= 'a' && *str <= 'f') {
+          val = val * 16 + *str - 'a' + 10;
+        } else if (*str >= 'A' && *str <= 'F') {
+          val = val * 16 + *str - 'A' + 10;
+        } else {
+          if (len == 0); /** TODO: emit warning **/
+          escape = 0;
+          ret.push_back((uint8_t)val);
+        }
+        len++;
+        break;
+      }
+      case 3: {
+        if (*str >= '0' && *str <= '7') {
+          val = val * 8 + *str - '0';
+          if (len == 2) {
+            escape = 0;
+            ret.push_back((uint8_t)val);
+          }
+        } else {
+          escape = 0;
+          ret.push_back((uint8_t)val);
+        }
+        len++;
+        break;
+      }
+    }
+  }
+  return ret;
+}
+
 inline void Step(Location& loc, const char* yytext, int yyleng) {
   loc.end.offset += yyleng;
   size_t x = std::count(yytext, yytext + yyleng, '\n');
@@ -47,7 +116,7 @@ AstNode *MakeConstNode(const Location &loc, DataType type, const char *text) {
       cv = FloatType(atof(text));
       break;
     case CONST_STRING_TYPE:
-      cv = std::string(text);
+      cv = UnescapeString(text);
       break;
   }
   node->semantic_value = cv;
@@ -81,6 +150,7 @@ REGEX_C_INT                {DIGIT}+
 REGEX_C_FLOAT              ({DIGIT}+(\.{DIGIT}*)?|\.{DIGIT}+)([eE][+-]?{DIGIT}+)?
 REGEX_C_STRING             \"([^\\"\n]|\\(.|\n))*\"
 
+/*** " ***/
 /*** operators ***/
 REGEX_O_ADDITION           "+"
 REGEX_O_SUBTRACTION        "-"
