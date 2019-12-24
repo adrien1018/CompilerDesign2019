@@ -68,7 +68,8 @@ constexpr bool IsCvtFFOp(Opcode op) {
 
 inline std::string InsrGen::GetLabel(const RV64Insr &insr) const {
   if (insr.imm < 0) return kBuiltinLabel[~insr.imm];
-  if (insr.imm >= label_.size()) return "_end_" + func_name_[insr.imm - label_.size()];
+  if (insr.imm >= label_.size())
+    return "_end_" + func_name_[insr.imm - label_.size()];
   if (label_[insr.imm].is_func) return label_func_[insr.imm];
   return ".L" + std::to_string(insr.imm);
 }
@@ -246,8 +247,13 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     // TODO: Check the current usage of the specified register, and store it
     // back to memory if neccesary. For now the reserved register will not be
     // used, so leave this to optimzation.
-    if constexpr (std::is_same_v<T, int>) return reg.id;
-    return 128 ^ reg.id;
+    if constexpr (std::is_same_v<T, int>) {
+      int_used_[reg.id] = true;
+      return reg.id;
+    } else {
+      float_used_[128 ^ reg.id] = true;
+      return 128 ^ reg.id;
+    }
   }
   // std::cerr << "Get id = " << reg.id << "\n";
   size_t id = reg.id;
@@ -260,7 +266,8 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     loc[to_replace].in_register = false;
     if (dirty[to_replace]) {
       loc[to_replace].mem = -int64_t(to_replace) * 8;  // this is useless now
-      GenerateInsr(INSR_SD, rg, rv64::kFp, -int64_t(to_replace) * 8);
+      GenerateInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst,
+                   -int64_t(to_replace) * 8);
     }
     dirty[to_replace] = false;
   }
@@ -270,6 +277,11 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
   if (load) {
     // load the pseudo register from memory
     GenerateInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, -int64_t(id) * 8);
+  }
+  if constexpr (std::is_same_v<T, int>) {
+    int_used_[rg] = true;
+  } else {
+    float_used_[rg] = true;
   }
   return rg;
 }
@@ -379,18 +391,24 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
   }
 }
 
-void InsrGen::PushCalleeRegs(int64_t offset) {
-  for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    uint8_t reg = rv64::kCalleeSaved[i];
-    if (reg == rv64::kSp) continue;
-    GenerateInsr(INSR_SD, reg, rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(reg));
+void InsrGen::PushCalleeRegs(int64_t offset,
+                             const std::vector<uint8_t> &saved) {
+  for (size_t i = 0; i < saved.size(); ++i) {
+    uint8_t rg = saved[i];
+    GenerateInsr(rg >= 32 ? INSR_FSD : INSR_SD, rg, rv64::kSp, IRInsr::kConst,
+                 offset + 8 * i);
   }
-  for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
-    uint8_t reg = rv64::kFloatSavedRegs[i];
-    GenerateInsr(INSR_FSD, reg, rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(reg - 96));
-  }
+  // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+  //   uint8_t reg = rv64::kCalleeSaved[i];
+  //   if (reg == rv64::kSp) continue;
+  //   GenerateInsr(INSR_SD, reg, rv64::kSp, IRInsr::kConst,
+  //                offset + 8 * int64_t(reg));
+  // }
+  // for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
+  //   uint8_t reg = rv64::kFloatSavedRegs[i];
+  //   GenerateInsr(INSR_FSD, reg, rv64::kSp, IRInsr::kConst,
+  //                offset + 8 * int64_t(reg - 96));
+  // }
 }
 
 void InsrGen::PushCallerRegs(int64_t offset) {
@@ -402,18 +420,23 @@ void InsrGen::PushCallerRegs(int64_t offset) {
   }
 }
 
-void InsrGen::PopCalleeRegs(int64_t offset) {
-  for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    uint8_t reg = rv64::kCalleeSaved[i];
-    if (reg == rv64::kSp) continue;
-    GenerateInsr(INSR_LD, reg, rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(reg));
+void InsrGen::PopCalleeRegs(int64_t offset, const std::vector<uint8_t> &saved) {
+  for (size_t i = 0; i < saved.size(); ++i) {
+    uint8_t rg = saved[i];
+    GenerateInsr(rg >= 32 ? INSR_FLD : INSR_LD, rg, rv64::kSp, IRInsr::kConst,
+                 offset + 8 * i);
   }
-  for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
-    uint8_t reg = rv64::kFloatSavedRegs[i];
-    GenerateInsr(INSR_FLD, reg, rv64::kSp, IRInsr::kConst,
-                 offset + 8 * int64_t(reg - 96));
-  }
+  // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+  //   uint8_t reg = rv64::kCalleeSaved[i];
+  //   if (reg == rv64::kSp) continue;
+  //   GenerateInsr(INSR_LD, reg, rv64::kSp, IRInsr::kConst,
+  //                offset + 8 * int64_t(reg));
+  // }
+  // for (size_t i = 0; i < rv64::kNumFloatSavedRegs; ++i) {
+  //   uint8_t reg = rv64::kFloatSavedRegs[i];
+  //   GenerateInsr(INSR_FLD, reg, rv64::kSp, IRInsr::kConst,
+  //                offset + 8 * int64_t(reg - 96));
+  // }
 }
 
 void InsrGen::PopCallerRegs(int64_t offset) {
@@ -425,16 +448,17 @@ void InsrGen::PopCallerRegs(int64_t offset) {
   }
 }
 
-size_t InsrGen::GeneratePrologue(size_t local) {
-  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
-  PushCalleeRegs(local);
-  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
-  return 8 * 32;
+void InsrGen::GeneratePrologue(size_t local, int64_t sp_offset,
+                               const std::vector<uint8_t> &saved) {
+  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, -sp_offset);
+  PushCalleeRegs(local, saved);
+  GenerateInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, sp_offset);
 }
 
-void InsrGen::GenerateEpilogue(size_t local) {
-  PopCalleeRegs(local);
-  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
+void InsrGen::GenerateEpilogue(size_t local, int64_t sp_offset,
+                               const std::vector<uint8_t> &saved) {
+  PopCalleeRegs(local, saved);
+  GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, sp_offset);
   GenerateInsr(PINSR_RET);
 }
 
@@ -458,6 +482,13 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &ir,
 void InsrGen::GenerateITypeInsr(const IRInsr &ir,
                                 std::vector<MemoryLocation> &loc,
                                 std::vector<uint8_t> &dirty) {
+  if (IsLoadOp(ir.op) && ir.imm_type == IRInsr::kData) {
+    GenerateInsr(PINSR_LA, rv64::kT0, IRInsr::kData, ir.imm);
+    uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
+    GenerateInsr(ir.op, rd, rv64::kT0, IRInsr::kConst, 0);
+    if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
+    return;
+  }
   uint8_t rd, rs1;
   if (IsIntOp(ir.op)) {
     rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
@@ -613,19 +644,27 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v,
   }
 }
 
-void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
-                         bool is_main) {
+void InsrGen::Initialize() {
   int_reg_.Clear();
   float_reg_.Clear();
   buf_.clear();
+  std::fill(int_used_.begin(), int_used_.end(), false);
+  std::fill(float_used_.begin(), float_used_.end(), false);
+  int_used_[rv64::kFp] = true;
+  int_used_[rv64::kRa] = true;
+}
+
+void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
+                         bool is_main) {
+  Initialize();
   // std::cerr << "num_register = " << num_register << "\n";
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
   std::vector<std::pair<size_t, size_t>> lab;
-  int64_t sp_offset = 8 * 64 + 8 * num_register;  // TODO: optimize this number
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
   // std::cerr << "ir_pos_ = " << ir_pos_ << " ed = " << ed << "\n";
+  size_t prologue = -1;
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
@@ -634,7 +673,8 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
     }
     // std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
     if (v.op == PINSR_PUSH_SP) {
-      GeneratePrologue(local);
+      prologue = buf_.size();
+      // GeneratePrologue(local);
     } else if (IsPseudoOp(v.op)) {
       GeneratePseudoInsr(v, loc, dirty, local);
     } else {
@@ -642,20 +682,38 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
     }
     ir_pos_++;
   }
+  std::vector<uint8_t> saved;
+  for (size_t i = 0; i < rv64::kRegisters; ++i) {
+    if (int_used_[i]) saved.push_back(i);
+  }
+  for (size_t i = 0; i < rv64::kRegisters; ++i) {
+    if (float_used_[i]) saved.push_back(i | 128);
+  }
+  std::cerr << "saved = ";
+  for (auto s : saved) std::cerr << int(s) << ' ';
+  std::cerr << "\n";
+  int64_t sp_offset =
+      8 * saved.size() + 8 * num_register;  // TODO: optimize this number
   if (is_main) GenerateInsr(PINSR_MV, rv64::kA0, rv64::kZero);
   lab.emplace_back(buf_.size(), tot_label_++);
-  GenerateEpilogue(local);
+  GenerateEpilogue(local, sp_offset, saved);
   for (auto &v : buf_) {
     if (v.imm == kPosSpOffset) v.imm = sp_offset;
     if (v.imm == kNegSpOffset) v.imm = -sp_offset;
   }
   // move all the instructions in the buffer to insr_
-  for (size_t i = 0, j = 0; i < buf_.size(); ++i) {
+  size_t stop = buf_.size();
+  GeneratePrologue(local, sp_offset, saved);
+  for (size_t i = 0, j = 0; i < stop; ++i) {
     while (j < lab.size() && lab[j].first == i) {
       insr_.push_back(lab[j++].second);
     }
+    if (i == prologue) {
+      for (size_t k = stop; k < buf_.size(); ++k) insr_.push_back(buf_[k]);
+    }
     insr_.push_back(std::move(buf_[i]));
   }
+  std::cerr << "end\n";
 }
 
 namespace {

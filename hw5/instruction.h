@@ -603,8 +603,6 @@ class RegCtrl {
     bool found = false;
     uint8_t rg = 0;
     for (size_t i = 0; i < N; ++i) {
-      if constexpr (std::is_same_v<T, float>)
-        std::cerr << "pool[i] = " << int(pool[i]) << "\n";
       size_t idx = Convert(pool[i]);
       if (regs_[idx] == kEmpty) return pool[i];
       if (regs_[idx] != kReserved) {
@@ -615,7 +613,6 @@ class RegCtrl {
       }
     }
     replaced = regs_[Convert(rg)];
-    std::cerr << "rg = " << int(rg) << "\n";
     return rg;
   }
 };
@@ -694,6 +691,10 @@ class InsrGen {
   size_t ir_pos_ = 0, label_pos_ = 0, tot_label_;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
+  std::array<bool, rv64::kRegisters> int_used_{};
+  std::array<bool, rv64::kRegisters> float_used_{};
+
+  void Initialize();
 
   template <class... Args>
   void GenerateInsr(Opcode op, Args&&... args);
@@ -721,12 +722,14 @@ class InsrGen {
   void GeneratePseudoInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
                           std::vector<uint8_t>& dirty, int64_t offset);
 
-  size_t GeneratePrologue(size_t local);
-  void GenerateEpilogue(size_t local);
+  void GeneratePrologue(size_t local, int64_t sp_offset,
+                        const std::vector<uint8_t>& saved);
+  void GenerateEpilogue(size_t local, int64_t sp_offset,
+                        const std::vector<uint8_t>& saved);
 
-  void PushCalleeRegs(int64_t offset);
+  void PushCalleeRegs(int64_t offset, const std::vector<uint8_t>& saved);
   void PushCallerRegs(int64_t offset);
-  void PopCalleeRegs(int64_t offset);
+  void PopCalleeRegs(int64_t offset, const std::vector<uint8_t>& saved);
   void PopCallerRegs(int64_t offset);
 
   void InitLabel();
