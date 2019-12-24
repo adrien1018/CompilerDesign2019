@@ -653,19 +653,36 @@ void CodeGen::VisitProgram(AstNode* prog) {
 }
 
 #ifdef CODEGEN_DEBUG
+namespace {
+
+std::string RegString(const IRInsr::Register& reg) {
+  if (reg.is_real) {
+    if (reg.id & 128) return rv64::kFloatRegisterName[reg.id ^ 128];
+    return rv64::kIntRegisterName[reg.id];
+  }
+  return "R" + std::to_string(reg.id);
+}
+
+} // namespace
+
 void CodeGen::PrintIR() {
   for (size_t i = 0, j = 0; i < ir_.size(); i++) {
     if (j < labels_.size() && labels_[j].ir_pos) {
-      printf(".%c%03d: ", "LF"[labels_[j].is_func], j);
+      printf(".%c%03zu: ", "LF"[labels_[j].is_func], j);
       j++;
     }
-    printf("%s, RD:%zu, RS1:%zu, RS2:%zu, ", kRV64InsrCode[ir_[i].op].c_str(),
-           ir_[i].rs1, ir_[i].rs2);
+    printf("%s, RD:%s, RS1:%s, RS2:%s, ",
+           kRV64InsrCode.find(ir_[i].op)->second.c_str(),
+           RegString(ir_[i].rd).c_str(),
+           RegString(ir_[i].rs1).c_str(),
+           RegString(ir_[i].rs2).c_str());
     switch (ir_[i].imm_type) {
       case IRInsr::kConst: printf("%ld\n", ir_[i].imm); break;
       case IRInsr::kLabel: printf(".L%ld\n", ir_[i].imm); break;
       case IRInsr::kData:  printf(".D%ld\n", ir_[i].imm); break;
-      case IRInsr::kRoundingMode: printf("round:%ld\n", ir_[i].imm); break;
+      case IRInsr::kRoundingMode:
+        printf("%s\n", rv64::kRoundingModeName[ir_[i].imm].c_str());
+        break;
     }
   }
   for (size_t i = 0; i < data_.size(); i++) {
@@ -678,9 +695,9 @@ void CodeGen::PrintIR() {
         }
         break;
       case 1:
-        printf(".string \"%s\"", std::get<std::string>(data_[i]));
+        printf(".string \"%s\"", std::get<std::string>(data_[i]).c_str());
         break;
-      case 2: printf(".zero %zu", std::get<size_t>(data_[i]); break;
+      case 2: printf(".zero %zu", std::get<size_t>(data_[i])); break;
     }
   }
   puts("");
