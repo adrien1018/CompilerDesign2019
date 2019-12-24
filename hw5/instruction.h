@@ -10,6 +10,7 @@
 #include <variant>
 #include <vector>
 
+#include "entry.h"
 #include "utils.h"
 
 namespace rv64 {
@@ -486,6 +487,17 @@ struct RV64Insr {
   uint8_t rs1, rs2, rs3, rd;
   IRInsr::ImmType imm_type;
   int64_t imm;
+
+  RV64Insr() = default;
+  explicit RV64Insr(Opcode op, uint8_t rs1, uint8_t rs2, uint8_t rs3,
+                    uint8_t rd, IRInsr::ImmType imm_type, int64_t imm)
+      : op(op),
+        rs1(rs1),
+        rs2(rs2),
+        rs3(rs3),
+        rd(rd),
+        imm_type(imm_type),
+        imm(imm) {}
 };
 
 struct MemoryLocation {
@@ -508,7 +520,9 @@ using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
 template <class T>
 class RegCtrl {
  public:
-  explicit RegCtrl() {
+  explicit RegCtrl() { Clear(); }
+
+  void Clear() {
     std::fill(regs_.begin(), regs_.end(), kReserved);
     if constexpr (std::is_same_v<T, int>) {
       for (uint8_t p : rv64::kIntSavedRegs) regs_[p] = kEmpty;
@@ -518,27 +532,6 @@ class RegCtrl {
       for (uint8_t p : rv64::kFloatSavedRegs) regs_[p] = kEmpty;
       for (uint8_t p : rv64::kFloatTempRegs) regs_[p] = kEmpty;
     }
-  }
-
-  // Get available register. If no registers are available, check whether
-  // there is a clean register. Try to avoid returning dirty register (an
-  // extra store required).
-  template <size_t N>
-  uint8_t GetReg(const std::array<uint8_t, N>& pool, size_t& replaced,
-                 const std::vector<uint8_t>& dirty) {
-    bool found = false;
-    uint8_t rg = 0;
-    for (size_t i = 0; i < N; ++i) {
-      if (regs_[pool[i]] == kEmpty) return pool[i];
-      if (regs_[pool[i]] != kReserved) {
-        if (!found || !dirty[regs_[pool[i]]]) {
-          found = true;
-          rg = pool[i];
-        }
-      }
-    }
-    replaced = regs_[rg];
-    return rg;
   }
 
   uint8_t GetSavedReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
@@ -563,6 +556,27 @@ class RegCtrl {
   static constexpr size_t kEmpty = (size_t)-1;
   static constexpr size_t kReserved = (size_t)-2;
   std::array<size_t, rv64::kRegisters> regs_{};
+
+  // Get available register. If no registers are available, check whether
+  // there is a clean register. Try to avoid returning dirty register (an
+  // extra store required).
+  template <size_t N>
+  uint8_t GetReg(const std::array<uint8_t, N>& pool, size_t& replaced,
+                 const std::vector<uint8_t>& dirty) {
+    bool found = false;
+    uint8_t rg = 0;
+    for (size_t i = 0; i < N; ++i) {
+      if (regs_[pool[i]] == kEmpty) return pool[i];
+      if (regs_[pool[i]] != kReserved) {
+        if (!found || !dirty[regs_[pool[i]]]) {
+          found = true;
+          rg = pool[i];
+        }
+      }
+    }
+    replaced = regs_[rg];
+    return rg;
+  }
 };
 
 /**
@@ -577,8 +591,10 @@ class RegCtrl {
 class InsrGen {
  public:
   explicit InsrGen() = default;
-  // Construct InsrGen with the output file name.
   explicit InsrGen(const std::string& file) : ofs_(file) {}
+  explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
+                   std::vector<Label>&& label)
+      : ofs_(file), data_(std::move(data)), label_(std::move(label)) {}
 
   // The instructions will be flushed upon destruction.
   ~InsrGen() { Flush(); }
@@ -590,7 +606,6 @@ class InsrGen {
    * Generate activation record for a function (`.text` section in the RV64
    * assembly).
    *
-   * @param ir IR instructions.
    * @param local The number of bytes allocated for the local variables.
    * @param num_register The number of (pseudo) registers used in this function.
    *
@@ -613,8 +628,7 @@ class InsrGen {
    * registers will be saved upon seeing the `CALL` instruction. This is
    * optional since the caller saved registers are only used for optimization).
    */
-  void GenerateAR(const std::vector<IRInsr>& ir, size_t local,
-                  size_t num_register);
+  void GenerateAR(size_t local, size_t num_register, size_t next_func);
 
   /**
    * Generate a list of global variables (`.data` section in the RV64 assembly).
@@ -622,10 +636,18 @@ class InsrGen {
   void GenerateData(const std::vector<CodeData>& data);
   void GenerateData(std::vector<CodeData>&& data);
 
+  void GenerateRV64();
+
  private:
   std::ofstream ofs_;
-  std::vector<RV64Insr> buf_, insr_;  // instruction buffer
+  std::vector<RV64Insr> buf_;
+  std::vector<std::variant<RV64Insr, size_t>> insr_;  // instruction buffer
   std::vector<CodeData> data_;
+  std::vector<Label> label_;
+  std::vector<size_t> func_;
+  std::vector<IRInsr> ir_insr_;
+  std::vector<TableEntry> tab_;
+  size_t ir_pos_ = 0, label_pos_ = 0;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
 
@@ -634,6 +656,8 @@ class InsrGen {
   template <class... Args>
   void GeneratePInsr(Opcode op, Args&&... args);
 
+  void GenerateInsrImpl(const IRInsr& v, std::vector<MemoryLocation>& loc,
+                        std::vector<uint8_t>& dirty);
   void GenerateRTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
                          std::vector<uint8_t>& dirty);
   void GenerateITypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,

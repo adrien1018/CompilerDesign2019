@@ -169,19 +169,19 @@ void InsrGen::GeneratePInsr(Opcode op, Args &&... args) {
     case PINSR_CALL:
     case PINSR_TAIL: {
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[0]);
-      buf_.push_back({op, 0, 0, 0, 0, imm_type, param[1]});
+      buf_.emplace_back(op, 0, 0, 0, 0, imm_type, param[1]);
       break;
     }
     case PINSR_LA: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
-      buf_.push_back({op, 0, 0, 0, rd, imm_type, param[2]});
+      buf_.emplace_back(op, 0, 0, 0, rd, imm_type, param[2]);
       break;
     }
     case PINSR_MV: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs = static_cast<uint8_t>(param[1]);
-      buf_.push_back({op, rs, 0, 0, rd, IRInsr::kConst, 0});
+      buf_.emplace_back(op, rs, 0, 0, rd, IRInsr::kConst, 0);
       break;
     }
   }
@@ -199,7 +199,7 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
       uint8_t rs2 = static_cast<uint8_t>(param[2]);
-      buf_.push_back({op, rs1, rs2, 0, rd, IRInsr::kConst, 0});
+      buf_.emplace_back(op, rs1, rs2, 0, rd, IRInsr::kConst, 0);
       break;
     }
     case I_TYPE: {
@@ -207,14 +207,14 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[2]);
       int64_t imm = param[3];
-      buf_.push_back({op, rs1, 0, 0, rd, imm_type, imm});
+      buf_.emplace_back(op, rs1, 0, 0, rd, imm_type, imm);
       break;
     }
     case U_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
       int64_t imm = param[2];
-      buf_.push_back({op, 0, 0, 0, rd, imm_type, imm});
+      buf_.emplace_back(op, 0, 0, 0, rd, imm_type, imm);
       break;
     }
     case S_TYPE: {
@@ -222,7 +222,7 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[2]);
       int64_t imm = param[3];
-      buf_.push_back({op, rs1, rs2, 0, 0, imm_type, imm});
+      buf_.emplace_back(op, rs1, rs2, 0, 0, imm_type, imm);
       break;
     }
     case B_TYPE: {
@@ -230,20 +230,20 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rs2 = static_cast<uint8_t>(param[1]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[2]);
       int64_t imm = param[3];
-      buf_.push_back({op, rs1, rs2, 0, 0, imm_type, imm});
+      buf_.emplace_back(op, rs1, rs2, 0, 0, imm_type, imm);
       break;
     }
     case J_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
       int64_t imm = param[2];
-      buf_.push_back({op, 0, 0, 0, rd, imm_type, imm});
+      buf_.emplace_back(op, 0, 0, 0, rd, imm_type, imm);
       break;
     }
     case R0_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
-      buf_.push_back({op, rs1, 0, 0, rd, IRInsr::kConst, 0});
+      buf_.emplace_back(op, rs1, 0, 0, rd, IRInsr::kConst, 0);
       break;
     }
     case R4_TYPE: {
@@ -251,7 +251,7 @@ void InsrGen::GenerateInsr(Opcode op, Args &&... args) {
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
       uint8_t rs2 = static_cast<uint8_t>(param[2]);
       uint8_t rs3 = static_cast<uint8_t>(param[3]);
-      buf_.push_back({op, rs1, rs2, rs3, rd, IRInsr::kConst, 0});
+      buf_.emplace_back(op, rs1, rs2, rs3, rd, IRInsr::kConst, 0);
       break;
     }
   }
@@ -421,41 +421,49 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir,
   }
 }
 
-void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
-                         size_t num_register) {
+void InsrGen::GenerateInsrImpl(const IRInsr &v,
+                               std::vector<MemoryLocation> &loc,
+                               std::vector<uint8_t> &dirty) {
+  switch (kRV64InsrFormat.at(v.op)) {
+    case R_TYPE:
+      return GenerateRTypeInsr(v, loc, dirty);
+    case I_TYPE:
+      return GenerateITypeInsr(v, loc, dirty);
+    case S_TYPE:
+      return GenerateSTypeInsr(v, loc, dirty);
+    case U_TYPE:
+      return GenerateRTypeInsr(v, loc, dirty);
+    case B_TYPE:
+      return GenerateITypeInsr(v, loc, dirty);
+    case J_TYPE:
+      return GenerateSTypeInsr(v, loc, dirty);
+  }
+}
+
+void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func) {
+  int_reg_.Clear();
+  float_reg_.Clear();
   buf_.clear();
   std::vector<MemoryLocation> loc(num_register);
   std::vector<uint8_t> dirty(num_register);
-  int64_t sp_offset = 8 * 64 + 8 * num_register;  // TODO: reduce this number
-  for (const IRInsr &v : ir) {
+  std::vector<std::pair<size_t, size_t>> lab;
+  int64_t sp_offset = 8 * 64 + 8 * num_register;  // TODO: optimize this number
+  size_t ed =
+      next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
+  while (ir_pos_ < ed) {
+    const IRInsr &v = ir_insr_[ir_pos_];
+    while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
+      lab.emplace_back(buf_.size(), label_pos_);
+      label_pos_++;
+    }
     if (v.op == PINSR_PUSH_SP) {
       GeneratePrologue(local);
-      continue;
-    }
-    if (IsPseudoOp(v.op)) {
+    } else if (IsPseudoOp(v.op)) {
       GeneratePseudoInsr(v, loc, dirty, local);
     } else {
-      switch (kRV64InsrFormat.at(v.op)) {
-        case R_TYPE:
-          GenerateRTypeInsr(v, loc, dirty);
-          break;
-        case I_TYPE:
-          GenerateITypeInsr(v, loc, dirty);
-          break;
-        case S_TYPE:
-          GenerateSTypeInsr(v, loc, dirty);
-          break;
-        case U_TYPE:
-          GenerateRTypeInsr(v, loc, dirty);
-          break;
-        case B_TYPE:
-          GenerateITypeInsr(v, loc, dirty);
-          break;
-        case J_TYPE:
-          GenerateSTypeInsr(v, loc, dirty);
-          break;
-      }
+      GenerateInsrImpl(v, loc, dirty);
     }
+    ir_pos_++;
   }
   GenerateEpilogue(local);
   for (auto &v : buf_) {
@@ -463,7 +471,12 @@ void InsrGen::GenerateAR(const std::vector<IRInsr> &ir, size_t local,
     if (v.imm == kNegSpOffset) v.imm = -sp_offset;
   }
   // move all the instructions in the buffer to insr_
-  std::move(buf_.begin(), buf_.end(), std::back_inserter(insr_));
+  for (size_t i = 0, j = 0; i < buf_.size(); ++i) {
+    while (j < lab.size() && lab[j].first == i) {
+      insr_.push_back(lab[j++].second);
+    }
+    insr_.push_back(std::move(buf_[i]));
+  }
 }
 
 namespace {
@@ -516,6 +529,22 @@ void InsrGen::Flush() {
     ofs_ << "\n";
   }
   ofs_ << ".text\n";
-  for (auto &x : insr_) ofs_ << x << "\n";
+  for (auto &x : insr_) {
+    try {
+      ofs_ << std::get<RV64Insr>(x) << "\n";
+    } catch (std::bad_variant_access &) {
+      ofs_ << ".L" << std::get<size_t>(x) << ": \n";
+    }
+  }
   insr_.clear();
+}
+
+void InsrGen::GenerateRV64() {
+  assert(label_.empty() || label_[0].is_func);
+  for (size_t i = 0; i < func_.size(); ++i) {
+    const auto &attr = tab_[func_[i]].GetValue<FunctionAttr>();
+    size_t next_pos = label_pos_ + 1;
+    while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
+    // GenerateAR();
+  }
 }
