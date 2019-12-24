@@ -49,7 +49,9 @@ class CodeGen {
   void VisitAssignment(AstNode* expr, FunctionAttr&);
   bool VisitArray(AstNode* expr, FunctionAttr&, size_t dest);
   void VisitFunctionCall(AstNode* expr, FunctionAttr&, size_t dest);
-
+#ifdef CODEGEN_DEBUG
+  void PrintIR();
+#endif
 };
 
 #endif  // GENERATOR_H_

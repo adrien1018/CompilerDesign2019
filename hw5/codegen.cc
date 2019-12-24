@@ -647,4 +647,42 @@ void CodeGen::VisitGlobalDecl(AstNode* decl) {
 
 void CodeGen::VisitProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
+#ifdef CODEGEN_DEBUG
+  PrintIR();
+#endif
 }
+
+#ifdef CODEGEN_DEBUG
+void CodeGen::PrintIR() {
+  for (size_t i = 0, j = 0; i < ir_.size(); i++) {
+    if (j < labels_.size() && labels_[j].ir_pos) {
+      printf(".%c%03d: ", "LF"[labels_[j].is_func], j);
+      j++;
+    }
+    printf("%s, RD:%zu, RS1:%zu, RS2:%zu, ", kRV64InsrCode[ir_[i].op].c_str(),
+           ir_[i].rs1, ir_[i].rs2);
+    switch (ir_[i].imm_type) {
+      case IRInsr::kConst: printf("%ld\n", ir_[i].imm); break;
+      case IRInsr::kLabel: printf(".L%ld\n", ir_[i].imm); break;
+      case IRInsr::kData:  printf(".D%ld\n", ir_[i].imm); break;
+      case IRInsr::kRoundingMode: printf("round:%ld\n", ir_[i].imm); break;
+    }
+  }
+  for (size_t i = 0; i < data_.size(); i++) {
+    printf(".D%zu: ", i);
+    switch (data_[i].index()) {
+      case 0:
+        printf(".hex ");
+        for (uint8_t j : std::get<std::vector<uint8_t>>(data_[i])) {
+          printf("%02x", j);
+        }
+        break;
+      case 1:
+        printf(".string \"%s\"", std::get<std::string>(data_[i]));
+        break;
+      case 2: printf(".zero %zu", std::get<size_t>(data_[i]); break;
+    }
+  }
+  puts("");
+}
+#endif
