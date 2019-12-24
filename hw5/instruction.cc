@@ -530,6 +530,7 @@ void InsrGen::Flush() {
     PrintData(ofs_, data_[i]);
     ofs_ << "\n";
   }
+  data_.clear();
   ofs_ << ".text\n";
   for (auto &x : insr_) {
     try {

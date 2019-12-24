@@ -148,7 +148,8 @@ std::vector<size_t> Analyzer::ParseDimDecl(AstNode* parent) {
   return dims;
 }
 
-void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept {
+void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr,
+                           bool glob) noexcept {
   Debug_("BuildInitID", '\n');
   assert(init_id->node_type == IDENTIFIER_NODE);
   try {
@@ -161,6 +162,23 @@ void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept {
           success_ = false;
           PrintMsg(file_, init_val->loc, ERR_INVALID_INIT);
           throw StopExpression();
+        }
+        if (glob) {
+          if (init_val->node_type != CONST_VALUE_NODE) {
+            bool failed = false;
+            if (init_val->node_type != EXPR_NODE) {
+              failed = true;
+            } else {
+              auto& expr =
+                  std::get<ExprSemanticValue>(init_val->semantic_value);
+              if (!expr.is_const_eval) failed = true;
+            }
+            if (failed) {
+              success_ = false;
+              PrintMsg(file_, init_val->loc, ERR_INIT_NONCONST);
+              throw StopExpression();
+            }
+          }
         }
       }
       InsertSymTab(value.identifier,
@@ -179,7 +197,7 @@ void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept {
   }
 }
 
-void Analyzer::BuildVariableDecl(AstNode* var_decl) noexcept {
+void Analyzer::BuildVariableDecl(AstNode* var_decl, bool glob) noexcept {
   Debug_("BuildVariableDecl", '\n');
   assert(!var_decl->child.empty());
   AstNode* type_node = *var_decl->child.begin();
@@ -188,7 +206,7 @@ void Analyzer::BuildVariableDecl(AstNode* var_decl) noexcept {
     for (auto it = std::next(var_decl->child.begin());
          it != var_decl->child.end(); it++) {
       AstNode* init_id = *it;
-      BuildInitID(init_id, type);
+      BuildInitID(init_id, type, glob);
     }
   } catch (StopExpression&) {
     // Ignore these identifiers.
@@ -519,7 +537,7 @@ void Analyzer::BuildGlobalDecl(AstNode* decl) noexcept {
   switch (kind) {
     case VARIABLE_DECL:
       Debug_("VARIABLE_DECL", '\n');
-      BuildVariableDecl(decl);
+      BuildVariableDecl(decl, true);
       break;
     case TYPE_DECL:
       Debug_("TYPE_DECL", '\n');
@@ -636,7 +654,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   size_t id = std::get<Identifier>(value.identifier).first;
   if (id > ~kBuiltinFunctionNum) {  // built-in function
     AstNode* relop_expr_list = *std::next(node->child.begin());
-    assert(relop_expr_list->child.size() == kBuiltinFunction[~id].second);
+    assert(relop_expr_list->child.size() == kBuiltinFunction[~id].num_param);
     AnalyzeRelopExprList(relop_expr_list);
     if (!relop_expr_list->child.empty()) {
       AstNode* param = relop_expr_list->child.front();

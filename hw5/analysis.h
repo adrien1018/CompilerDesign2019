@@ -49,8 +49,8 @@ class Analyzer {
   void BuildVarRef(AstNode* node, bool is_function_arg = false);
   void BuildTypeDecl(AstNode* type_decl) noexcept;
   void BuildTypedefID(AstNode* id_item, const TypeAttr& attr);
-  void BuildVariableDecl(AstNode* var_decl) noexcept;
-  void BuildInitID(AstNode* init_id, const TypeAttr& attr) noexcept;
+  void BuildVariableDecl(AstNode* var_decl, bool glob = false) noexcept;
+  void BuildInitID(AstNode* init_id, const TypeAttr& attr, bool glob) noexcept;
 
   TableEntry BuildParam(AstNode* param);
   std::vector<size_t> ParseDimDecl(AstNode* parent);

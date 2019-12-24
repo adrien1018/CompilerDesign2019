@@ -279,14 +279,25 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
                       std::list<AstNode*>&& ch) {
   AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
-  expr_node->semantic_value = ExprSemanticValue{expr_kind};
+  ExprSemanticValue expr{expr_kind, true};
+  expr_node->semantic_value = ExprSemanticValue{expr_kind, true};
   MakeChild(expr_node, ch);
-  auto &op = std::get<ExprSemanticValue>(expr_node->semantic_value).op;
   if (expr_kind == BINARY_OPERATION) {
-    op = BinaryOperator(operation_enum_value);
+    expr.op = BinaryOperator(operation_enum_value);
   } else {
-    op = UnaryOperator(operation_enum_value);
+    expr.op = UnaryOperator(operation_enum_value);
   }
+  for (AstNode* nd : expr_node->child) {
+    if (nd->node_type != CONST_VALUE_NODE) {
+      if (nd->node_type != EXPR_NODE) {
+        expr.is_const_eval = false;
+      } else {
+        auto& value = std::get<ExprSemanticValue>(nd->semantic_value);
+        expr.is_const_eval &= value.is_const_eval;
+      }
+    }
+  }
+  expr_node->semantic_value = expr;
   return expr_node;
 }
 

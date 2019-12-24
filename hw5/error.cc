@@ -130,6 +130,10 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << "invalid initializer";
             break;
           }
+          case ERR_INIT_NONCONST: {
+            std::cerr << "initializer element is not constant";
+            break;
+          }
           case WARN_VOID_RETURN: {
             StartEmph(f.color_output);
             std::cerr << "‘return’";
