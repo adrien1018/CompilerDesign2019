@@ -23,7 +23,9 @@ bool Driver::SemanticAnalysis() {
   if (!analyzer.BuildSymbolTable(prog)) return false;
   bool success = analyzer.SemanticAnalysis(prog);
   std::cerr << "here\n";
-  std::tie(tab_, mp_) = analyzer.MoveSymbolTable();
+  auto p = analyzer.MoveSymbolTable();
+  tab_ = std::move(std::get<0>(p));
+  mp_ = std::move(std::get<1>(p));
   return success;
 }
 

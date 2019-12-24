@@ -627,7 +627,7 @@ class InsrGen {
   explicit InsrGen(const std::string& file, CodeGenInfo&& code_gen);
 
   // The instructions will be flushed upon destruction.
-  ~InsrGen() { Flush(); }
+  ~InsrGen() {}
 
   // Flush the instructions in the buffer to the output file.
   void Flush();

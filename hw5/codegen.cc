@@ -220,16 +220,16 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
 }
 
 void CodeGen::LoadConst(uint64_t x, size_t dest) {
-  if ((x >> 32) == 0) { // 32-bit values
+  if ((x >> 32) == 0) {  // 32-bit values
     if (x >= 0xfffff800 || x < 0x800) {
       ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
-                        (int32_t)x);
+                       (int32_t)x);
     } else {
       uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
       ir_.emplace_back(INSR_LUI, dest, IRInsr::kConst, tx >> 12);
       if (x != tx) {
         ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
-                          (int32_t)(x - tx));
+                         (int32_t)(x - tx));
       }
     }
   } else {
@@ -285,8 +285,8 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
     ir_.emplace_back(INSR_ADD, dest, dest, var_attr.offset);
   } else if (var_attr.local) {
     ir_.emplace_back(INSR_ADD, dest, dest, Reg(rv64::kSp));
-    ir_.emplace_back(INSR_ADDI, dest, dest,
-                     IRInsr::kConst, -(int64_t)var_attr.offset);
+    ir_.emplace_back(INSR_ADDI, dest, dest, IRInsr::kConst,
+                     -(int64_t)var_attr.offset);
   } else {
     ir_.emplace_back(PINSR_LA, reg, IRInsr::kData, var_attr.offset);
     ir_.emplace_back(INSR_ADD, dest, dest, reg);
@@ -355,8 +355,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
             ? tab_[func_attr->params[i]].GetValue<VariableAttr>().data_type
             : (*it)->data_type;
     VisitRelopExpr(*it, attr, dest);
-    if (type == CONST_STRING_TYPE || type == INT_TYPE ||
-        type == INT_PTR_TYPE || type == FLOAT_PTR_TYPE) {
+    if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
+        type == FLOAT_PTR_TYPE) {
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
         ir_.emplace_back(type == INT_TYPE ? INSR_SW : INSR_SD, IRInsr::kNoRD,
@@ -417,12 +417,14 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
     case STMT_NODE:
       VisitIdentifier(expr, attr, dest);
       break;
-    default: assert(false);
+    default:
+      assert(false);
   }
   cur_register_ = start_reg;
 }
 
 void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
+  Debug_("VisitAssignment\n");
   size_t start_reg = cur_register_;
   size_t valreg = AllocRegister(attr);
   VisitRelopExpr(*std::next(expr->child.begin()), attr, valreg);
@@ -448,11 +450,11 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
       }
     } else {
       if (var_attr.data_type == FLOAT_TYPE) {
-        ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg,
-                         IRInsr::kData, var_attr.offset);
+        ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg, IRInsr::kData,
+                         var_attr.offset);
       } else {
-        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, valreg,
-                         IRInsr::kData, var_attr.offset);
+        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, valreg, IRInsr::kData,
+                         var_attr.offset);
       }
     }
   }
@@ -469,46 +471,47 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       size_t now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
       size_t jump_label = InsertLabel();
-      VisitRelopExpr(*it, attr, reg); // while expr
+      VisitRelopExpr(*it, attr, reg);  // while expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr); // while block
+      VisitStatement(*++it, attr);  // while block
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
-      ir_[now_label].imm = InsertLabel(); // beq
+      ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
     case IF_ELSE_STMT: {
       size_t now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExpr(*it, attr, reg); // if expr
+      VisitRelopExpr(*it, attr, reg);  // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr); // if block
-      ir_[now_label].imm = labels_.size(); // beq; get label num here
+      VisitStatement(*++it, attr);          // if block
+      ir_[now_label].imm = labels_.size();  // beq; get label num here
       now_label = ir_.size();
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, 0);
-      InsertLabel(); // beq
-      VisitStatement(*++it, attr); // else block
-      ir_[now_label].imm = InsertLabel(); // j
+      InsertLabel();                       // beq
+      VisitStatement(*++it, attr);         // else block
+      ir_[now_label].imm = InsertLabel();  // j
       break;
     }
     case IF_STMT: {
       size_t now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExpr(*it, attr, reg); // if expr
+      VisitRelopExpr(*it, attr, reg);  // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr); // if block
-      ir_[now_label].imm = InsertLabel(); // beq
+      VisitStatement(*++it, attr);         // if block
+      ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
-    case FOR_STMT: break;
+    case FOR_STMT:
+      break;
     case RETURN_STMT: {
       if (stmt->child.size()) {
         size_t now_reg = cur_register_;
@@ -553,7 +556,7 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
             data_.emplace_back(std::move(v));
           } else {
             // should not be here because of constant folding!
-            //assert(false);
+            // assert(false);
             throw;
           }
         } else {
@@ -588,6 +591,7 @@ void CodeGen::VisitDeclList(AstNode* decl_list, FunctionAttr& attr,
 }
 
 void CodeGen::VisitBlock(AstNode* block, FunctionAttr& attr) {
+  Debug_("VisitBlock\n");
   size_t stack_tmp = cur_stack_;
   for (AstNode* nd : block->child) {
     switch (nd->node_type) {
@@ -603,11 +607,13 @@ void CodeGen::VisitBlock(AstNode* block, FunctionAttr& attr) {
 }
 
 void CodeGen::VisitFunctionDecl(AstNode* decl) {
+  Debug_("VisitFunctionDecl\n");
   AstNode* id = *std::next(decl->child.begin());
   {
     auto& value = std::get<IdentifierSemanticValue>(id->semantic_value);
     func_.push_back(std::get<Identifier>(value.identifier));
   }
+  Debug_("aaaa");
   FunctionAttr& attr = GetAttribute<FunctionAttr>(id, tab_);
   AstNode* block = *std::prev(decl->child.end());
   InitState(attr);
@@ -639,15 +645,19 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
 }
 
 void CodeGen::VisitGlobalDecl(AstNode* decl) {
+  Debug_("VisitGlobalDecl\n");
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
-    FunctionAttr attr; // unused
+    FunctionAttr attr;  // unused
     VisitDeclList(decl, attr, true);
     return;
   }
   DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
   switch (kind) {
-    case FUNCTION_DECL: VisitFunctionDecl(decl); break;
-    default: assert(false);
+    case FUNCTION_DECL:
+      VisitFunctionDecl(decl);
+      break;
+    default:
+      assert(false);
   }
 }
 
@@ -669,7 +679,7 @@ std::string RegString(const IRInsr::Register& reg) {
   return "R" + std::to_string(reg.id);
 }
 
-} // namespace
+}  // namespace
 
 void CodeGen::PrintIR() {
   for (size_t i = 0, j = 0; i < ir_.size(); i++) {
@@ -679,13 +689,18 @@ void CodeGen::PrintIR() {
     }
     printf("%s, RD:%s, RS1:%s, RS2:%s, ",
            kRV64InsrCode.find(ir_[i].op)->second.c_str(),
-           RegString(ir_[i].rd).c_str(),
-           RegString(ir_[i].rs1).c_str(),
+           RegString(ir_[i].rd).c_str(), RegString(ir_[i].rs1).c_str(),
            RegString(ir_[i].rs2).c_str());
     switch (ir_[i].imm_type) {
-      case IRInsr::kConst: printf("%ld\n", ir_[i].imm); break;
-      case IRInsr::kLabel: printf(".L%ld\n", ir_[i].imm); break;
-      case IRInsr::kData:  printf(".D%ld\n", ir_[i].imm); break;
+      case IRInsr::kConst:
+        printf("%ld\n", ir_[i].imm);
+        break;
+      case IRInsr::kLabel:
+        printf(".L%ld\n", ir_[i].imm);
+        break;
+      case IRInsr::kData:
+        printf(".D%ld\n", ir_[i].imm);
+        break;
       case IRInsr::kRoundingMode:
         printf("%s\n", rv64::kRoundingModeName[ir_[i].imm].c_str());
         break;
@@ -703,7 +718,9 @@ void CodeGen::PrintIR() {
       case 1:
         printf(".string \"%s\"", std::get<std::string>(data_[i]).c_str());
         break;
-      case 2: printf(".zero %zu", std::get<size_t>(data_[i])); break;
+      case 2:
+        printf(".zero %zu", std::get<size_t>(data_[i]));
+        break;
     }
     puts("");
   }

@@ -22,9 +22,10 @@ class Analyzer {
   bool SemanticAnalysis(AstNode* prog);
   bool BuildSymbolTable(AstNode* prog);
   std::vector<TableEntry>& GetSymbolTable() { return tab_; }
-  std::pair<std::vector<TableEntry>&&, SymbolMap<std::string::value_type>&&>
+  std::tuple<std::vector<TableEntry>, SymbolMap<std::string::value_type>>
   MoveSymbolTable() {
-    return std::make_pair(std::move(tab_), std::move(mp_));
+    return std::make_pair(tab_, mp_);
+    // return std::tie(tab_, mp_);
   }
 
  private:

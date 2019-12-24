@@ -661,7 +661,7 @@ void InsrGen::Flush() {
   data_.clear();
   ofs_ << ".text\n";
   std::vector<size_t> pos(tot_label_);
-  std::vector<size_t> pref(tot_label_);
+  std::vector<size_t> pref(insr_.size());
   for (size_t p = 0; p < insr_.size(); ++p) {
     try {
       size_t l = std::get<size_t>(insr_[p]);
