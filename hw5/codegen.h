@@ -14,10 +14,7 @@ class CodeGen {
   CodeGen(std::vector<TableEntry> &&tab) : tab_(tab) {}
 
   void CodeGeneration(AstNode *prog) { VisitProgram(prog); }
-  CodeGenInfo MoveInfo() {
-    return std::make_tuple(std::move(ir_), std::move(labels_), std::move(data_),
-                           std::move(tab_), std::move(func_));
-  }
+  CodeGenInfo MoveInfo() { return std::tie(ir_, labels_, data_, tab_, func_); }
 
  private:
   std::vector<TableEntry> tab_;  // symbol table

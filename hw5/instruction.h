@@ -544,9 +544,9 @@ struct Label {
 // num (or initialized array, not used in this project),
 //   string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
-using CodeGenInfo =
-    std::tuple<std::vector<IRInsr>, std::vector<Label>, std::vector<CodeData>,
-               std::vector<TableEntry>, std::vector<Identifier>>;
+using CodeGenInfo = std::tuple<std::vector<IRInsr>&, std::vector<Label>&,
+                               std::vector<CodeData>&, std::vector<TableEntry>&,
+                               std::vector<Identifier>&>;
 
 template <class T>
 class RegCtrl {
@@ -560,8 +560,8 @@ class RegCtrl {
       for (uint8_t p : rv64::kIntTempRegs) regs_[p] = kEmpty;
     } else {
       static_assert(std::is_same_v<T, float>);
-      for (uint8_t p : rv64::kFloatSavedRegs) regs_[p] = kEmpty;
-      for (uint8_t p : rv64::kFloatTempRegs) regs_[p] = kEmpty;
+      for (uint8_t p : rv64::kFloatSavedRegs) regs_[p ^ 128] = kEmpty;
+      for (uint8_t p : rv64::kFloatTempRegs) regs_[p ^ 128] = kEmpty;
     }
   }
 

@@ -699,4 +699,5 @@ void InsrGen::GenerateRV64() {
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
     GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos);
   }
+  Flush();
 }

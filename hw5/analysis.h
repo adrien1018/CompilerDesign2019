@@ -16,17 +16,16 @@ struct BuiltinAttr {
 extern const size_t kBuiltinFunctionNum;
 extern const BuiltinAttr kBuiltinFunction[];
 
-class Analyzer {
+using AnalyzerInfo =
+    std::tuple<std::vector<TableEntry>&, SymbolMap<std::string::value_type>&>;
+
+    class Analyzer {
  public:
   Analyzer(const FileInfor file) : file_(file), success_(true) {}
   bool SemanticAnalysis(AstNode* prog);
   bool BuildSymbolTable(AstNode* prog);
   std::vector<TableEntry>& GetSymbolTable() { return tab_; }
-  std::tuple<std::vector<TableEntry>, SymbolMap<std::string::value_type>>
-  MoveSymbolTable() {
-    return std::make_pair(tab_, mp_);
-    // return std::tie(tab_, mp_);
-  }
+  AnalyzerInfo MoveSymbolTable() { return std::tie(tab_, mp_); }
 
  private:
   using SymMap_ = SymbolMap<std::string::value_type>;
