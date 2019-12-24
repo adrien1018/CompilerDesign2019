@@ -150,8 +150,20 @@ std::ofstream &operator<<(std::ofstream &ofs, const RV64Insr &insr) {
 std::string EscapeString(const std::string& str) {
   std::string ret;
   for (char i : str) {
-    if (i >= 0x20 && i <= 0x7e) {
+    if (i == '\"' || i == '\\' || i == '\'') {
+      ret.push_back('\\');
       ret.push_back(i);
+    } else if (i >= 0x20 && i <= 0x7e) {
+      ret.push_back(i);
+    } else if (i == '\n') {
+      ret.push_back('\\');
+      ret.push_back('n');
+    } else if (i == '\r') {
+      ret.push_back('\\');
+      ret.push_back('r');
+    } else if (i == '\t') {
+      ret.push_back('\\');
+      ret.push_back('t');
     } else {
       ret.push_back('\\');
       ret.push_back((i >> 6 & 3) + '0');
