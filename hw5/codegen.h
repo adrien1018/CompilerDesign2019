@@ -32,6 +32,7 @@ class CodeGen {
   void InitState(FunctionAttr&);
   size_t AllocStack(FunctionAttr&, size_t);
   size_t AllocRegister(FunctionAttr&);
+  void LoadConst(uint64_t x, size_t dest);
   void VisitProgram(AstNode* prog);
   void VisitGlobalDecl(AstNode* prog);
   void VisitFunctionDecl(AstNode* decl);
@@ -45,7 +46,10 @@ class CodeGen {
   void VisitOpr(AstNode* expr, FunctionAttr&, size_t dest);
   void VisitConst(AstNode* expr, FunctionAttr&, size_t dest);
   void VisitIdentifier(AstNode* expr, FunctionAttr&, size_t dest);
+  void VisitAssignment(AstNode* expr, FunctionAttr&);
+  bool VisitArray(AstNode* expr, FunctionAttr&, size_t dest);
   void VisitFunctionCall(AstNode* expr, FunctionAttr&, size_t dest);
+
 };
 
 #endif  // GENERATOR_H_

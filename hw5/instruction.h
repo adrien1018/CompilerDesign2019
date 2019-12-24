@@ -377,7 +377,8 @@ const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
 #undef INSR_PAIR
     {PINSR_J, "j"},        {PINSR_CALL, "call"}, {PINSR_TAIL, "tail"},
     {PINSR_RET, "ret"},    {PINSR_LA, "la"},     {PINSR_MV, "mv"},
-    {PINSR_FMV_S, "fmv.s"}};
+    {PINSR_FMV_S, "fmv.s"},
+    {PINSR_PUSH_SP, "_push_sp_"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_LUI, U_TYPE},       {INSR_AUIPC, J_TYPE},

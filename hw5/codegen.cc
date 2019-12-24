@@ -219,6 +219,27 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   }
 }
 
+void CodeGen::LoadConst(uint64_t x, size_t dest) {
+  if ((x >> 32) == 0) { // 32-bit values
+    if (x >= 0xfffff800 || x < 0x800) {
+      ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
+                        (int32_t)x);
+    } else {
+      uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
+      ir_.emplace_back(INSR_LUI, dest, IRInsr::kConst, tx >> 12);
+      if (x != tx) {
+        ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
+                          (int32_t)(x - tx));
+      }
+    }
+  } else {
+    std::vector<uint8_t> res;
+    for (int i = 0; i < 8; i++) res.push_back(x >> (i * 8) & 255);
+    ir_.emplace_back(INSR_LD, dest, IRInsr::kData, data_.size());
+    data_.emplace_back(std::move(res));
+  }
+}
+
 void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
   auto& value = std::get<ConstValue>(expr->semantic_value);
   if (expr->data_type == CONST_STRING_TYPE) {
@@ -226,18 +247,7 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
     data_.emplace_back(std::get<std::string>(value));
   } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
     size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
-    uint32_t x = GetConst(expr);
-    if (x >= 0xfffff800 || x < 0x800) {
-      ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero), IRInsr::kConst,
-                       (int32_t)x);
-    } else {
-      uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
-      ir_.emplace_back(INSR_LUI, chval, IRInsr::kConst, tx >> 12);
-      if (x != tx) {
-        ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero), IRInsr::kConst,
-                         (int32_t)(x - tx));
-      }
-    }
+    LoadConst(GetConst(expr), chval);
     if (expr->data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FMV_W_X, dest, chval);
     }
@@ -246,13 +256,62 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
   }
 }
 
+// Load address to dest; if is slice, return true
+bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  size_t start_reg = cur_register_;
+  auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
+  const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
+  const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
+  size_t reg = AllocRegister(attr), i = 0;
+  for (AstNode* dim : expr->child) {
+    if (i == 0) {
+      VisitRelopExpr(dim, attr, reg);
+      ir_.emplace_back(INSR_ADD, dest, dest, reg);
+    } else {
+      VisitRelopExpr(dim, attr, dest);
+    }
+    if (++i == var_attr.dims.size()) {
+      ir_.emplace_back(INSR_SLLI, dest, dest, IRInsr::kConst, 2);
+    } else {
+      LoadConst(var_attr.dims[i], reg);
+      ir_.emplace_back(INSR_MUL, dest, dest, reg);
+    }
+  }
+  uint64_t x = 4;
+  for (i++; i < var_attr.dims.size(); i++) x *= var_attr.dims[i];
+  LoadConst(x, reg);
+  ir_.emplace_back(INSR_MUL, dest, dest, reg);
+  if (var_attr.is_param) {
+    ir_.emplace_back(INSR_ADD, dest, dest, var_attr.offset);
+  } else if (var_attr.local) {
+    ir_.emplace_back(INSR_ADD, dest, dest, Reg(rv64::kSp));
+    ir_.emplace_back(INSR_ADDI, dest, dest,
+                     IRInsr::kConst, -(int64_t)var_attr.offset);
+  } else {
+    ir_.emplace_back(PINSR_LA, reg, IRInsr::kData, var_attr.offset);
+    ir_.emplace_back(INSR_ADD, dest, dest, reg);
+  }
+  cur_register_ = start_reg;
+  return i != var_attr.dims.size();
+}
+
 void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
   auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
   assert(var_attr.data_type == FLOAT_TYPE || var_attr.data_type == INT_TYPE);
   if (var_attr.IsArray()) {
-    // TODO
+    size_t start_reg = cur_register_;
+    size_t reg = AllocRegister(attr);
+    if (!VisitArray(expr, attr, reg)) {
+      // not slice, load its content
+      if (var_attr.data_type == FLOAT_TYPE) {
+        ir_.emplace_back(INSR_FLW, dest, reg, IRInsr::kConst, 0);
+      } else {
+        ir_.emplace_back(INSR_LW, dest, reg, IRInsr::kConst, 0);
+      }
+    }
+    cur_register_ = start_reg;
   } else {
     if (var_attr.local) {
       if (var_attr.data_type == FLOAT_TYPE) {
@@ -296,7 +355,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
             ? tab_[func_attr->params[i]].GetValue<VariableAttr>().data_type
             : (*it)->data_type;
     VisitRelopExpr(*it, attr, dest);
-    if (type == CONST_STRING_TYPE || type == INT_TYPE) {
+    if (type == CONST_STRING_TYPE || type == INT_TYPE ||
+        type == INT_PTR_TYPE || type == FLOAT_PTR_TYPE) {
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
         ir_.emplace_back(type == INT_TYPE ? INSR_SW : INSR_SD, IRInsr::kNoRD,
@@ -314,6 +374,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
         ir_.emplace_back(PINSR_FMV_S, Reg(rv64::kFa0 + fval), dest);
       }
       fval++;
+    } else {
+      assert(false);
     }
   }
   size_t stk = (stk_store.size() + 1) / 2 * 2;  // 16-byte align
@@ -356,6 +418,43 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       VisitIdentifier(expr, attr, dest);
       break;
     default: assert(false);
+  }
+  cur_register_ = start_reg;
+}
+
+void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
+  size_t start_reg = cur_register_;
+  size_t valreg = AllocRegister(attr);
+  VisitRelopExpr(*std::next(expr->child.begin()), attr, valreg);
+  AstNode* var = expr->child.front();
+  auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
+  const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
+  const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
+  assert(var_attr.data_type == FLOAT_TYPE || var_attr.data_type == INT_TYPE);
+  if (var_attr.IsArray()) {
+    size_t reg = AllocRegister(attr);
+    if (VisitArray(expr, attr, reg)) throw;
+    if (var_attr.data_type == FLOAT_TYPE) {
+      ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg, reg, IRInsr::kConst, 0);
+    } else {
+      ir_.emplace_back(INSR_SW, IRInsr::kNoRD, valreg, reg, IRInsr::kConst, 0);
+    }
+  } else {
+    if (var_attr.local) {
+      if (var_attr.data_type == FLOAT_TYPE) {
+        ir_.emplace_back(PINSR_FMV_S, var_attr.offset, valreg);
+      } else {
+        ir_.emplace_back(PINSR_MV, var_attr.offset, valreg);
+      }
+    } else {
+      if (var_attr.data_type == FLOAT_TYPE) {
+        ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, valreg,
+                         IRInsr::kData, var_attr.offset);
+      } else {
+        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, valreg,
+                         IRInsr::kData, var_attr.offset);
+      }
+    }
   }
   cur_register_ = start_reg;
 }
@@ -423,7 +522,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       break;
     }
     case ASSIGN_STMT: {
-      // TODO
+      VisitAssignment(stmt, attr);
       break;
     }
   }

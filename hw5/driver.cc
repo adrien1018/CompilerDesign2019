@@ -28,7 +28,7 @@ bool Driver::SemanticAnalysis() {
 
 void Driver::CodeGeneration() {
   CodeGen generator(std::move(tab_));
-  return generator.CodeGeneration(prog);
+  generator.CodeGeneration(prog);
 }
 
 int yyFlexLexer::yylex() {
