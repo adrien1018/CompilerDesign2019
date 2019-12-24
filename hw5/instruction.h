@@ -473,8 +473,8 @@ struct IRInsr {
   struct Register {
     size_t id;
     bool is_real;
-    Register() {}
-    Register(NoRD) {}
+    Register() : id(), is_real() {}
+    Register(NoRD) : id(), is_real() {}
     Register(size_t x, bool is_real = false) : id(x), is_real(is_real) {}
   };
   enum ImmType {
@@ -485,25 +485,27 @@ struct IRInsr {
     kRoundingMode  // rounding mode (refer to rv64::kRoundingMode)
   };
   IRInsr() {}
-  IRInsr(Opcode op) : op(op) {}
+  IRInsr(Opcode op) : op(op), rd(), rs1(), rs2(), imm_type(), imm() {}
   template <class RD, class RS1>
-  IRInsr(Opcode op, RD rd, RS1 rs1) : op(op), rd(rd), rs1(rs1) {}
+  IRInsr(Opcode op, RD rd, RS1 rs1)
+      : op(op), rd(rd), rs1(rs1), rs2(), imm_type(), imm() {}
   template <class RD, class RS1, class RS2>
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2)
-      : op(op), rd(rd), rs1(rs1), rs2(rs2) {}
-  IRInsr(Opcode op, ImmType imm_type, int64_t imm)
-      : op(op), imm_type(imm_type), imm(imm) {}
-  template <class RD>
-  IRInsr(Opcode op, RD rd, ImmType imm_type, int64_t imm)
-      : op(op), rd(rd), imm_type(imm_type), imm(imm) {}
-  template <class RD, class RS1>
-  IRInsr(Opcode op, RD rd, RS1 rs1, ImmType imm_type, int64_t imm)
+      : op(op), rd(rd), rs1(rs1), rs2(rs2), imm_type(), imm() {}
+  template <class Int>
+  IRInsr(Opcode op, ImmType imm_type, Int imm)
+      : op(op), rd(), rs1(), rs2(), imm_type(imm_type), imm(imm) {}
+  template <class RD, class Int>
+  IRInsr(Opcode op, RD rd, ImmType imm_type, Int imm)
+      : op(op), rd(rd), rs1(), rs2(), imm_type(imm_type), imm(imm) {}
+  template <class RD, class RS1, class Int>
+  IRInsr(Opcode op, RD rd, RS1 rs1, ImmType imm_type, Int imm)
       : op(op), rd(rd), rs1(rs1), imm_type(imm_type), imm(imm) {}
-  template <class RD, class RS1, class RS2>
-  IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2, ImmType imm_type, int64_t imm)
+  template <class RD, class RS1, class RS2, class Int>
+  IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2, ImmType imm_type, Int imm)
       : op(op), rd(rd), rs1(rs1), rs2(rs2), imm_type(imm_type), imm(imm) {}
   Opcode op;
-  Register rd, rs1, rs2, rs3;
+  Register rd, rs1, rs2/*, rs3*/;
   ImmType imm_type;
   int64_t imm;
 };
