@@ -512,7 +512,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
-    case FOR_STMT:
+    case FOR_STMT: // TODO
       break;
     case RETURN_STMT: {
       if (stmt->child.size()) {

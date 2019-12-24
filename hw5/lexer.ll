@@ -19,7 +19,8 @@ const std::map<std::string, yy::parser::token_type> kReservedWords = {
 
 std::string UnescapeString(const char* str) {
   std::string ret;
-  for (size_t escape = 0, val = 0, len = 0; *str; str++) {
+  str++;
+  for (size_t escape = 0, val = 0, len = 0; *(str + 1); str++) {
     switch (escape) {
       case 0: {
         if (*str == '\\') {
