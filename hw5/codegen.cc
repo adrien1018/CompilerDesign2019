@@ -602,6 +602,10 @@ void CodeGen::VisitBlock(AstNode* block, FunctionAttr& attr) {
 
 void CodeGen::VisitFunctionDecl(AstNode* decl) {
   AstNode* id = *std::next(decl->child.begin());
+  {
+    auto& value = std::get<IdentifierSemanticValue>(id->semantic_value);
+    func_.push_back(std::get<Identifier>(value.identifier));
+  }
   FunctionAttr& attr = GetAttribute<FunctionAttr>(id, tab_);
   AstNode* block = *std::prev(decl->child.end());
   InitState(attr);
@@ -667,7 +671,7 @@ std::string RegString(const IRInsr::Register& reg) {
 
 void CodeGen::PrintIR() {
   for (size_t i = 0, j = 0; i < ir_.size(); i++) {
-    if (j < labels_.size() && labels_[j].ir_pos) {
+    if (j < labels_.size() && labels_[j].ir_pos == i) {
       printf(".%c%03zu: ", "LF"[labels_[j].is_func], j);
       j++;
     }
@@ -699,6 +703,7 @@ void CodeGen::PrintIR() {
         break;
       case 2: printf(".zero %zu", std::get<size_t>(data_[i])); break;
     }
+    puts("");
   }
   puts("");
 }

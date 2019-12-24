@@ -30,6 +30,7 @@ class CodeGen {
   std::vector<IRInsr> ir_;
   std::vector<Label> labels_;
   std::vector<CodeData> data_;
+  std::vector<Identifier> func_;
   size_t cur_stack_, cur_register_;
 
   size_t InsertLabel(bool func = false);
