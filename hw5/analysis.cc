@@ -23,13 +23,14 @@
  */
 
 const BuiltinAttr kBuiltinFunction[] = {
-    {1, VOID_TYPE}, {0, INT_TYPE}, {0, FLOAT_TYPE}};
+    {1, VOID_TYPE}, {1, VOID_TYPE}, {1, VOID_TYPE},
+    {0, INT_TYPE}, {0, FLOAT_TYPE}};
 
 const size_t kBuiltinFunctionNum =
     sizeof(kBuiltinFunction) / sizeof(BuiltinAttr);
 
 const std::unordered_map<std::string, size_t> kBuiltinFunctionMap = {
-    {"write", 0}, {"read", 1}, {"fread", 2}};
+    {"write", 0}, {"read", 3}, {"fread", 4}};
 
 struct StopExpression {};
 
@@ -651,7 +652,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   Debug_("AnalyzeFunctionCall", '\n');
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
-  size_t id = std::get<Identifier>(value.identifier).first;
+  size_t& id = std::get<Identifier>(value.identifier).first;
   if (id > ~kBuiltinFunctionNum) {  // built-in function
     AstNode* relop_expr_list = *std::next(node->child.begin());
     assert(relop_expr_list->child.size() == kBuiltinFunction[~id].num_param);
@@ -663,6 +664,13 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
         success_ = false;
         PrintMsg(file_, param->loc, ERR_ARR_TO_SCALAR,
                  GetIdentifier(param).second);
+      } else if (~id == 0) { // write
+        switch (proto.data_type) {
+          case CONST_STRING_TYPE: id = ~(size_t)0; break;
+          case INT_TYPE:          id = ~(size_t)1; break;
+          case FLOAT_TYPE:        id = ~(size_t)2; break;
+          default: assert(false);
+        }
       }
     }
     return;

@@ -338,6 +338,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
   const FunctionAttr* func_attr;
   size_t func_label;
   DataType return_type;
+  Debug_("Function call ", id, '\n');
   if (id > ~kBuiltinFunctionNum) {  // built-in function
     func_attr = nullptr;
     func_label = id;
@@ -394,6 +395,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     case FLOAT_TYPE:
       ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0));
       break;
+    case VOID_TYPE: break;
     default:
       assert(false);
   }
@@ -415,7 +417,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       VisitIdentifier(expr, attr, dest);
       break;
     case STMT_NODE:
-      VisitIdentifier(expr, attr, dest);
+      VisitFunctionCall(expr, attr, dest);
       break;
     default:
       assert(false);
@@ -526,6 +528,12 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     }
     case ASSIGN_STMT: {
       VisitAssignment(stmt, attr);
+      break;
+    }
+    case FUNCTION_CALL_STMT: {
+      size_t now_reg = cur_register_;
+      VisitFunctionCall(stmt, attr, AllocRegister(attr));
+      cur_register_ = now_reg;
       break;
     }
   }
