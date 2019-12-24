@@ -3,15 +3,6 @@
 #include <iomanip>
 #include <iostream>
 
-namespace {
-
-void RecursiveDelete(AstNode* nd) {
-  for (AstNode* x : nd->child) RecursiveDelete(x);
-  delete nd;
-}
-
-}  // namespace
-
 void Driver::DeleteAst_() {
   if (prog) RecursiveDelete(prog);
 }

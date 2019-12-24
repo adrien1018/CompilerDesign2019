@@ -289,14 +289,19 @@ enum Opcode {
   kFloatingPointInsr,
 
   /*** Pseudo-instructions ***/
-  PINSR_J,        // Jump (+dest ID)
-  PINSR_CALL,     // Call function (+dest ID)
-  PINSR_TAIL,     // Tail call function (+dest ID) (opt only)
-  PINSR_RET,      // Return (no arg)
-  PINSR_LA,       // Load absolute address
-  PINSR_MV,       // Copy (can be optimized!)
-  PINSR_FMV_S,    // Floating-point copy (can be optimized!)
-  PINSR_PUSH_SP,  // push stack pointer here
+  // j LABEL ->
+  //     lui [tmp], %hi(LABEL)
+  //     jalr x0, %lo(LABEL)([tmp])
+  // if LABEL is too far away to fit into immediate
+  PINSR_J,
+  // call LABEL, the assembler will handle immediate
+  PINSR_CALL,
+  PINSR_TAIL,    // Tail call function (+dest ID) (opt only)
+  PINSR_RET,     // Return (no arg)
+  PINSR_LA,      // Load absolute address
+  PINSR_MV,      // Copy (can be optimized!)
+  PINSR_FMV_S,   // Floating-point copy (can be optimized!)
+  PINSR_PUSH_SP, // push stack pointer here
   kPseudoInsr
 };
 

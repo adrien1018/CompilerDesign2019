@@ -1,6 +1,6 @@
 TARGET = parser
 INTERMEDIATE = parser.cc scanner.cc
-OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o codegen.o error.o instruction.o
+OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o codegen.o error.o instruction.o ast.o
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++
@@ -21,6 +21,7 @@ analysis.o: CXXFLAGS += -fprofile-arcs -ftest-coverage
 
 # dependency list
 analysis.o: analysis.h entry.h ast.h error.h symtab.h utils.h
+ast.o: ast.h symtab.h
 codegen.o: codegen.h entry.h ast.h symtab.h instruction.h utils.h analysis.h
 driver.o: driver.h ast.h codegen.h analysis.h entry.h error.h symtab.h parser.cc
 error.o: error.h ast.h symtab.h

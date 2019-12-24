@@ -16,15 +16,31 @@ T& GetAttribute(AstNode* id, std::vector<TableEntry>& tab) {
   return tab[std::get<Identifier>(value.identifier).first].GetValue<T>();
 }
 
+inline uint32_t GetConst(AstNode* expr) {
+  auto& value = std::get<ConstValue>(expr->semantic_value);
+  uint32_t x;
+  if (expr->data_type == INT_TYPE) {
+    memcpy(&x, &std::get<int32_t>(value), 4);
+  } else {
+    memcpy(&x, &std::get<FloatType>(value), 4);
+  }
+  return x;
+}
+
 inline IRInsr::Register Reg(size_t x) { return IRInsr::Register(x, true); }
 
 }  // namespace
 
+inline size_t CodeGen::InsertLabel(bool func) {
+  size_t ret = labels_.size();
+  labels_.emplace_back(ir_.size(), func);
+  return ret;
+}
 inline void CodeGen::InitState(FunctionAttr& attr) {
   cur_stack_ = attr.sp_offset = 0;
   cur_register_ = attr.tot_pseudo_reg = attr.params.size();
   attr.label = labels_.size();
-  labels_.emplace_back(ir_.size(), true);
+  InsertLabel(true);
 }
 inline size_t CodeGen::AllocStack(FunctionAttr& attr, size_t sz) {
   cur_stack_ += sz;
@@ -83,8 +99,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ, IRInsr::kNoRD,
                        dest, Reg(rv64::kZero), IRInsr::kLabel, 0);
       VisitRelopExpr(expr->child.front(), attr, dest);
-      ir_[now_label].imm = labels_.size();
-      labels_.emplace_back(ir_.size());
+      ir_[now_label].imm = InsertLabel();
       return;
     }
     if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
@@ -211,12 +226,7 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
     data_.emplace_back(std::get<std::string>(value));
   } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
     size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
-    uint32_t x;
-    if (expr->data_type == INT_TYPE) {
-      memcpy(&x, &std::get<int32_t>(value), 4);
-    } else {
-      memcpy(&x, &std::get<FloatType>(value), 4);
-    }
+    uint32_t x = GetConst(expr);
     if (x >= 0xfffff800 || x < 0x800) {
       ir_.emplace_back(INSR_ADDIW, chval, Reg(rv64::kZero), IRInsr::kConst,
                        (int32_t)x);
@@ -345,8 +355,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
     case STMT_NODE:
       VisitIdentifier(expr, attr, dest);
       break;
-    default:
-      assert(false);
+    default: assert(false);
   }
   cur_register_ = start_reg;
 }
@@ -355,16 +364,68 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
   if (stmt->node_type == BLOCK_NODE) return VisitBlock(stmt, attr);
   if (stmt->node_type != STMT_NODE) return;
   auto& value = std::get<StmtSemanticValue>(stmt->semantic_value);
+  auto it = stmt->child.begin();
   switch (value.kind) {
-    case WHILE_STMT:
-    case FOR_STMT:
-    case IF_STMT:
-      VisitStatement(*std::prev(stmt->child.end()), attr);
+    case WHILE_STMT: {
+      size_t now_reg = cur_register_;
+      size_t reg = AllocRegister(attr);
+      size_t jump_label = InsertLabel();
+      VisitRelopExpr(*it, attr, reg); // while expr
+      size_t now_label = ir_.size();
+      ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
+                       IRInsr::kLabel, 0);
+      cur_register_ = now_reg;
+      VisitStatement(*++it, attr); // while block
+      ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
+      ir_[now_label].imm = InsertLabel(); // beq
       break;
-    case IF_ELSE_STMT:
-      VisitStatement(*std::prev(stmt->child.end(), 2), attr);
-      VisitStatement(*std::prev(stmt->child.end()), attr);
+    }
+    case IF_ELSE_STMT: {
+      size_t now_reg = cur_register_;
+      size_t reg = AllocRegister(attr);
+      VisitRelopExpr(*it, attr, reg); // if expr
+      size_t now_label = ir_.size();
+      ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
+                       IRInsr::kLabel, 0);
+      cur_register_ = now_reg;
+      VisitStatement(*++it, attr); // if block
+      ir_[now_label].imm = labels_.size(); // beq; get label num here
+      now_label = ir_.size();
+      ir_.emplace_back(PINSR_J, IRInsr::kLabel, 0);
+      InsertLabel(); // beq
+      VisitStatement(*++it, attr); // else block
+      ir_[now_label].imm = InsertLabel(); // j
       break;
+    }
+    case IF_STMT: {
+      size_t now_reg = cur_register_;
+      size_t reg = AllocRegister(attr);
+      VisitRelopExpr(*it, attr, reg); // if expr
+      size_t now_label = ir_.size();
+      ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
+                       IRInsr::kLabel, 0);
+      cur_register_ = now_reg;
+      VisitStatement(*++it, attr); // if block
+      ir_[now_label].imm = InsertLabel(); // beq
+      break;
+    }
+    case FOR_STMT: break;
+    case RETURN_STMT: {
+      if (stmt->child.size()) {
+        size_t now_reg = cur_register_;
+        size_t reg = AllocRegister(attr);
+        VisitRelopExpr(*it, attr, reg);
+        size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
+        ir_.emplace_back(PINSR_MV, Reg(retreg), reg);
+        cur_register_ = now_reg;
+      }
+      ir_.emplace_back(PINSR_RET);
+      break;
+    }
+    case ASSIGN_STMT: {
+      // TODO
+      break;
+    }
   }
 }
 
@@ -372,30 +433,56 @@ void CodeGen::VisitStmtList(AstNode* stmt_list, FunctionAttr& attr) {
   for (AstNode* stmt : stmt_list->child) VisitStatement(stmt, attr);
 }
 
-void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr) {
+void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
+                                bool global) {
   for (auto it = std::next(decl->child.begin()); it != decl->child.end();
        it++) {
     VariableAttr& var_attr = GetAttribute<VariableAttr>(*it, tab_);
-    if (var_attr.IsArray()) {
-      var_attr.offset = AllocStack(attr, var_attr.size);
+    if (global) {
+      var_attr.offset = data_.size();
+      if (var_attr.IsArray()) {
+        data_.push_back(var_attr.size);
+      } else {
+        auto& value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
+        if (value.kind == WITH_INIT_ID) {
+          AstNode* init_val = (*it)->child.front();
+          if (init_val->node_type == CONST_VALUE_NODE) {
+            uint32_t x = GetConst(init_val);
+            std::vector<uint8_t> v(4);
+            for (int i = 0; i < 4; i++) v[i] = x >> (i * 8) & 255;
+            data_.emplace_back(std::move(v));
+          } else {
+            // should not be here because of constant folding!
+            //assert(false);
+            throw;
+          }
+        } else {
+          data_.push_back(var_attr.size);
+        }
+      }
     } else {
-      auto& value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
-      var_attr.offset = AllocRegister(attr);
-      if (value.kind == WITH_INIT_ID) {
-        AstNode* init_val = (*it)->child.front();
-        VisitRelopExpr(init_val, attr, var_attr.offset);
+      if (var_attr.IsArray()) {
+        var_attr.offset = AllocStack(attr, var_attr.size);
+      } else {
+        auto& value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
+        var_attr.offset = AllocRegister(attr);
+        if (value.kind == WITH_INIT_ID) {
+          AstNode* init_val = (*it)->child.front();
+          VisitRelopExpr(init_val, attr, var_attr.offset);
+        }
       }
     }
-    var_attr.local = true;
+    var_attr.local = !global;
     var_attr.is_param = false;
   }
 }
 
-void CodeGen::VisitDeclList(AstNode* decl_list, FunctionAttr& attr) {
-  // TODO: Remove type-decls after parsing
+void CodeGen::VisitDeclList(AstNode* decl_list, FunctionAttr& attr,
+                            bool global) {
+  // TODO: Remove type-decls after in semantics phase
   for (AstNode* decl : decl_list->child) {
     DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
-    if (kind == VARIABLE_DECL) VisitVariableDecl(decl, attr);
+    if (kind == VARIABLE_DECL) VisitVariableDecl(decl, attr, global);
   }
 }
 
@@ -407,7 +494,7 @@ void CodeGen::VisitBlock(AstNode* block, FunctionAttr& attr) {
         VisitStmtList(nd, attr);
         break;
       case VARIABLE_DECL_LIST_NODE:
-        VisitDeclList(nd, attr);
+        VisitDeclList(nd, attr, false);
         break;
     }
   }
@@ -448,66 +535,17 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
 
 void CodeGen::VisitGlobalDecl(AstNode* decl) {
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
-    for (AstNode* child : decl->child) VisitGlobalDecl(child);
-    return;
-  }
-  DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
-  if (kind == FUNCTION_DECL) VisitFunctionDecl(decl);
-}
-
-void CodeGen::VisitProgram(AstNode* prog) {
-  for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
-}
-
-void CodeGen::GenerateVariableDecl(AstNode* var_decl, bool global) {
-  if (global) {
-    if (section_ != DATA_SECTION) {
-      // TODO: generate `.data` marker
-      ofs_ << ".data\n";
-    }
-    for (auto it = std::next(var_decl->child.begin());
-         it != var_decl->child.end(); ++it) {
-      AstNode* nd = *it;
-      assert(nd->node_type == IDENTIFIER_NODE);
-      auto& value = std::get<IdentifierSemanticValue>(nd->semantic_value);
-      const TableEntry& entry =
-          tab_[std::get<Identifier>(value.identifier).first];
-      const VariableAttr& attr = entry.GetValue<VariableAttr>();
-      if (attr.IsArray()) {
-        // size_t sz = attr.GetSize();
-        // TODO: generate `<id>: .space 4 * sz`
-      } else {
-        // TODO: generate `<id>: .word`
-      }
-    }
-  } else {
-    // TODO: declaring local variables
-  }
-}
-
-void CodeGen::GenerateFunctionDecl(AstNode* func_decl) {
-  if (section_ != TEXT_SECTION) {
-    // TODO: generate `.text` marker
-    ofs_ << ".text\n";
-  }
-}
-
-void CodeGen::GenerateGlobalDecl(AstNode* decl) {
-  if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
-    for (AstNode* child : decl->child) GenerateGlobalDecl(child);
+    FunctionAttr attr; // unused
+    VisitDeclList(decl, attr, true);
     return;
   }
   DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
   switch (kind) {
-    case VARIABLE_DECL:
-      GenerateVariableDecl(decl, true);
-      break;
-    case FUNCTION_DECL:
-      GenerateFunctionDecl(decl);
-      break;
+    case FUNCTION_DECL: VisitFunctionDecl(decl); break;
+    default: assert(false);
   }
 }
 
-void CodeGen::GenerateProgram(AstNode* prog) {
-  for (AstNode* decl : prog->child) GenerateGlobalDecl(decl);
+void CodeGen::VisitProgram(AstNode* prog) {
+  for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
 }

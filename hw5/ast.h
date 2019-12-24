@@ -163,4 +163,6 @@ struct AstNode {
       : parent(nullptr), node_type(type), data_type(NONE_TYPE), loc(loc) {}
 };
 
+void RecursiveDelete(AstNode* nd);
+
 #endif  // AST_H_
