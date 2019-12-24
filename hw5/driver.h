@@ -43,6 +43,7 @@ class Driver : public yyFlexLexer {
   FileInfor file_;
   bool stream_create_;
   std::vector<TableEntry> tab_;
+  SymbolMap<std::string::value_type> mp_;
 
   void DeleteAst_();
 

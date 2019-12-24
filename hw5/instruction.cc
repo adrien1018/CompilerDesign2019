@@ -115,6 +115,7 @@ size_t PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
 // Serialize RV64 instructions
 size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
                  const std::vector<size_t> &pos, std::vector<size_t> &pref) {
+  ofs << "\t";
   if (insr.op >= kFloatingPointInsr) {
     return PrintPseudoInsr(ofs, insr, p, pos, pref);
   }
@@ -202,7 +203,7 @@ InsrGen::InsrGen(const std::string &file) : ofs_(file) {}
 
 InsrGen::InsrGen(const std::string &file, std::vector<CodeData> &&data,
                  std::vector<Label> &&label, std::vector<TableEntry> &&tab,
-                 std::vector<size_t> &&func)
+                 std::vector<Identifier> &&func)
     : ofs_(file),
       data_(std::move(data)),
       label_(std::move(label)),
@@ -214,7 +215,7 @@ InsrGen::InsrGen(const std::string &file, CodeGenInfo &&code_gen)
     : ofs_(file),
       data_(std::move(std::get<2>(code_gen))),
       label_(std::move(std::get<1>(code_gen))),
-      func_(),
+      func_(std::move(std::get<4>(code_gen))),
       ir_insr_(std::move(std::get<0>(code_gen))),
       tab_(std::move(std::get<3>(code_gen))),
       tot_label_(label_.size()) {}
@@ -613,6 +614,7 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func) {
 namespace {
 
 void PrintData(std::ofstream &ofs, const CodeData &data) {
+  ofs << "\t";
   size_t idx = data.index();
   switch (idx) {
     case 0: {  // std::vector<uint8_t>
@@ -667,12 +669,22 @@ void InsrGen::Flush() {
     } catch (std::bad_variant_access &) {
     }
   }
-  for (size_t p = 0; p < insr_.size(); ++p) {
+  for (size_t p = 0, f = 0; p < insr_.size(); ++p) {
     try {
       pref[p] = PrintInsr(ofs_, std::get<RV64Insr>(insr_[p]), p, pos, pref);
       ofs_ << "\n";
     } catch (std::bad_variant_access &) {
-      ofs_ << ".L" << std::get<size_t>(insr_[p]) << ": \n";
+      size_t lb = std::get<size_t>(insr_[p]);
+      std::cerr << "lb = " << lb << "\n";
+      if (lb < label_.size() && label_[lb].is_func) {
+        assert(f < func_.size());
+        std::string s(func_[f++].second);
+        std::cerr << "s = " << s << "\n";
+        if (s == "main") s = "MAIN";
+        ofs_ << s << ":\n";
+      } else {
+        ofs_ << ".L" << lb << ":\n";
+      }
     }
     if (p > 0) pref[p] += pref[p - 1];
   }
@@ -682,7 +694,7 @@ void InsrGen::Flush() {
 void InsrGen::GenerateRV64() {
   assert(label_.empty() || label_[0].is_func);
   for (size_t i = 0; i < func_.size(); ++i) {
-    const auto &attr = tab_[func_[i]].GetValue<FunctionAttr>();
+    const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
     GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos);

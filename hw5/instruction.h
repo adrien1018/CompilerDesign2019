@@ -332,53 +332,73 @@ constexpr CString<N> ToInsr(const CString<N>& s) {
 const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
 #define INSR_PAIR(x) \
   { INSR_##x, ToInsr(CString(#x)) }
-    INSR_PAIR(LUI),        INSR_PAIR(AUIPC),     INSR_PAIR(JAL),
-    INSR_PAIR(JALR),       INSR_PAIR(BEQ),       INSR_PAIR(BNE),
-    INSR_PAIR(BLT),        INSR_PAIR(BGE),       INSR_PAIR(BLTU),
-    INSR_PAIR(BGEU),       INSR_PAIR(LB),        INSR_PAIR(LH),
-    INSR_PAIR(LW),         INSR_PAIR(LD),        INSR_PAIR(LBU),
-    INSR_PAIR(LHU),        INSR_PAIR(LWU),       INSR_PAIR(SB),
-    INSR_PAIR(SH),         INSR_PAIR(SW),        INSR_PAIR(SD),
-    INSR_PAIR(ADDI),       INSR_PAIR(SLTI),      INSR_PAIR(SLTIU),
-    INSR_PAIR(XORI),       INSR_PAIR(ORI),       INSR_PAIR(ANDI),
-    INSR_PAIR(SLLI),       INSR_PAIR(SRLI),      INSR_PAIR(SRAI),
-    INSR_PAIR(ADDIW),      INSR_PAIR(SLLIW),     INSR_PAIR(SRLIW),
-    INSR_PAIR(SRAIW),      INSR_PAIR(ADD),       INSR_PAIR(SUB),
-    INSR_PAIR(SLL),        INSR_PAIR(SLT),       INSR_PAIR(SLTU),
-    INSR_PAIR(XOR),        INSR_PAIR(SRL),       INSR_PAIR(SRA),
-    INSR_PAIR(OR),         INSR_PAIR(AND),       INSR_PAIR(ADDW),
-    INSR_PAIR(SUBW),       INSR_PAIR(SLLW),      INSR_PAIR(SRLW),
-    INSR_PAIR(SRAW),       INSR_PAIR(MUL),       INSR_PAIR(MULH),
-    INSR_PAIR(MULHSU),     INSR_PAIR(MULHU),     INSR_PAIR(DIV),
-    INSR_PAIR(DIVU),       INSR_PAIR(REM),       INSR_PAIR(REMU),
-    INSR_PAIR(MULW),       INSR_PAIR(DIVW),      INSR_PAIR(DIVUW),
-    INSR_PAIR(REMW),       INSR_PAIR(REMUW),     INSR_PAIR(FLW),
-    INSR_PAIR(FLD),        INSR_PAIR(FSW),       INSR_PAIR(FSD),
-    INSR_PAIR(FMADD_S),    INSR_PAIR(FMSUB_S),   INSR_PAIR(FNMADD_S),
-    INSR_PAIR(FNMSUB_S),   INSR_PAIR(FMADD_D),   INSR_PAIR(FMSUB_D),
-    INSR_PAIR(FNMADD_D),   INSR_PAIR(FNMSUB_D),  INSR_PAIR(FADD_S),
-    INSR_PAIR(FSUB_S),     INSR_PAIR(FMUL_S),    INSR_PAIR(FDIV_S),
-    INSR_PAIR(FSQRT_S),    INSR_PAIR(FSGNJ_S),   INSR_PAIR(FSGNJN_S),
-    INSR_PAIR(FSGNJX_S),   INSR_PAIR(FMIN_S),    INSR_PAIR(FMAX_S),
-    INSR_PAIR(FADD_D),     INSR_PAIR(FSUB_D),    INSR_PAIR(FMUL_D),
-    INSR_PAIR(FDIV_D),     INSR_PAIR(FSQRT_D),   INSR_PAIR(FSGNJ_D),
-    INSR_PAIR(FSGNJN_D),   INSR_PAIR(FSGNJX_D),  INSR_PAIR(FMIN_D),
-    INSR_PAIR(FMAX_D),     INSR_PAIR(FCVT_W_S),  INSR_PAIR(FCVT_WU_S),
-    INSR_PAIR(FCVT_L_S),   INSR_PAIR(FCVT_LU_S), INSR_PAIR(FCVT_W_D),
-    INSR_PAIR(FCVT_WU_D),  INSR_PAIR(FCVT_L_D),  INSR_PAIR(FCVT_LU_D),
-    INSR_PAIR(FCVT_S_W),   INSR_PAIR(FCVT_S_WU), INSR_PAIR(FCVT_S_L),
-    INSR_PAIR(FCVT_S_LU),  INSR_PAIR(FCVT_D_W),  INSR_PAIR(FCVT_D_WU),
-    INSR_PAIR(FCVT_D_L),   INSR_PAIR(FCVT_D_LU), INSR_PAIR(FCVT_S_D),
-    INSR_PAIR(FCVT_D_S),   INSR_PAIR(FMV_X_W),   INSR_PAIR(FMV_X_D),
-    INSR_PAIR(FMV_W_X),    INSR_PAIR(FMV_D_X),   INSR_PAIR(FEQ_S),
-    INSR_PAIR(FLT_S),      INSR_PAIR(FLE_S),     INSR_PAIR(FEQ_D),
-    INSR_PAIR(FLT_D),      INSR_PAIR(FLE_D),     INSR_PAIR(FCLASS_S),
-    INSR_PAIR(FCLASS_D),
+    INSR_PAIR(LUI),         INSR_PAIR(AUIPC),
+    INSR_PAIR(JAL),         INSR_PAIR(JALR),
+    INSR_PAIR(BEQ),         INSR_PAIR(BNE),
+    INSR_PAIR(BLT),         INSR_PAIR(BGE),
+    INSR_PAIR(BLTU),        INSR_PAIR(BGEU),
+    INSR_PAIR(LB),          INSR_PAIR(LH),
+    INSR_PAIR(LW),          INSR_PAIR(LD),
+    INSR_PAIR(LBU),         INSR_PAIR(LHU),
+    INSR_PAIR(LWU),         INSR_PAIR(SB),
+    INSR_PAIR(SH),          INSR_PAIR(SW),
+    INSR_PAIR(SD),          INSR_PAIR(ADDI),
+    INSR_PAIR(SLTI),        INSR_PAIR(SLTIU),
+    INSR_PAIR(XORI),        INSR_PAIR(ORI),
+    INSR_PAIR(ANDI),        INSR_PAIR(SLLI),
+    INSR_PAIR(SRLI),        INSR_PAIR(SRAI),
+    INSR_PAIR(ADDIW),       INSR_PAIR(SLLIW),
+    INSR_PAIR(SRLIW),       INSR_PAIR(SRAIW),
+    INSR_PAIR(ADD),         INSR_PAIR(SUB),
+    INSR_PAIR(SLL),         INSR_PAIR(SLT),
+    INSR_PAIR(SLTU),        INSR_PAIR(XOR),
+    INSR_PAIR(SRL),         INSR_PAIR(SRA),
+    INSR_PAIR(OR),          INSR_PAIR(AND),
+    INSR_PAIR(ADDW),        INSR_PAIR(SUBW),
+    INSR_PAIR(SLLW),        INSR_PAIR(SRLW),
+    INSR_PAIR(SRAW),        INSR_PAIR(MUL),
+    INSR_PAIR(MULH),        INSR_PAIR(MULHSU),
+    INSR_PAIR(MULHU),       INSR_PAIR(DIV),
+    INSR_PAIR(DIVU),        INSR_PAIR(REM),
+    INSR_PAIR(REMU),        INSR_PAIR(MULW),
+    INSR_PAIR(DIVW),        INSR_PAIR(DIVUW),
+    INSR_PAIR(REMW),        INSR_PAIR(REMUW),
+    INSR_PAIR(FLW),         INSR_PAIR(FLD),
+    INSR_PAIR(FSW),         INSR_PAIR(FSD),
+    INSR_PAIR(FMADD_S),     INSR_PAIR(FMSUB_S),
+    INSR_PAIR(FNMADD_S),    INSR_PAIR(FNMSUB_S),
+    INSR_PAIR(FMADD_D),     INSR_PAIR(FMSUB_D),
+    INSR_PAIR(FNMADD_D),    INSR_PAIR(FNMSUB_D),
+    INSR_PAIR(FADD_S),      INSR_PAIR(FSUB_S),
+    INSR_PAIR(FMUL_S),      INSR_PAIR(FDIV_S),
+    INSR_PAIR(FSQRT_S),     INSR_PAIR(FSGNJ_S),
+    INSR_PAIR(FSGNJN_S),    INSR_PAIR(FSGNJX_S),
+    INSR_PAIR(FMIN_S),      INSR_PAIR(FMAX_S),
+    INSR_PAIR(FADD_D),      INSR_PAIR(FSUB_D),
+    INSR_PAIR(FMUL_D),      INSR_PAIR(FDIV_D),
+    INSR_PAIR(FSQRT_D),     INSR_PAIR(FSGNJ_D),
+    INSR_PAIR(FSGNJN_D),    INSR_PAIR(FSGNJX_D),
+    INSR_PAIR(FMIN_D),      INSR_PAIR(FMAX_D),
+    INSR_PAIR(FCVT_W_S),    INSR_PAIR(FCVT_WU_S),
+    INSR_PAIR(FCVT_L_S),    INSR_PAIR(FCVT_LU_S),
+    INSR_PAIR(FCVT_W_D),    INSR_PAIR(FCVT_WU_D),
+    INSR_PAIR(FCVT_L_D),    INSR_PAIR(FCVT_LU_D),
+    INSR_PAIR(FCVT_S_W),    INSR_PAIR(FCVT_S_WU),
+    INSR_PAIR(FCVT_S_L),    INSR_PAIR(FCVT_S_LU),
+    INSR_PAIR(FCVT_D_W),    INSR_PAIR(FCVT_D_WU),
+    INSR_PAIR(FCVT_D_L),    INSR_PAIR(FCVT_D_LU),
+    INSR_PAIR(FCVT_S_D),    INSR_PAIR(FCVT_D_S),
+    INSR_PAIR(FMV_X_W),     INSR_PAIR(FMV_X_D),
+    INSR_PAIR(FMV_W_X),     INSR_PAIR(FMV_D_X),
+    INSR_PAIR(FEQ_S),       INSR_PAIR(FLT_S),
+    INSR_PAIR(FLE_S),       INSR_PAIR(FEQ_D),
+    INSR_PAIR(FLT_D),       INSR_PAIR(FLE_D),
+    INSR_PAIR(FCLASS_S),    INSR_PAIR(FCLASS_D),
 #undef INSR_PAIR
-    {PINSR_J, "j"},        {PINSR_CALL, "call"}, {PINSR_TAIL, "tail"},
-    {PINSR_RET, "ret"},    {PINSR_LA, "la"},     {PINSR_MV, "mv"},
-    {PINSR_FMV_S, "fmv.s"},
-    {PINSR_PUSH_SP, "_push_sp_"}};
+    {PINSR_J, "j"},         {PINSR_CALL, "call"},
+    {PINSR_TAIL, "tail"},   {PINSR_RET, "ret"},
+    {PINSR_LA, "la"},       {PINSR_MV, "mv"},
+    {PINSR_FMV_S, "fmv.s"}, {PINSR_PUSH_SP, "_push_sp_"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_LUI, U_TYPE},       {INSR_AUIPC, J_TYPE},
@@ -522,8 +542,9 @@ struct Label {
 // num (or initialized array, not used in this project),
 //   string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
-using CodeGenInfo = std::tuple<std::vector<IRInsr>, std::vector<Label>,
-                               std::vector<CodeData>, std::vector<TableEntry>>;
+using CodeGenInfo =
+    std::tuple<std::vector<IRInsr>, std::vector<Label>, std::vector<CodeData>,
+               std::vector<TableEntry>, std::vector<Identifier>>;
 
 template <class T>
 class RegCtrl {
@@ -602,7 +623,7 @@ class InsrGen {
   explicit InsrGen(const std::string& file);
   explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
                    std::vector<Label>&& label, std::vector<TableEntry>&& tab,
-                   std::vector<size_t>&& func);
+                   std::vector<Identifier>&& func);
   explicit InsrGen(const std::string& file, CodeGenInfo&& code_gen);
 
   // The instructions will be flushed upon destruction.
@@ -653,7 +674,7 @@ class InsrGen {
   std::vector<std::variant<RV64Insr, size_t>> insr_;  // instruction buffer
   std::vector<CodeData> data_;
   std::vector<Label> label_;
-  std::vector<size_t> func_;
+  std::vector<Identifier> func_;
   std::vector<IRInsr> ir_insr_;
   std::vector<TableEntry> tab_;
   size_t ir_pos_ = 0, label_pos_ = 0, tot_label_;

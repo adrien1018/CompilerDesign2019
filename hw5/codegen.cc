@@ -534,6 +534,7 @@ void CodeGen::VisitStmtList(AstNode* stmt_list, FunctionAttr& attr) {
 
 void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
                                 bool global) {
+  Debug_("VisitVariableDecl\n");
   for (auto it = std::next(decl->child.begin()); it != decl->child.end();
        it++) {
     VariableAttr& var_attr = GetAttribute<VariableAttr>(*it, tab_);
@@ -574,6 +575,7 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
     var_attr.local = !global;
     var_attr.is_param = false;
   }
+  Debug_("Done VisitVariableDecl\n");
 }
 
 void CodeGen::VisitDeclList(AstNode* decl_list, FunctionAttr& attr,

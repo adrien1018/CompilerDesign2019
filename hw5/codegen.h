@@ -16,7 +16,7 @@ class CodeGen {
   void CodeGeneration(AstNode *prog) { VisitProgram(prog); }
   CodeGenInfo MoveInfo() {
     return std::make_tuple(std::move(ir_), std::move(labels_), std::move(data_),
-                           std::move(tab_));
+                           std::move(tab_), std::move(func_));
   }
 
  private:
