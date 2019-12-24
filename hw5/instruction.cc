@@ -287,6 +287,10 @@ void InsrGen::GeneratePInsr(Opcode op, Args &&... args) {
       buf_.emplace_back(op, rs, 0, 0, rd, IRInsr::kConst, 0);
       break;
     }
+    case PINSR_RET: {
+      buf_.emplace_back(op, 0, 0, 0, 0, IRInsr::kConst, 0);
+      break;
+    }
   }
 }
 
@@ -421,6 +425,7 @@ size_t InsrGen::GeneratePrologue(size_t local) {
 void InsrGen::GenerateEpilogue(size_t local) {
   PopCalleeRegs(local);
   GenerateInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
+  GenerateInsr(PINSR_RET);
 }
 
 void InsrGen::GenerateRTypeInsr(const IRInsr &ir,
@@ -708,8 +713,10 @@ void InsrGen::Flush() {
     } catch (std::bad_variant_access &) {
       size_t lb = std::get<size_t>(insr_[p]);
       if (lb < label_.size() && label_[lb].is_func) {
-        if (label_func_[lb] == "main") ofs_ << "_start_MAIN:\n";
-        else ofs_ << label_func_[lb] << ":\n";
+        if (label_func_[lb] == "main")
+          ofs_ << "_start_MAIN:\n";
+        else
+          ofs_ << label_func_[lb] << ":\n";
       } else if (lb >= label_.size()) {
         ofs_ << "_end_" << func_name_[lb - label_.size()] << ":\n";
       } else {

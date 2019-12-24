@@ -16,8 +16,8 @@
 namespace rv64 {
 
 constexpr size_t kRegisters = 32;
-constexpr size_t kNumCalleeSaved = 13;
-constexpr size_t kNumCallerSaved = 16;
+constexpr size_t kNumCalleeSaved = 14;
+constexpr size_t kNumCallerSaved = 15;
 constexpr size_t kNumIntSavedRegs = 11;
 constexpr size_t kNumIntTempRegs = 6;
 constexpr size_t kNumFloatSavedRegs = 12;
@@ -98,10 +98,10 @@ constexpr uint8_t kRUP = 3;
 constexpr uint8_t kRMM = 4;
 
 constexpr std::array<uint8_t, kNumCalleeSaved> kCalleeSaved = {
-    2, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
+    1, 2, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
 
 constexpr std::array<uint8_t, kNumCallerSaved> kCallerSaved = {
-    1, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31};
+    5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31};
 
 constexpr std::array<uint8_t, kNumIntSavedRegs> kIntSavedRegs = {
     kS1, kS2, kS3, kS4, kS5, kS6, kS7, kS8, kS9, kS10, kS11};
