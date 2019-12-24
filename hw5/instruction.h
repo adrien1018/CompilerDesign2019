@@ -522,6 +522,8 @@ struct Label {
 // num (or initialized array, not used in this project),
 //   string constant or uninitialized array
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
+using CodeGenInfo = std::tuple<std::vector<IRInsr>, std::vector<Label>,
+                               std::vector<CodeData>, std::vector<TableEntry>>;
 
 template <class T>
 class RegCtrl {
@@ -597,16 +599,11 @@ class RegCtrl {
 class InsrGen {
  public:
   explicit InsrGen() = default;
-  explicit InsrGen(const std::string& file) : ofs_(file) {}
+  explicit InsrGen(const std::string& file);
   explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
                    std::vector<Label>&& label, std::vector<TableEntry>&& tab,
-                   std::vector<size_t>&& func)
-      : ofs_(file),
-        data_(std::move(data)),
-        label_(std::move(label)),
-        func_(std::move(func)),
-        tab_(std::move(tab)),
-        tot_label_(label_.size()) {}
+                   std::vector<size_t>&& func);
+  explicit InsrGen(CodeGenInfo&& code_gen);
 
   // The instructions will be flushed upon destruction.
   ~InsrGen() { Flush(); }

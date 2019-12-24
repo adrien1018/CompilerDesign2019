@@ -787,9 +787,16 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
             }
             expr->data_type = types[0];
             break;
-          case UNARY_OP_LOGICAL_NEGATION:
-            expr->data_type = INT_TYPE;
+          case UNARY_OP_LOGICAL_NEGATION: {
+            if (types[0] != BOOLEAN_TYPE) {
+              AstNode* conv = MakeConvNode(types[0], BOOLEAN_TYPE, expr,
+                                           *expr->child.begin());
+              expr->child.pop_back();
+              expr->child.push_back(conv);
+            }
+            expr->data_type = BOOLEAN_TYPE;
             break;
+          }
         }
       }
       break;

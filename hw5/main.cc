@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
       try {
         Driver drv(argv[i]);
         if (drv.Parse(debug) == 0 && drv.SemanticAnalysis()) {
-          PrintGV(drv.prog, outfile);
+          // PrintGV(drv.prog, outfile);
           // drv.CodeGeneration();
           return 0;
         } else {

@@ -14,6 +14,10 @@ class CodeGen {
   CodeGen(std::vector<TableEntry> &&tab) : tab_(tab) {}
 
   void CodeGeneration(AstNode *prog) { VisitProgram(prog); }
+  CodeGenInfo MoveInfo() {
+    return std::make_tuple(std::move(ir_), std::move(labels_), std::move(data_),
+                           std::move(tab_));
+  }
 
  private:
   std::vector<TableEntry> tab_;  // symbol table
@@ -49,7 +53,6 @@ class CodeGen {
   void VisitAssignment(AstNode* expr, FunctionAttr&);
   bool VisitArray(AstNode* expr, FunctionAttr&, size_t dest);
   void VisitFunctionCall(AstNode* expr, FunctionAttr&, size_t dest);
-
 };
 
 #endif  // GENERATOR_H_

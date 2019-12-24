@@ -198,6 +198,21 @@ std::string EscapeString(const std::string &str) {
 
 }  // namespace
 
+InsrGen::InsrGen(const std::string &file) : ofs_(file) {}
+
+InsrGen::InsrGen(const std::string &file, std::vector<CodeData> &&data,
+                          std::vector<Label> &&label,
+                          std::vector<TableEntry> &&tab,
+                          std::vector<size_t> &&func)
+    : ofs_(file),
+      data_(std::move(data)),
+      label_(std::move(label)),
+      func_(std::move(func)),
+      tab_(std::move(tab)),
+      tot_label_(label_.size()) {}
+
+InsrGen::InsrGen(CodeGenInfo &&code_gen) {}
+
 template <class T>
 uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
                              std::vector<MemoryLocation> &loc,
