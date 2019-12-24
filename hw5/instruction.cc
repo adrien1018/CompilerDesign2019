@@ -6,8 +6,6 @@
 
 const IRInsr::NoRD IRInsr::kNoRD;
 
-// TODO: Support floating point instructions
-
 namespace {
 
 constexpr bool IsLoadOp(Opcode op) {
@@ -125,10 +123,15 @@ size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
       ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr);
       break;
     case I_TYPE:
-      assert(insr.imm_type == IRInsr::kConst);
       if (insr.op == INSR_JALR || IsLoadOp(insr.op)) {
-        ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+        if (insr.imm_type == IRInsr::kConst) {
+          ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+        } else {
+          assert(insr.imm_type == IRInsr::kData);
+          ofs << RD(insr) << ", " << DATA(insr) << "(" << RS1(insr) << ")";
+        }
       } else {
+        assert(insr.imm_type == IRInsr::kConst);
         ofs << RD(insr) << ", " << RS1(insr) << ", " << IMM(insr);
       }
       break;
@@ -136,7 +139,12 @@ size_t PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
       ofs << RD(insr) << ", " << IMM(insr);
       break;
     case S_TYPE:
-      ofs << RS2(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+      if (insr.imm_type == IRInsr::kConst) {
+        ofs << RS2(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
+      } else {
+        assert(insr.imm_type == IRInsr::kData);
+        ofs << RS2(insr) << ", " << DATA(insr) << "(" << RS1(insr) << ")";
+      }
       break;
     case B_TYPE:
       if (insr.imm_type == IRInsr::kConst) {
@@ -455,7 +463,7 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir,
     rs1 = GetSavedReg(ir.rs1, true, loc, dirty, float_reg_);
     rs2 = GetSavedReg(ir.rs2, true, loc, dirty, float_reg_);
   }
-  assert(ir.imm_type == IRInsr::kConst);
+  // assert(ir.imm_type == IRInsr::kConst);
   GenerateInsr(ir.op, rs2, rs1, ir.imm_type, ir.imm);
 }
 
@@ -571,7 +579,8 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v,
   }
 }
 
-void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func) {
+void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
+                         bool is_main) {
   int_reg_.Clear();
   float_reg_.Clear();
   buf_.clear();
@@ -596,6 +605,7 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func) {
     }
     ir_pos_++;
   }
+  if (is_main) GenerateInsr(PINSR_MV, rv64::kA0, rv64::kZero);
   lab.emplace_back(buf_.size(), tot_label_++);
   GenerateEpilogue(local);
   for (auto &v : buf_) {
@@ -675,13 +685,15 @@ void InsrGen::Flush() {
       ofs_ << "\n";
     } catch (std::bad_variant_access &) {
       size_t lb = std::get<size_t>(insr_[p]);
-      std::cerr << "lb = " << lb << "\n";
+      // std::cerr << "lb = " << lb << "\n";
       if (lb < label_.size() && label_[lb].is_func) {
         assert(f < func_.size());
         std::string s(func_[f++].second);
-        std::cerr << "s = " << s << "\n";
-        if (s == "main") s = "MAIN";
+        // std::cerr << "s = " << s << "\n";
+        if (s == "main") s = "_start_MAIN";
         ofs_ << s << ":\n";
+      } else if (lb >= label_.size()) {
+        // epilogue
       } else {
         ofs_ << ".L" << lb << ":\n";
       }
@@ -697,7 +709,8 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
-    GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos);
+    GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos,
+               std::string(func_[i].second) == "main");
   }
   Flush();
 }

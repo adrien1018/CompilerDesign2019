@@ -505,7 +505,7 @@ struct IRInsr {
   IRInsr(Opcode op, RD rd, RS1 rs1, RS2 rs2, ImmType imm_type, Int imm)
       : op(op), rd(rd), rs1(rs1), rs2(rs2), imm_type(imm_type), imm(imm) {}
   Opcode op;
-  Register rd, rs1, rs2/*, rs3*/;
+  Register rd, rs1, rs2 /*, rs3*/;
   ImmType imm_type;
   int64_t imm;
 };
@@ -660,7 +660,8 @@ class InsrGen {
    * registers will be saved upon seeing the `CALL` instruction. This is
    * optional since the caller saved registers are only used for optimization).
    */
-  void GenerateAR(size_t local, size_t num_register, size_t next_func);
+  void GenerateAR(size_t local, size_t num_register, size_t next_func,
+                  bool is_main = false);
 
   /**
    * Generate a list of global variables (`.data` section in the RV64 assembly).

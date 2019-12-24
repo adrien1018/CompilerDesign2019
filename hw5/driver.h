@@ -4,9 +4,9 @@
 #include <fstream>
 #include <string>
 
+#include "analysis.h"
 #include "ast.h"
 #include "codegen.h"
-#include "analysis.h"
 #include "parser.hh"
 
 #ifndef yyFlexLexer

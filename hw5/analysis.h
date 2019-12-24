@@ -19,7 +19,7 @@ extern const BuiltinAttr kBuiltinFunction[];
 using AnalyzerInfo =
     std::tuple<std::vector<TableEntry>&, SymbolMap<std::string::value_type>&>;
 
-    class Analyzer {
+class Analyzer {
  public:
   Analyzer(const FileInfor file) : file_(file), success_(true) {}
   bool SemanticAnalysis(AstNode* prog);

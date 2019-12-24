@@ -11,9 +11,9 @@
 class CodeGen {
  public:
   CodeGen() = default;
-  CodeGen(std::vector<TableEntry> &&tab) : tab_(tab) {}
+  CodeGen(std::vector<TableEntry>&& tab) : tab_(tab) {}
 
-  void CodeGeneration(AstNode *prog) { VisitProgram(prog); }
+  void CodeGeneration(AstNode* prog) { VisitProgram(prog); }
   CodeGenInfo MoveInfo() { return std::tie(ir_, labels_, data_, tab_, func_); }
 
  private:

@@ -825,7 +825,8 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
     }
     assert(id_node->data_type == INT_TYPE || id_node->data_type == FLOAT_TYPE);
     assert(relop_expr->data_type == INT_TYPE ||
-           relop_expr->data_type == FLOAT_TYPE);
+           relop_expr->data_type == FLOAT_TYPE ||
+           relop_expr->data_type == BOOLEAN_TYPE);
     if (id_node->data_type != relop_expr->data_type) {
       AstNode* conv = MakeConvNode(relop_expr->data_type, id_node->data_type,
                                    expr, relop_expr);
