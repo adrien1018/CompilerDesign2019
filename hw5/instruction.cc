@@ -681,7 +681,7 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v) {
   }
 }
 
-void InsrGen::Initialize(size_t num_register) {
+void InsrGen::Initialize(size_t ireg, size_t freg) {
   int_reg_.Clear();
   float_reg_.Clear();
   buf_.clear();
@@ -689,13 +689,13 @@ void InsrGen::Initialize(size_t num_register) {
   std::fill(float_used_.begin(), float_used_.end(), false);
   int_used_[rv64::kFp] = true;
   int_used_[rv64::kRa] = true;
-  int_dirty_.resize(num_register);
+  int_dirty_.resize(ireg);
   std::fill(int_dirty_.begin(), int_dirty_.end(), 0);
-  float_dirty_.resize(num_register);
+  float_dirty_.resize(freg);
   std::fill(float_dirty_.begin(), float_dirty_.end(), 0);
-  int_loc_.resize(num_register);
+  int_loc_.resize(ireg);
   std::fill(int_loc_.begin(), int_loc_.end(), MemoryLocation());
-  float_loc_.resize(num_register);
+  float_loc_.resize(freg);
   std::fill(float_loc_.begin(), float_loc_.end(), MemoryLocation());
   // int_dirty_.assign(num_register, 0);
   // float_dirty_.assign(num_register, 0);
@@ -704,11 +704,11 @@ void InsrGen::Initialize(size_t num_register) {
   sp_offset_ = 0;
 }
 
-void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
-                         bool is_main) {
-  Initialize(num_register);
+void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
+                         size_t next_func, bool is_main) {
+  Initialize(ireg, freg);
 #ifdef INSRGEN_DEBUG
-  std::cerr << "num_register = " << num_register << "\n";
+  std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
 #endif
   // std::vector<MemoryLocation> loc(num_register);
   // std::vector<uint8_t> dirty(num_register);
@@ -877,7 +877,7 @@ void InsrGen::GenerateRV64() {
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
     std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
               << "\n";
-    GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos,
+    GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
                std::string(func_[i].second) == "main");
   }
   Flush();

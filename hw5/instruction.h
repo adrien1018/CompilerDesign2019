@@ -678,7 +678,7 @@ class InsrGen {
    * registers will be saved upon seeing the `CALL` instruction. This is
    * optional since the caller saved registers are only used for optimization).
    */
-  void GenerateAR(size_t local, size_t num_register, size_t next_func,
+  void GenerateAR(size_t local, size_t ireg, size_t freg, size_t next_func,
                   bool is_main = false);
 
   /**
@@ -709,7 +709,7 @@ class InsrGen {
   std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
 
-  void Initialize(size_t num_register);
+  void Initialize(size_t ireg, size_t freg);
 
   template <class... Args>
   void PushInsr(Opcode op, Args&&... args);
