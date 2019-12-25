@@ -263,6 +263,7 @@ template <class T>
 uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
                              std::vector<MemoryLocation> &loc,
                              std::vector<uint8_t> &dirty, RegCtrl<T> &ctrl) {
+  std::cerr << "reg.id = " << reg.id << "\n";
   if (reg.is_real) {
     // TODO: Check the current usage of the specified register, and store it
     // back to memory if neccesary. For now the reserved register will not be

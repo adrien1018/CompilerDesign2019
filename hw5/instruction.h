@@ -540,7 +540,7 @@ struct MemoryLocation {
   bool in_register;
   uint8_t reg;
   int64_t addr;
-  MemoryLocation() : in_register(false), addr(kUnAllocated) {}
+  MemoryLocation() : in_register(false), addr(kUnAllocated), reg(0) {}
 };
 
 struct Label {
@@ -590,8 +590,16 @@ class RegCtrl {
     }
   }
 
-  size_t GetPseudoReg(uint8_t pos) const { return regs_[pos]; };
-  void SetPseudoReg(uint8_t pos, size_t id) { regs_[pos] = id; };
+  size_t GetPseudoReg(uint8_t pos) const {
+    if constexpr (std::is_same_v<T, int>) return regs_[pos];
+    return regs_[pos ^ 128];
+  };
+  void SetPseudoReg(uint8_t pos, size_t id) {
+    if constexpr (std::is_same_v<T, int>)
+      regs_[pos] = id;
+    else
+      regs_[pos ^ 128] = id;
+  };
 
  private:
   static constexpr size_t kEmpty = (size_t)-1;
@@ -614,7 +622,8 @@ class RegCtrl {
       size_t idx = Convert(pool[i]);
       std::cerr << "idx = " << idx << "\n";
       std::cerr << "regs_[idx] = " << regs_[idx] << "\n";
-      std::cerr << "kEmpty = " << kEmpty << " kReserved = " << kReserved << "\n";
+      std::cerr << "kEmpty = " << kEmpty << " kReserved = " << kReserved
+                << "\n";
       if (regs_[idx] == kEmpty) return pool[i];
       if (regs_[idx] != kReserved) {
         if (!found || !dirty[regs_[idx]]) {
