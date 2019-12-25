@@ -504,7 +504,12 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir,
                                 std::vector<uint8_t> &dirty) {
   if (IsLoadOp(ir.op) && ir.imm_type == IRInsr::kData) {
     PushInsr(PINSR_LA, rv64::kT0, IRInsr::kData, ir.imm);
-    uint8_t rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
+    uint8_t rd;
+    if (IsIntOp(ir.op)) {
+      rd = GetSavedReg(ir.rd, false, loc, dirty, int_reg_);
+    } else {
+      rd = GetSavedReg(ir.rd, false, loc, dirty, float_reg_);
+    }
     PushInsr(ir.op, rd, rv64::kT0, IRInsr::kConst, 0);
     if (!ir.rd.is_real) dirty[ir.rd.id] = 1;
     return;
@@ -524,6 +529,17 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir,
 void InsrGen::GenerateSTypeInsr(const IRInsr &ir,
                                 std::vector<MemoryLocation> &loc,
                                 std::vector<uint8_t> &dirty) {
+  if (ir.imm_type == IRInsr::kData) {
+    PushInsr(PINSR_LA, rv64::kT0, IRInsr::kData, ir.imm);
+    uint8_t rs2;
+    if (IsIntOp(ir.op)) {
+      rs2 = GetSavedReg(ir.rs2, true, loc, dirty, int_reg_);
+    } else {
+      rs2 = GetSavedReg(ir.rs2, true, loc, dirty, float_reg_);
+    }
+    PushInsr(ir.op, rs2, rv64::kT0, IRInsr::kConst, 0);
+    return;
+  }
   uint8_t rs1, rs2;
   if (IsIntOp(ir.op)) {
     rs1 = GetSavedReg(ir.rs1, true, loc, dirty, int_reg_);
@@ -708,6 +724,10 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
     }
     ir_pos_++;
   }
+  while (label_pos_ < next_func) {
+    lab.emplace_back(buf_.size(), label_pos_);
+    label_pos_++;
+  }
   std::vector<uint8_t> saved;
   for (size_t i : rv64::kCalleeSaved) {
     if (int_used_[i]) saved.push_back(i);
@@ -842,6 +862,8 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
+    std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
+              << "\n";
     GenerateAR(attr.sp_offset, attr.tot_pseudo_reg, next_pos,
                std::string(func_[i].second) == "main");
   }

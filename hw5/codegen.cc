@@ -395,7 +395,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     case FLOAT_TYPE:
       ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0));
       break;
-    case VOID_TYPE: break;
+    case VOID_TYPE:
+      break;
     default:
       assert(false);
   }
@@ -516,7 +517,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
-    case FOR_STMT: // TODO
+    case FOR_STMT:  // TODO
       break;
     case RETURN_STMT: {
       if (stmt->child.size()) {
