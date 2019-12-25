@@ -726,8 +726,8 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
 namespace {
 
 inline DataType MixDataType(DataType a, DataType b) noexcept {
-  if (a == INT_TYPE && b == INT_TYPE) return INT_TYPE;
-  return FLOAT_TYPE;
+  if (a == FLOAT_TYPE || b == FLOAT_TYPE) return FLOAT_TYPE;
+  return INT_TYPE;
 }
 
 inline bool NeedConversion(DataType from, DataType to) {
