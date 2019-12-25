@@ -302,7 +302,10 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
         sp_offset_ += 8;
       }
       // loc[to_replace].mem = -int64_t(to_replace) * 8;  // this is useless now
-      PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst, loc[to_replace].addr);
+      if (std::is_same_v<T, int>)
+        PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst, loc[to_replace].addr);
+      else
+        PushInsr(INSR_FSD, rg, rv64::kFp, IRInsr::kConst, loc[to_replace].addr);
     }
     dirty[to_replace] = false;
   }
@@ -312,7 +315,10 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
   if (load) {
     assert(loc[id].addr != MemoryLocation::kUnAllocated);
     // load the pseudo register from memory
-    PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
+    if (std::is_same_v<T, int>)
+      PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
+    else
+      PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
   }
   // std::cerr << "rg = " << int(rg) << "\n";
   if constexpr (std::is_same_v<T, int>) {
@@ -902,6 +908,7 @@ void InsrGen::GenerateRV64() {
     std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
               << "\n";
 #endif
+    std::cerr << "sp_offset = " << attr.sp_offset << "\n";
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
                std::string(func_[i].second) == "main");
   }
