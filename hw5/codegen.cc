@@ -385,7 +385,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
   }
   if (stk) {
     ir_.emplace_back(INSR_ADDI, Reg(rv64::kSp), Reg(rv64::kSp), IRInsr::kConst,
-                     stk * -8);
+                     (int64_t)stk * -8);
   }
   ir_.emplace_back(PINSR_CALL, IRInsr::kLabel, func_label);
   switch (return_type) {
@@ -398,6 +398,10 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     case VOID_TYPE: break;
     default:
       assert(false);
+  }
+  if (stk) {
+    ir_.emplace_back(INSR_ADDI, Reg(rv64::kSp), Reg(rv64::kSp), IRInsr::kConst,
+                     stk * 8);
   }
 }
 
@@ -621,10 +625,10 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
     auto& value = std::get<IdentifierSemanticValue>(id->semantic_value);
     func_.push_back(std::get<Identifier>(value.identifier));
   }
-  Debug_("aaaa");
   FunctionAttr& attr = GetAttribute<FunctionAttr>(id, tab_);
   AstNode* block = *std::prev(decl->child.end());
   InitState(attr);
+  Debug_(labels_.size(), ' ', labels_.back().is_func, '\n');
   for (size_t i = 0, ival = 0, fval = 0, stk = 0; i < attr.params.size(); i++) {
     VariableAttr& param = tab_[attr.params[i]].GetValue<VariableAttr>();
     if (param.IsArray() || param.data_type == INT_TYPE) {
@@ -672,6 +676,7 @@ void CodeGen::VisitGlobalDecl(AstNode* decl) {
 void CodeGen::VisitProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
 #ifdef CODEGEN_DEBUG
+  Debug_(labels_.size(), ' ', labels_.back().is_func, '\n');
   PrintIR();
 #endif
 }
@@ -691,7 +696,7 @@ std::string RegString(const IRInsr::Register& reg) {
 
 void CodeGen::PrintIR() {
   for (size_t i = 0, j = 0; i < ir_.size(); i++) {
-    if (j < labels_.size() && labels_[j].ir_pos == i) {
+    while (j < labels_.size() && labels_[j].ir_pos == i) {
       printf(".%c%03zu: ", "LF"[labels_[j].is_func], j);
       j++;
     }
