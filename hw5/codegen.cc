@@ -109,7 +109,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       size_t now_label = ir_.size();
       ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ, IRInsr::kNoRD,
                        dest, Reg(rv64::kZero), IRInsr::kLabel, 0);
-      VisitRelopExpr(expr->child.front(), attr, dest);
+      VisitRelopExpr(*std::next(expr->child.begin()), attr, dest);
       ir_[now_label].imm = InsertLabel();
       return;
     }
