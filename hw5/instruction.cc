@@ -550,7 +550,10 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir) {
     if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
   } else {
     rd = GetSavedReg(ir.rd, false, float_loc_, float_dirty_, float_reg_);
-    rs1 = GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
+    if (!IsLoadOp(ir.op))
+      rs1 = GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
+    else
+      rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
     if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
   }
   PushInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
@@ -573,7 +576,7 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
     rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
     rs2 = GetSavedReg(ir.rs2, true, int_loc_, int_dirty_, int_reg_);
   } else {
-    rs1 = GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
+    rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
     rs2 = GetSavedReg(ir.rs2, true, float_loc_, float_dirty_, float_reg_);
   }
   // assert(ir.imm_type == IRInsr::kConst);

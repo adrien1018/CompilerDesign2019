@@ -279,7 +279,7 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
   const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
   size_t reg = AllocRegister(attr), i = 0;
   for (AstNode* dim : expr->child) {
-    if (i == 0) {
+    if (i != 0) {
       VisitRelopExpr(dim, attr, reg);
       ir_.emplace_back(INSR_ADD, dest, dest, reg);
     } else {
