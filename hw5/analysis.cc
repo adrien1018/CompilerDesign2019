@@ -780,13 +780,17 @@ void Analyzer::AnalyzeRelopExpr(AstNode* expr) {
         switch (op) {
           case BINARY_OP_OR:
           case BINARY_OP_AND:
+            MergeExpr(expr, BOOLEAN_TYPE);
+            assert(expr->child.size() == 2);
+            break;
           case BINARY_OP_LT:
           case BINARY_OP_LE:
           case BINARY_OP_GT:
           case BINARY_OP_GE:
           case BINARY_OP_EQ:
           case BINARY_OP_NE:
-            MergeExpr(expr, BOOLEAN_TYPE);
+            MergeExpr(expr, MixDataType(types[0], types[1]));
+            expr->data_type = BOOLEAN_TYPE;
             assert(expr->child.size() == 2);
             break;
           case BINARY_OP_ADD:
