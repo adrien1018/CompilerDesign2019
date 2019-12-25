@@ -20,10 +20,13 @@ inline uint32_t GetConst(AstNode* expr) {
   auto& value = std::get<ConstValue>(expr->semantic_value);
   uint32_t x;
   if (expr->data_type == INT_TYPE) {
+    Debug_("GetConst (int)", std::get<int32_t>(value), "\n");
     memcpy(&x, &std::get<int32_t>(value), 4);
   } else {
+    Debug_("GetConst (float)", std::get<FloatType>(value), ", size ", sizeof(FloatType), "\n");
     memcpy(&x, &std::get<FloatType>(value), 4);
   }
+  Debug_("GetConst (hex)", x, "\n");
   return x;
 }
 
@@ -63,6 +66,7 @@ void CodeGen::VisitConversion(AstNode* expr, FunctionAttr& attr, size_t dest) {
   size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE
                      ? AllocRegister(attr, value.from)
                      : dest;
+  Debug_("Conversion ", value.from, "->", value.to, "\n");
   VisitRelopExpr(expr->child.front(), attr, chval);
   switch (value.from) {
     case FLOAT_TYPE: {
@@ -108,6 +112,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       ir_[now_label].imm = InsertLabel();
       return;
     }
+    Debug_("Child type: ", (int)child_type, "\n");
     if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
       size_t chval = AllocRegister(attr, INT_TYPE);
       VisitRelopExpr(expr->child.front(), attr, dest);
@@ -227,6 +232,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
 }
 
 void CodeGen::LoadConst(uint64_t x, size_t dest) {
+  Debug_("LoadConst ", x, "\n");
   if ((x >> 32) == 0) {  // 32-bit values
     if (x >= 0xfffff800 || x < 0x800) {
       ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
@@ -536,6 +542,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       break;
     case RETURN_STMT: {
       if (stmt->child.size()) {
+        Debug_("Return\n");
         RegCount now_reg = cur_register_;
         size_t reg = AllocRegister(attr, attr.return_type);
         VisitRelopExpr(*it, attr, reg);

@@ -8,7 +8,8 @@
 
 #include "symtab.h"
 
-using FloatType = double;
+using FloatType = float;
+static_assert(sizeof(FloatType) == 4);
 
 struct Location {
   struct Position {
