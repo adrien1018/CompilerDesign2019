@@ -158,8 +158,9 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       }
     } else if (child_type == FLOAT_TYPE) {
       size_t chval1 = AllocRegister(attr, FLOAT_TYPE);
-      size_t chval2 =
-          expr->data_type == INT_TYPE ? AllocRegister(attr, FLOAT_TYPE) : dest;
+      size_t chval2 = expr->data_type != FLOAT_TYPE
+                          ? AllocRegister(attr, FLOAT_TYPE)
+                          : dest;
       VisitRelopExpr(expr->child.front(), attr, chval1);
       VisitRelopExpr(*std::next(expr->child.begin()), attr, chval2);
       switch (op) {
