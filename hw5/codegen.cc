@@ -344,7 +344,7 @@ void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
 }
 
 void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
-                                size_t dest) {
+                                size_t dest = -(size_t)1) {
   AstNode* id_node = *expr->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
@@ -409,17 +409,16 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
                      (int64_t)stk * -8);
   }
   ir_.emplace_back(PINSR_CALL, IRInsr::kLabel, func_label);
-  switch (return_type) {
-    case INT_TYPE:
-      ir_.emplace_back(PINSR_MV, dest, Reg(rv64::kA0));
-      break;
-    case FLOAT_TYPE:
-      ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0));
-      break;
-    case VOID_TYPE:
-      break;
-    default:
-      assert(false);
+  if (dest != -(size_t)1) {
+    switch (return_type) {
+      case INT_TYPE:
+        ir_.emplace_back(PINSR_MV, dest, Reg(rv64::kA0));
+        break;
+      case FLOAT_TYPE:
+        ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0));
+        break;
+      default: assert(false);
+    }
   }
   if (stk) {
     ir_.emplace_back(INSR_ADDI, Reg(rv64::kSp), Reg(rv64::kSp), IRInsr::kConst,
@@ -560,7 +559,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     }
     case FUNCTION_CALL_STMT: {
       RegCount now_reg = cur_register_;
-      VisitFunctionCall(stmt, attr, 0); // reg is not used
+      VisitFunctionCall(stmt, attr);
       cur_register_ = now_reg;
       break;
     }
