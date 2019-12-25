@@ -309,6 +309,7 @@ enum Opcode {
   PINSR_MV,       // Copy (can be optimized!)
   PINSR_FMV_S,    // Floating-point copy (can be optimized!)
   PINSR_PUSH_SP,  // push stack pointer here
+  PINSR_LI,       // Load immediate
   kPseudoInsr
 };
 
@@ -405,7 +406,8 @@ const std::unordered_map<Opcode, std::string> kRV64InsrCode = {
     {PINSR_J, "j"},         {PINSR_CALL, "call"},
     {PINSR_TAIL, "tail"},   {PINSR_RET, "ret"},
     {PINSR_LA, "la"},       {PINSR_MV, "mv"},
-    {PINSR_FMV_S, "fmv.s"}, {PINSR_PUSH_SP, "_push_sp_"}};
+    {PINSR_FMV_S, "fmv.s"}, {PINSR_PUSH_SP, "_push_sp_"},
+    {PINSR_LI, "li"}};
 
 const std::unordered_map<Opcode, InsrFormat> kRV64InsrFormat = {
     {INSR_LUI, U_TYPE},       {INSR_AUIPC, J_TYPE},
@@ -716,10 +718,14 @@ class InsrGen {
 
   void Initialize(size_t ireg, size_t freg);
 
+  void PushInsr(const RV64Insr& v);
   template <class... Args>
   void PushInsr(Opcode op, Args&&... args);
   template <class... Args>
   void PushPInsr(Opcode op, Args&&... args);
+
+  template <class T>
+  std::vector<RV64Insr> ExpandImm(const T& v, uint8_t rd, uint8_t rs1) const;
 
   void GenerateInsrImpl(const IRInsr& v);
   void GenerateRTypeInsr(const IRInsr& ir);

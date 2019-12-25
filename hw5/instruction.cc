@@ -138,6 +138,10 @@ size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
     case PINSR_FMV_S:
       ofs << RD(insr) << ", " << RS1(insr);
       break;
+    case PINSR_LI: {
+      ofs << RD(insr) << ", " << IMM(insr);
+      break;
+    }
   }
   return 0;
 }
@@ -347,8 +351,15 @@ void InsrGen::PushPInsr(Opcode op, Args &&... args) {
       buf_.emplace_back(op, 0, 0, 0, 0, IRInsr::kConst, 0);
       break;
     }
+    case PINSR_LI: {
+      uint8_t rd = static_cast<uint8_t>(param[0]);
+      IRInsr::ImmType imm_type = IRInsr::ImmType(param[1]);
+      buf_.emplace_back(op, 0, 0, 0, rd, imm_type, param[2]);
+    }
   }
 }
+
+void InsrGen::PushInsr(const RV64Insr &v) { buf_.push_back(v); }
 
 template <class... Args>
 void InsrGen::PushInsr(Opcode op, Args &&... args) {
@@ -525,6 +536,60 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &ir) {
   PushInsr(ir.op, rd, rs1, rs2);
 }
 
+namespace {
+
+constexpr Opcode ItoR(Opcode op) {
+  switch (op) {
+    case INSR_ADDI:
+      return INSR_ADD;
+    case INSR_SLTI:
+      return INSR_SLT;
+    case INSR_SLTIU:
+      return INSR_SLTU;
+    case INSR_XORI:
+      return INSR_XOR;
+    case INSR_ORI:
+      return INSR_OR;
+    case INSR_ANDI:
+      return INSR_AND;
+    case INSR_SLLI:
+      return INSR_SLL;
+    case INSR_SRLI:
+      return INSR_SRL;
+    case INSR_SRAI:
+      return INSR_SRA;
+    case INSR_ADDIW:
+      return INSR_ADDW;
+    case INSR_SLLIW:
+      return INSR_SLLW;
+    case INSR_SRLIW:
+      return INSR_SRLW;
+    case INSR_SRAIW:
+      return INSR_SRAW;
+  }
+  __builtin_unreachable();
+}
+
+}  // namespace
+
+template <class T>
+std::vector<RV64Insr> InsrGen::ExpandImm(const T &v, uint8_t rd,
+                                         uint8_t rs1) const {
+  std::vector<RV64Insr> res;
+  if (IsLoadOp(v.op)) {
+    res.resize(3);
+    res[0] = RV64Insr{PINSR_LI, 0, 0, 0, rv64::kT0, IRInsr::kConst, v.imm};
+    res[1] =
+        RV64Insr{INSR_ADD, rs1, rv64::kT0, 0, rv64::kT0, IRInsr::kConst, 0};
+    res[2] = RV64Insr{v.op, rv64::kT0, 0, 0, rd, IRInsr::kConst, 0};
+  } else {
+    res.resize(2);
+    res[0] = RV64Insr{PINSR_LI, 0, 0, 0, rv64::kT0, IRInsr::kConst, v.imm};
+    res[1] = RV64Insr{ItoR(v.op), rs1, rv64::kT0, 0, rd, IRInsr::kConst, 0};
+  }
+  return res;
+}
+
 void InsrGen::GenerateITypeInsr(const IRInsr &ir) {
   if (IsLoadOp(ir.op) && ir.imm_type == IRInsr::kData) {
     PushInsr(PINSR_LA, rv64::kT0, IRInsr::kData, ir.imm);
@@ -546,13 +611,18 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir) {
     if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
   } else {
     rd = GetSavedReg(ir.rd, false, float_loc_, float_dirty_, float_reg_);
-    if (!IsLoadOp(ir.op))
+    if (!IsLoadOp(ir.op)) {
       rs1 = GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
-    else
+    } else {
       rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
+    }
     if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
   }
-  PushInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
+  if (std::abs(ir.imm) >= (1 << 11)) {
+    for (auto &v : ExpandImm(ir, rd, rs1)) PushInsr(v);
+  } else {
+    PushInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
+  }
 }
 
 void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
@@ -772,17 +842,27 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
   size_t ed_prologue = buf_.size();
   lab.emplace_back(buf_.size(), tot_label_++);
   GenerateEpilogue(local, callee_saved);
+
+  auto Push = [this](const RV64Insr &v) {
+    auto it = kRV64InsrFormat.find(v.op);
+    if (it != kRV64InsrFormat.end() && it->second == I_TYPE &&
+        v.imm_type == IRInsr::kConst && std::abs(v.imm) >= (1 << 11)) {
+      auto e = ExpandImm(v, v.rd, v.rs1);
+      insr_.insert(insr_.end(), e.begin(), e.end());
+    } else {
+      insr_.push_back(v);
+    }
+  };
+
   for (size_t i = 0, j = 0; i < buf_.size(); ++i) {
     while (j < lab.size() && lab[j].first == i) {
       insr_.push_back(lab[j++].second);
     }
     if (i == 0) {
-      for (size_t k = st_prologue; k < ed_prologue; ++k) {
-        insr_.push_back(std::move(buf_[k]));
-      }
+      for (size_t k = st_prologue; k < ed_prologue; ++k) Push(buf_[k]);
     }
     if (i >= st_prologue && i < ed_prologue) continue;
-    insr_.push_back(std::move(buf_[i]));
+    Push(buf_[i]);
   }
 }
 
