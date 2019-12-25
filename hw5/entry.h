@@ -70,11 +70,16 @@ struct VariableAttr {
   bool operator!=(const VariableAttr& rhs) const { return !operator==(rhs); }
 };
 
+struct RegCount {
+  size_t ireg, freg;
+};
+
 struct FunctionAttr {
   DataType return_type;
   std::vector<size_t> params;
   size_t label = 0;
-  size_t sp_offset = 0, tot_pseudo_reg = 0;
+  size_t sp_offset = 0;
+  RegCount tot_preg;
   bool is_leaf;
 
   FunctionAttr() = default;

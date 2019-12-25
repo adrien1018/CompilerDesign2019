@@ -28,12 +28,13 @@ class CodeGen {
   std::vector<Label> labels_;
   std::vector<CodeData> data_;
   std::vector<Identifier> func_;
-  size_t cur_stack_, cur_register_;
+  RegCount cur_register_;
+  size_t cur_stack_;
 
   size_t InsertLabel(bool func = false);
   void InitState(FunctionAttr&);
   size_t AllocStack(FunctionAttr&, size_t);
-  size_t AllocRegister(FunctionAttr&);
+  size_t AllocRegister(FunctionAttr&, DataType);
   void LoadConst(uint64_t x, size_t dest);
   void VisitProgram(AstNode* prog);
   void VisitGlobalDecl(AstNode* prog);
