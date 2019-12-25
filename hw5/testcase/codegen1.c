@@ -190,6 +190,17 @@ void ManyArguments(int i1, float f1, int i2, float f2, int i3, float f3,
   write(i9); write(" "); write(f9); write("\n");
 }
 
+int LargeArray() {
+  int c[1000];
+  int a[2], b[2];
+  int d[1000];
+  a[0] = 1;
+  a[1] = a[0] + 3;
+  b[0] = a[1] + 2;
+  b[1] = b[0] + 1;
+  return a[0] + a[1] + b[0] + b[1];
+}
+
 int glob_1 = 3;
 int glob_2 = !((4 + 5 - 6 * 7) && 0);
 float glob_3 = 3.5 + 7;
@@ -263,6 +274,8 @@ int main() {
   /* 0 1.000000 2 3.000000 4 5.000000
    * 6 7.000000 8 9.000000 10 11.000000
    * 12 13.000000 14 15.000000 16 17.000000 */
+  write(LargeArray()); /* 18 */
+  write("\n");
   write(ReadGlobal()); /* 27 */
   write("\n");
   write(WriteGlobal()); /* 6 */
