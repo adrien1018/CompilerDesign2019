@@ -663,7 +663,7 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
       if (fval >= 8) {
         ir_.emplace_back(INSR_FLW, reg, Reg(rv64::kSp), stk++ * 8);
       } else {
-        ir_.emplace_back(PINSR_FMV_S, reg, Reg(rv64::kFa0 + ival));
+        ir_.emplace_back(PINSR_FMV_S, reg, Reg(rv64::kFa0 + fval));
       }
       fval++;
     }
