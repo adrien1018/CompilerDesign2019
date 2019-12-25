@@ -620,10 +620,6 @@ class RegCtrl {
     uint8_t rg = 0;
     for (size_t i = 0; i < N; ++i) {
       size_t idx = Convert(pool[i]);
-      std::cerr << "idx = " << idx << "\n";
-      std::cerr << "regs_[idx] = " << regs_[idx] << "\n";
-      std::cerr << "kEmpty = " << kEmpty << " kReserved = " << kReserved
-                << "\n";
       if (regs_[idx] == kEmpty) return pool[i];
       if (regs_[idx] != kReserved) {
         if (!found || !dirty[regs_[idx]]) {
@@ -716,6 +712,7 @@ class InsrGen {
   std::unordered_map<std::string, size_t> str_cache_;
   std::vector<uint8_t> int_dirty_, float_dirty_;
   std::vector<MemoryLocation> int_loc_, float_loc_;
+  // std::vector<size_t> fcall_;
   int64_t sp_offset_;
 
   void Initialize(size_t ireg, size_t freg);
@@ -740,9 +737,9 @@ class InsrGen {
   void GenerateEpilogue(size_t local, const std::vector<uint8_t>& saved);
 
   void PushCalleeRegs(int64_t offset, const std::vector<uint8_t>& saved);
-  void PushCallerRegs(int64_t offset);
+  void PushCallerRegs(int64_t offset, const std::vector<uint8_t>& caller_saved);
   void PopCalleeRegs(int64_t offset, const std::vector<uint8_t>& saved);
-  void PopCallerRegs(int64_t offset);
+  void PopCallerRegs(int64_t offset, const std::vector<uint8_t>& caller_saved);
 
   void InitLabel();
   inline std::string GetLabel(const RV64Insr& insr) const;

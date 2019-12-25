@@ -449,13 +449,17 @@ void InsrGen::PushCalleeRegs(int64_t offset,
   // }
 }
 
-void InsrGen::PushCallerRegs(int64_t offset) {
-  // For now the caller saved registers will not be used.
-  return;
-  for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    PushInsr(INSR_SD, rv64::kCallerSaved[i], rv64::kSp, IRInsr::kConst,
-             offset + 8 * int64_t(rv64::kCallerSaved[i]));
+void InsrGen::PushCallerRegs(int64_t offset,
+                             const std::vector<uint8_t> &caller_saved) {
+  // For now the caller saved registers only include int and float arguments.
+  for (size_t i = 0; i < caller_saved.size(); ++i) {
+    PushInsr(INSR_SD, caller_saved[i], rv64::kSp, IRInsr::kConst,
+             offset + 8 * int64_t(i));
   }
+  // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+  //   PushInsr(INSR_SD, rv64::kCallerSaved[i], rv64::kSp, IRInsr::kConst,
+  //            offset + 8 * int64_t(rv64::kCallerSaved[i]));
+  // }
 }
 
 void InsrGen::PopCalleeRegs(int64_t offset, const std::vector<uint8_t> &saved) {
@@ -477,13 +481,17 @@ void InsrGen::PopCalleeRegs(int64_t offset, const std::vector<uint8_t> &saved) {
   // }
 }
 
-void InsrGen::PopCallerRegs(int64_t offset) {
-  // For now the caller saved registers will not be used.
-  return;
-  for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
-    PushInsr(INSR_LD, rv64::kCallerSaved[i], rv64::kSp, IRInsr::kConst,
-             offset + 8 * int64_t(rv64::kCallerSaved[i]));
+void InsrGen::PopCallerRegs(int64_t offset,
+                            const std::vector<uint8_t> &caller_saved) {
+  // For now the caller saved registers only include int and float arguments.
+  for (size_t i = 0; i < caller_saved.size(); ++i) {
+    PushInsr(INSR_LD, caller_saved[i], rv64::kSp, IRInsr::kConst,
+             offset + 8 * int64_t(i));
   }
+  // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
+  //   PushInsr(INSR_LD, rv64::kCallerSaved[i], rv64::kSp, IRInsr::kConst,
+  //            offset + 8 * int64_t(rv64::kCallerSaved[i]));
+  // }
 }
 
 void InsrGen::GeneratePrologue(size_t local,
@@ -642,9 +650,10 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       break;
     }
     case PINSR_CALL:
-      PushCallerRegs(offset);
+      // PushCallerRegs(offset);
+      // fcall_.push_back(buf_.size());
       PushInsr(ir.op, ir.imm_type, ir.imm);
-      PopCallerRegs(offset);
+      // PopCallerRegs(offset);
       break;
     case PINSR_RET:
       PushInsr(PINSR_J, IRInsr::kLabel, int64_t(tot_label_));
@@ -700,18 +709,10 @@ void InsrGen::Initialize(size_t ireg, size_t freg) {
   std::fill(float_used_.begin(), float_used_.end(), false);
   int_used_[rv64::kFp] = true;
   int_used_[rv64::kRa] = true;
-  int_dirty_.resize(ireg);
-  std::fill(int_dirty_.begin(), int_dirty_.end(), 0);
-  float_dirty_.resize(freg);
-  std::fill(float_dirty_.begin(), float_dirty_.end(), 0);
-  int_loc_.resize(ireg);
-  std::fill(int_loc_.begin(), int_loc_.end(), MemoryLocation());
-  float_loc_.resize(freg);
-  std::fill(float_loc_.begin(), float_loc_.end(), MemoryLocation());
-  // int_dirty_.assign(num_register, 0);
-  // float_dirty_.assign(num_register, 0);
-  // int_loc_.assign(num_register, MemoryLocation());
-  // float_loc_.assign(num_register, MemoryLocation());
+  int_dirty_.assign(ireg, 0);
+  float_dirty_.assign(freg, 0);
+  int_loc_.assign(ireg, MemoryLocation());
+  float_loc_.assign(freg, MemoryLocation());
   sp_offset_ = 0;
 }
 
@@ -721,8 +722,6 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
 #ifdef INSRGEN_DEBUG
   std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
 #endif
-  // std::vector<MemoryLocation> loc(num_register);
-  // std::vector<uint8_t> dirty(num_register);
   std::vector<std::pair<size_t, size_t>> lab;
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
@@ -735,7 +734,9 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
+#ifdef INSRGEN_DEBUG
     std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
+#endif
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
@@ -753,12 +754,19 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
     label_pos_++;
   }
   std::vector<uint8_t> callee_saved;
-  for (size_t i : rv64::kCalleeSaved) {
+  for (uint8_t i : rv64::kCalleeSaved) {
     if (int_used_[i]) callee_saved.push_back(i);
   }
-  for (size_t i : rv64::kFloatSavedRegs) {
+  for (uint8_t i : rv64::kFloatSavedRegs) {
     if (float_used_[i ^ 128]) callee_saved.push_back(i);
   }
+  // std::vector<uint8_t> caller_saved;
+  // for (uint8_t i : rv64::kIntArgs) {
+  //   if (int_used_[i]) caller_saved.push_back(i);
+  // }
+  // for (uint8_t i : rv64::kFloatArgs) {
+  //   if (float_used_[i ^ 128]) caller_saved.push_back(i);
+  // }
   sp_offset_ += 8 * callee_saved.size();
   for (auto &v : buf_) {
     if (v.imm == kPosSpOffset) v.imm = sp_offset_;
@@ -886,8 +894,10 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
+#ifdef INSRGEN_DEBUG
     std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
               << "\n";
+#endif
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
                std::string(func_[i].second) == "main");
   }
