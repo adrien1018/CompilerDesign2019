@@ -4,7 +4,7 @@ OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o codegen.o error.
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++
-CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch -DVERBOSE -DCODEGEN_DEBUG # -DLEXER_DEBUG -DNDEBUG 
+CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch -DVERBOSE -DCODEGEN_DEBUG -DINSRGEN_DEBUG # -DLEXER_DEBUG -DNDEBUG 
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -o $@ $^

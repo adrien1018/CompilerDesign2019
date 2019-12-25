@@ -22,6 +22,8 @@ constexpr size_t kNumIntSavedRegs = 11;
 constexpr size_t kNumIntTempRegs = 6;
 constexpr size_t kNumFloatSavedRegs = 12;
 constexpr size_t kNumFloatTempRegs = 11;
+constexpr size_t kNumIntArgs = 8;
+constexpr size_t kNumFloatArgs = 8;
 
 // RISC-V register ABI names
 constexpr uint8_t kZero = 0;
@@ -114,6 +116,11 @@ constexpr std::array<uint8_t, kNumFloatSavedRegs> kFloatSavedRegs = {
 
 constexpr std::array<uint8_t, kNumFloatTempRegs> kFloatTempRegs = {
     kFt0, kFt1, kFt2, kFt3, kFt4, kFt5, kFt6, kFt7, kFt8, kFt9, kFt10};
+
+constexpr std::array<uint8_t, kNumIntArgs> kIntArgs = {kA0, kA1, kA2, kA3,
+                                                       kA4, kA5, kA6, kA7};
+constexpr std::array<uint8_t, kNumFloatArgs> kFloatArgs = {
+    kFa0, kFa1, kFa2, kFa3, kFa4, kFa5, kFa6, kFa7};
 
 const std::string kIntRegisterName[] = {
     "zero", "ra", "sp", "gp", "tp",  "t0",  "t1", "t2", "s0", "s1", "a0",
@@ -605,6 +612,9 @@ class RegCtrl {
     uint8_t rg = 0;
     for (size_t i = 0; i < N; ++i) {
       size_t idx = Convert(pool[i]);
+      std::cerr << "idx = " << idx << "\n";
+      std::cerr << "regs_[idx] = " << regs_[idx] << "\n";
+      std::cerr << "kEmpty = " << kEmpty << " kReserved = " << kReserved << "\n";
       if (regs_[idx] == kEmpty) return pool[i];
       if (regs_[idx] != kReserved) {
         if (!found || !dirty[regs_[idx]]) {
@@ -695,35 +705,27 @@ class InsrGen {
   std::array<bool, rv64::kRegisters> int_used_{};
   std::array<bool, rv64::kRegisters> float_used_{};
   std::unordered_map<std::string, size_t> str_cache_;
+  std::vector<uint8_t> int_dirty_, float_dirty_;
+  std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
 
-  void Initialize();
+  void Initialize(size_t num_register);
 
   template <class... Args>
   void PushInsr(Opcode op, Args&&... args);
   template <class... Args>
   void PushPInsr(Opcode op, Args&&... args);
 
-  void GenerateInsrImpl(const IRInsr& v, std::vector<MemoryLocation>& loc,
-                        std::vector<uint8_t>& dirty);
-  void GenerateRTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                         std::vector<uint8_t>& dirty);
-  void GenerateITypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                         std::vector<uint8_t>& dirty);
-  void GenerateSTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                         std::vector<uint8_t>& dirty);
-  void GenerateUTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                         std::vector<uint8_t>& dirty);
-  void GenerateBTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                         std::vector<uint8_t>& dirty);
-  void GenerateJTypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                         std::vector<uint8_t>& dirty);
-  void GenerateR0TypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                          std::vector<uint8_t>& dirty);
-  void GenerateR4TypeInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                          std::vector<uint8_t>& dirty);
-  void GeneratePseudoInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
-                          std::vector<uint8_t>& dirty, int64_t offset);
+  void GenerateInsrImpl(const IRInsr& v);
+  void GenerateRTypeInsr(const IRInsr& ir);
+  void GenerateITypeInsr(const IRInsr& ir);
+  void GenerateSTypeInsr(const IRInsr& ir);
+  void GenerateUTypeInsr(const IRInsr& ir);
+  void GenerateBTypeInsr(const IRInsr& ir);
+  void GenerateJTypeInsr(const IRInsr& ir);
+  void GenerateR0TypeInsr(const IRInsr& ir);
+  void GenerateR4TypeInsr(const IRInsr& ir);
+  void GeneratePseudoInsr(const IRInsr& ir, int64_t offset);
 
   void GeneratePrologue(size_t local, const std::vector<uint8_t>& saved);
   void GenerateEpilogue(size_t local, const std::vector<uint8_t>& saved);
