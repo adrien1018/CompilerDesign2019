@@ -23,7 +23,8 @@ inline uint32_t GetConst(AstNode* expr) {
     Debug_("GetConst (int)", std::get<int32_t>(value), "\n");
     memcpy(&x, &std::get<int32_t>(value), 4);
   } else {
-    Debug_("GetConst (float)", std::get<FloatType>(value), ", size ", sizeof(FloatType), "\n");
+    Debug_("GetConst (float)", std::get<FloatType>(value), ", size ",
+           sizeof(FloatType), "\n");
     memcpy(&x, &std::get<FloatType>(value), 4);
   }
   Debug_("GetConst (hex)", x, "\n");
@@ -303,7 +304,7 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
   } else if (var_attr.local) {
     ir_.emplace_back(INSR_ADD, dest, dest, Reg(rv64::kSp));
     ir_.emplace_back(INSR_ADDI, dest, dest, IRInsr::kConst,
-                     -(int64_t)var_attr.offset);
+                     (int64_t)var_attr.offset);
   } else {
     ir_.emplace_back(PINSR_LA, reg, IRInsr::kData, var_attr.offset);
     ir_.emplace_back(INSR_ADD, dest, dest, reg);
@@ -420,7 +421,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
       case FLOAT_TYPE:
         ir_.emplace_back(PINSR_FMV_S, dest, Reg(rv64::kFa0));
         break;
-      default: assert(false);
+      default:
+        assert(false);
     }
   }
   if (stk) {
@@ -661,8 +663,8 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
     if (param.IsArray() || param.data_type == INT_TYPE) {
       reg = AllocRegister(attr, INT_TYPE);
       if (ival >= 8) {
-        ir_.emplace_back(param.IsArray() ? INSR_LD : INSR_LW,
-                         reg, Reg(rv64::kSp), IRInsr::kConst, stk++ * 8);
+        ir_.emplace_back(param.IsArray() ? INSR_LD : INSR_LW, reg,
+                         Reg(rv64::kSp), IRInsr::kConst, stk++ * 8);
       } else {
         ir_.emplace_back(PINSR_MV, reg, Reg(rv64::kA0 + ival));
       }

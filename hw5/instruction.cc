@@ -729,6 +729,7 @@ void InsrGen::Initialize(size_t ireg, size_t freg) {
 void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
                          size_t next_func, bool is_main) {
   Initialize(ireg, freg);
+  sp_offset_ = local;
 #ifdef INSRGEN_DEBUG
   std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
 #endif
