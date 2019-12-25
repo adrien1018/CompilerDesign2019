@@ -712,7 +712,6 @@ class InsrGen {
   std::unordered_map<std::string, size_t> str_cache_;
   std::vector<uint8_t> int_dirty_, float_dirty_;
   std::vector<MemoryLocation> int_loc_, float_loc_;
-  // std::vector<size_t> fcall_;
   int64_t sp_offset_;
 
   void Initialize(size_t ireg, size_t freg);
