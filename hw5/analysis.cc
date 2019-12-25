@@ -168,19 +168,9 @@ void Analyzer::BuildInitID(AstNode* init_id, const TypeAttr& attr,
         }
         if (glob) {
           if (init_val->node_type != CONST_VALUE_NODE) {
-            bool failed = false;
-            if (init_val->node_type != EXPR_NODE) {
-              failed = true;
-            } else {
-              auto& expr =
-                  std::get<ExprSemanticValue>(init_val->semantic_value);
-              if (!expr.is_const_eval) failed = true;
-            }
-            if (failed) {
-              success_ = false;
-              PrintMsg(file_, init_val->loc, ERR_INIT_NONCONST);
-              throw StopExpression();
-            }
+            success_ = false;
+            PrintMsg(file_, init_val->loc, ERR_INIT_NONCONST);
+            throw StopExpression();
           }
         }
       }

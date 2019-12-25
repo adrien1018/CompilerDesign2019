@@ -57,6 +57,17 @@ std::string GetOpName(BinaryOperator op) {
   return "";
 }
 
+// TODO: Optimize this stuff
+constexpr bool IsLogicalOp(BinaryOperator op) {
+  return op == BINARY_OP_EQ || op == BINARY_OP_GE || op == BINARY_OP_LE ||
+         op == BINARY_OP_NE || op == BINARY_OP_GT || op == BINARY_OP_LT ||
+         op == BINARY_OP_AND || op == BINARY_OP_OR;
+}
+
+constexpr bool IsArithmaticOp(BinaryOperator op) {
+  return !IsLogicalOp(op);
+}
+
 inline DataType MixDataType(AstNode *a, AstNode *b, BinaryOperator op) {
   if (a->data_type == CONST_STRING_TYPE || b->data_type == CONST_STRING_TYPE) {
     std::string x = GetTypeName(a->data_type);
@@ -64,9 +75,10 @@ inline DataType MixDataType(AstNode *a, AstNode *b, BinaryOperator op) {
     std::string z = GetOpName(op);
     throw std::invalid_argument("invalid operands to binary " + z + " (have '" + x + "' and '" + y + "')");
   }
+  if (IsLogicalOp(op)) return BOOLEAN_TYPE;
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
-  if (a->data_type == INT_TYPE && b->data_type == INT_TYPE) return INT_TYPE;
-  return FLOAT_TYPE;
+  if (a->data_type == FLOAT_TYPE || b->data_type == FLOAT_TYPE) return FLOAT_TYPE;
+  return INT_TYPE;
 }
 
 DataType GetTypedefValue(const std::string &s) noexcept {
@@ -85,17 +97,6 @@ template <>
 struct Wider<int32_t, int32_t> {
   using type = int32_t;
 };
-
-// TODO: Optimize this stuff
-constexpr bool IsLogicalOp(BinaryOperator op) {
-  return op == BINARY_OP_EQ || op == BINARY_OP_GE || op == BINARY_OP_LE ||
-         op == BINARY_OP_NE || op == BINARY_OP_GT || op == BINARY_OP_LT ||
-         op == BINARY_OP_AND || op == BINARY_OP_OR;
-}
-
-constexpr bool IsArithmaticOp(BinaryOperator op) {
-  return !IsLogicalOp(op);
-}
 
 template <typename T, typename U>
 typename Wider<T, U>::type DoArithmaticOperation(BinaryOperator op, T x, U y) {
@@ -277,25 +278,25 @@ AstNode* MakeDeclNode(DeclKind decl_kind, const Location& loc) {
 AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
                       int operation_enum_value, const Location& loc,
                       std::list<AstNode*>&& ch) {
+  bool const_eval = true;
+  for (AstNode* nd : ch) const_eval &= nd->node_type == CONST_VALUE_NODE;
+  if (const_eval) {
+    if (ch.size() == 2) {
+      return MergeConstNode(BinaryOperator(operation_enum_value), *ch.begin(),
+                            *std::next(ch.begin()), loc);
+    } else {
+      return UnaryConstNode(UnaryOperator(operation_enum_value), *ch.begin(),
+                            loc);
+    }
+  }
   AstNode* expr_node = new AstNode(EXPR_NODE, loc);
   expr_node->data_type = data_type;
-  ExprSemanticValue expr{expr_kind, true};
-  expr_node->semantic_value = ExprSemanticValue{expr_kind, true};
+  ExprSemanticValue expr{expr_kind};
   MakeChild(expr_node, ch);
   if (expr_kind == BINARY_OPERATION) {
     expr.op = BinaryOperator(operation_enum_value);
   } else {
     expr.op = UnaryOperator(operation_enum_value);
-  }
-  for (AstNode* nd : expr_node->child) {
-    if (nd->node_type != CONST_VALUE_NODE) {
-      if (nd->node_type != EXPR_NODE) {
-        expr.is_const_eval = false;
-      } else {
-        auto& value = std::get<ExprSemanticValue>(nd->semantic_value);
-        expr.is_const_eval &= value.is_const_eval;
-      }
-    }
   }
   expr_node->semantic_value = expr;
   return expr_node;
@@ -680,28 +681,28 @@ assign_expr:
 
 relop_expr:
   relop_expr O_LOGICAL_OR relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_OR, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_OR, @$, {$1, $3});
   } |
   relop_expr O_LOGICAL_AND relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_AND, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_AND, @$, {$1, $3});
   } |
   relop_expr O_LESS_THAN relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_LT, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_LT, @$, {$1, $3});
   } |
   relop_expr O_LESS_THAN_OR_EQ relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_LE, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_LE, @$, {$1, $3});
   } |
   relop_expr O_GREATER_THAN relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_GT, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_GT, @$, {$1, $3});
   } |
   relop_expr O_GREATER_THAN_OR_EQ relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_GE, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_GE, @$, {$1, $3});
   } |
   relop_expr O_EQ relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_EQ, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_EQ, @$, {$1, $3});
   } |
   relop_expr O_NOT_EQ relop_expr {
-    $$ = MakeExprNode(BINARY_OPERATION, INT_TYPE, BINARY_OP_NE, @$, {$1, $3});
+    $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_NE, @$, {$1, $3});
   } |
   relop_expr O_ADDITION relop_expr {
     try {

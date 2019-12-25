@@ -120,7 +120,6 @@ struct StmtSemanticValue {
 
 struct ExprSemanticValue {
   ExprKind kind;
-  bool is_const_eval;
   std::variant<BinaryOperator, UnaryOperator> op;
 };
 
