@@ -644,26 +644,19 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
     }
     case PINSR_LA: {
       uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
-      // std::cerr << "rd = " << int(rd) << "\n";
       if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
       PushInsr(ir.op, rd, ir.imm_type, ir.imm);
       break;
     }
     case PINSR_CALL:
-      // PushCallerRegs(offset);
-      // fcall_.push_back(buf_.size());
       PushInsr(ir.op, ir.imm_type, ir.imm);
-      // PopCallerRegs(offset);
       break;
     case PINSR_RET:
       PushInsr(PINSR_J, IRInsr::kLabel, int64_t(tot_label_));
-      // GenerateEpilogue(offset);
-      // PushInsr(ir.op, ir.imm_type, ir.imm);
       break;
     case PINSR_MV: {
       uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
       uint8_t rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
-      // std::cerr << "Rd = " << ir.rd.id << "\n";
       if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
       PushInsr(ir.op, rd, rs1);
       break;
