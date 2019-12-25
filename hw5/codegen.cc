@@ -272,6 +272,7 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
 
 // Load address to dest; if is slice, return true
 bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  Debug_("VisitArray");
   RegCount start_reg = cur_register_;
   auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
@@ -306,7 +307,7 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
     ir_.emplace_back(INSR_ADD, dest, dest, reg);
   }
   cur_register_ = start_reg;
-  return i != var_attr.dims.size();
+  return expr->child.size() != var_attr.dims.size();
 }
 
 void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
@@ -462,7 +463,7 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
   VisitRelopExpr(*std::next(expr->child.begin()), attr, valreg);
   if (var_attr.IsArray()) {
     size_t reg = AllocRegister(attr);
-    if (VisitArray(expr, attr, reg)) assert(false);
+    if (VisitArray(expr->child.front(), attr, reg)) assert(false);
     if (var_attr.data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, reg, valreg, IRInsr::kConst, 0);
     } else {
