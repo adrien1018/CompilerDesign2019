@@ -263,33 +263,33 @@ template <class T>
 uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
                              std::vector<MemoryLocation> &loc,
                              std::vector<uint8_t> &dirty, RegCtrl<T> &ctrl) {
-  std::cerr << "reg.id = " << reg.id << "\n";
+  // std::cerr << "reg.id = " << reg.id << "\n";
   if (reg.is_real) {
     // TODO: Check the current usage of the specified register, and store it
     // back to memory if neccesary. For now the reserved register will not be
     // used, so leave this to optimzation.
-    std::cerr << "is_real\n";
+    // std::cerr << "is_real\n";
     if constexpr (std::is_same_v<T, int>) {
       int_used_[reg.id] = true;
       return reg.id;
     } else {
       float_used_[128 ^ reg.id] = true;
-      return 128 ^ reg.id;
+      return reg.id;
     }
   }
   // std::cerr << "Get id = " << reg.id << "\n";
   size_t id = reg.id;
-  std::cerr << "id = " << id << "\n";
-  std::cerr << "loc.size() = " << loc.size() << "\n";
+  // std::cerr << "id = " << id << "\n";
+  // std::cerr << "loc.size() = " << loc.size() << "\n";
   if (loc[id].in_register) return loc[id].reg;
-  std::cerr << "idid = " << id << "\n";
+  // std::cerr << "idid = " << id << "\n";
   size_t to_replace = (size_t)-1;
   uint8_t rg = ctrl.GetSavedReg(to_replace, dirty);
-  std::cerr << "ididid = " << id << "\n";
+  // std::cerr << "ididid = " << id << "\n";
   // std::cerr << "InsrGen::rg = " << int(rg) << "\n";
   if (to_replace != (size_t)-1) {
     // store the register back to memory if the register is dirty
-    std::cerr << "to_replace\n";
+    // std::cerr << "to_replace\n";
     loc[to_replace].in_register = false;
     if (dirty[to_replace]) {
       if (loc[to_replace].addr == MemoryLocation::kUnAllocated) {
@@ -309,11 +309,11 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     // load the pseudo register from memory
     PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
   }
-  std::cerr << "rg = " << int(rg) << "\n";
+  // std::cerr << "rg = " << int(rg) << "\n";
   if constexpr (std::is_same_v<T, int>) {
     int_used_[rg] = true;
   } else {
-    float_used_[rg] = true;
+    float_used_[rg ^ 128] = true;
   }
   return rg;
 }
@@ -626,7 +626,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
     }
     case PINSR_LA: {
       uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
-      std::cerr << "rd = " << int(rd) << "\n";
+      // std::cerr << "rd = " << int(rd) << "\n";
       if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
       PushInsr(ir.op, rd, ir.imm_type, ir.imm);
       break;
@@ -644,7 +644,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
     case PINSR_MV: {
       uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
       uint8_t rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
-      std::cerr << "Rd = " << ir.rd.id << "\n";
+      // std::cerr << "Rd = " << ir.rd.id << "\n";
       if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
       PushInsr(ir.op, rd, rs1);
       break;

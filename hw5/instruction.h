@@ -540,7 +540,7 @@ struct MemoryLocation {
   bool in_register;
   uint8_t reg;
   int64_t addr;
-  MemoryLocation() : in_register(false), addr(kUnAllocated), reg(0) {}
+  MemoryLocation() : in_register(false), addr(kUnAllocated) {}
 };
 
 struct Label {
