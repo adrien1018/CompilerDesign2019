@@ -22,9 +22,11 @@
  * to array parameter <name>.
  */
 
-const BuiltinAttr kBuiltinFunction[] = {
-    {1, VOID_TYPE}, {1, VOID_TYPE}, {1, VOID_TYPE},
-    {0, INT_TYPE}, {0, FLOAT_TYPE}};
+const BuiltinAttr kBuiltinFunction[] = {{1, VOID_TYPE},
+                                        {1, VOID_TYPE},
+                                        {1, VOID_TYPE},
+                                        {0, INT_TYPE},
+                                        {0, FLOAT_TYPE}};
 
 const size_t kBuiltinFunctionNum =
     sizeof(kBuiltinFunction) / sizeof(BuiltinAttr);
@@ -649,6 +651,8 @@ inline MsgType CheckConvertibility(const VariableAttr& proto,
 
 void Analyzer::AnalyzeFunctionCall(AstNode* node) {
   Debug_("AnalyzeFunctionCall", '\n');
+  assert(func_ptr_);
+  func_ptr_->is_leaf = false;
   AstNode* id_node = *node->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t& id = std::get<Identifier>(value.identifier).first;
@@ -663,12 +667,19 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
         success_ = false;
         PrintMsg(file_, param->loc, ERR_ARR_TO_SCALAR,
                  GetIdentifier(param).second);
-      } else if (~id == 0) { // write
+      } else if (~id == 0) {  // write
         switch (proto.data_type) {
-          case CONST_STRING_TYPE: id = ~(size_t)0; break;
-          case INT_TYPE:          id = ~(size_t)1; break;
-          case FLOAT_TYPE:        id = ~(size_t)2; break;
-          default: assert(false);
+          case CONST_STRING_TYPE:
+            id = ~(size_t)0;
+            break;
+          case INT_TYPE:
+            id = ~(size_t)1;
+            break;
+          case FLOAT_TYPE:
+            id = ~(size_t)2;
+            break;
+          default:
+            assert(false);
         }
       }
     }
@@ -962,16 +973,17 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
           if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
           DataType type =
               stmt->child.empty() ? VOID_TYPE : stmt->child.front()->data_type;
-          if (return_type_ != NONE_TYPE && type != return_type_) {
-            if (return_type_ == VOID_TYPE) {
+          if (func_ptr_ && type != func_ptr_->return_type) {
+            if (func_ptr_->return_type == VOID_TYPE) {
               PrintMsg(file_, stmt->child.front()->loc, WARN_VOID_RETURN);
             } else if (type == VOID_TYPE) {
               PrintMsg(file_, stmt->loc, WARN_RETURN_NOVAL);
             } else {
               PrintMsg(file_, stmt->child.front()->loc, WARN_CONVERSION, type,
-                       return_type_);
+                       func_ptr_->return_type);
               AstNode* ret = *stmt->child.begin();
-              AstNode* conv = MakeConvNode(type, return_type_, stmt, ret);
+              AstNode* conv =
+                  MakeConvNode(type, func_ptr_->return_type, stmt, ret);
               stmt->child.pop_front();
               stmt->child.push_front(conv);
             }
@@ -1040,21 +1052,27 @@ void Analyzer::AnalyzeBlock(AstNode* block) noexcept {
 
 void Analyzer::AnalyzeFunctionDecl(AstNode* func) {
   Debug_("AnalyzeFunctionDecl", '\n');
-  AstNode* type_node = *func->child.begin();
-  DataType return_type;
-  try {
-    auto& attr = tab_[std::get<size_t>(std::get<TypeSpecSemanticValue>(
-                                           type_node->semantic_value)
-                                           .type)]
-                     .GetValue<TypeAttr>();
-    return_type = attr.IsArray() ? NONE_TYPE : attr.data_type;
-  } catch (const std::bad_variant_access& e) {
-    return_type = std::get<DataType>(
-        std::get<TypeSpecSemanticValue>(type_node->semantic_value).type);
-  }
-  return_type_ = return_type;
+  AstNode* id_node = *std::next(func->child.begin());
+  auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
+  size_t pos = std::get<Identifier>(value.identifier).first;
+  func_ptr_ = &tab_[pos].GetValue<FunctionAttr>();
   AnalyzeBlock(*std::prev(func->child.end()));
-  return_type_ = NONE_TYPE;
+  func_ptr_ = nullptr;
+  // AstNode* type_node = *func->child.begin();
+  // DataType return_type;
+  // try {
+  //   auto& attr = tab_[std::get<size_t>(std::get<TypeSpecSemanticValue>(
+  //                                          type_node->semantic_value)
+  //                                          .type)]
+  //                    .GetValue<TypeAttr>();
+  //   return_type = attr.IsArray() ? NONE_TYPE : attr.data_type;
+  // } catch (const std::bad_variant_access& e) {
+  //   return_type = std::get<DataType>(
+  //       std::get<TypeSpecSemanticValue>(type_node->semantic_value).type);
+  // }
+  // return_type_ = return_type;
+  // AnalyzeBlock(*std::prev(func->child.end()));
+  // return_type_ = NONE_TYPE;
 }
 
 void Analyzer::AnalyzeGlobalDecl(AstNode* decl) noexcept {

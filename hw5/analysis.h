@@ -31,7 +31,8 @@ class Analyzer {
   using SymMap_ = SymbolMap<std::string::value_type>;
   SymMap_ mp_;
   std::vector<TableEntry> tab_;
-  DataType return_type_ = NONE_TYPE;
+  // DataType return_type_ = NONE_TYPE;
+  FunctionAttr* func_ptr_ = nullptr;
 
   FileInfor file_;
   bool success_;

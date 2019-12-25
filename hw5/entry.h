@@ -75,13 +75,14 @@ struct FunctionAttr {
   std::vector<size_t> params;
   size_t label = 0;
   size_t sp_offset = 0, tot_pseudo_reg = 0;
+  bool is_leaf;
 
   FunctionAttr() = default;
-  FunctionAttr(DataType type) : return_type(type) {}
+  FunctionAttr(DataType type) : return_type(type), is_leaf(true) {}
 
   template <class V>
   FunctionAttr(DataType type, V&& params_)
-      : return_type(type), params(std::forward<V>(params_)) {}
+      : return_type(type), params(std::forward<V>(params_)), is_leaf(true) {}
 
   DataType GetReturnType() const noexcept { return return_type; }
   size_t NumParam() const noexcept { return params.size(); }
