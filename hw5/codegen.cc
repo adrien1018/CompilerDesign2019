@@ -16,16 +16,28 @@ T& GetAttribute(AstNode* id, std::vector<TableEntry>& tab) {
   return tab[std::get<Identifier>(value.identifier).first].GetValue<T>();
 }
 
-inline uint32_t GetConst(AstNode* expr) {
+inline uint32_t GetConst(AstNode* expr, DataType type = UNKNOWN_TYPE) {
   auto& value = std::get<ConstValue>(expr->semantic_value);
   uint32_t x;
-  if (expr->data_type == INT_TYPE) {
+  if (expr->data_type == INT_TYPE || expr->data_type == BOOLEAN_TYPE) {
     Debug_("GetConst (int)", std::get<int32_t>(value), "\n");
-    memcpy(&x, &std::get<int32_t>(value), 4);
-  } else {
+    if (type != FLOAT_TYPE) {
+      memcpy(&x, &std::get<int32_t>(value), 4);
+    } else {
+      FloatType f = std::get<int32_t>(value);
+      memcpy(&x, &f, 4);
+    }
+  } else if (expr->data_type == FLOAT_TYPE) {
     Debug_("GetConst (float)", std::get<FloatType>(value), ", size ",
            sizeof(FloatType), "\n");
-    memcpy(&x, &std::get<FloatType>(value), 4);
+    if (type == FLOAT_TYPE || type == UNKNOWN_TYPE) {
+      memcpy(&x, &std::get<FloatType>(value), 4);
+    } else {
+      int32_t i = std::get<FloatType>(value);
+      memcpy(&x, &i, 4);
+    }
+  } else {
+    assert(false);
   }
   Debug_("GetConst (hex)", x, "\n");
   return x;
@@ -240,11 +252,11 @@ void CodeGen::LoadConst(uint64_t x, size_t dest) {
       ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
                        (int32_t)x);
     } else {
-      uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
+      uint32_t tx = (x & 0xfffff800) + (x & 0x800);
       ir_.emplace_back(INSR_LUI, dest, IRInsr::kConst, tx >> 12);
       if (x != tx) {
         ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst,
-                         (int32_t)(x - tx));
+                         (int32_t)((uint32_t)x - tx));
       }
     }
   } else {
@@ -279,25 +291,29 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
   size_t reg = AllocRegister(attr), i = 0;
-  for (AstNode* dim : expr->child) {
-    if (i != 0) {
-      VisitRelopExpr(dim, attr, reg);
-      ir_.emplace_back(INSR_ADD, dest, dest, reg);
-    } else {
-      VisitRelopExpr(dim, attr, dest);
+  if (expr->child.size()) {
+    for (AstNode* dim : expr->child) {
+      if (i != 0) {
+        VisitRelopExpr(dim, attr, reg);
+        ir_.emplace_back(INSR_ADD, dest, dest, reg);
+      } else {
+        VisitRelopExpr(dim, attr, dest);
+      }
+      if (++i == var_attr.dims.size()) {
+        ir_.emplace_back(INSR_SLLI, dest, dest, IRInsr::kConst, 2);
+      } else {
+        LoadConst(var_attr.dims[i], reg);
+        ir_.emplace_back(INSR_MUL, dest, dest, reg);
+      }
     }
-    if (++i == var_attr.dims.size()) {
-      ir_.emplace_back(INSR_SLLI, dest, dest, IRInsr::kConst, 2);
-    } else {
-      LoadConst(var_attr.dims[i], reg);
+    if (i < var_attr.dims.size()) {
+      uint64_t x = 4;
+      for (i++; i < var_attr.dims.size(); i++) x *= var_attr.dims[i];
+      LoadConst(x, reg);
       ir_.emplace_back(INSR_MUL, dest, dest, reg);
     }
-  }
-  if (i < var_attr.dims.size()) {
-    uint64_t x = 4;
-    for (i++; i < var_attr.dims.size(); i++) x *= var_attr.dims[i];
-    LoadConst(x, reg);
-    ir_.emplace_back(INSR_MUL, dest, dest, reg);
+  } else {
+    ir_.emplace_back(PINSR_MV, dest, Reg(rv64::kZero));
   }
   if (var_attr.is_param) {
     ir_.emplace_back(INSR_ADD, dest, dest, var_attr.offset);
@@ -327,6 +343,8 @@ void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
       } else {
         ir_.emplace_back(INSR_LW, dest, reg, IRInsr::kConst, 0);
       }
+    } else {
+      ir_.emplace_back(PINSR_MV, dest, reg);
     }
     cur_register_ = start_reg;
   } else {
@@ -369,10 +387,13 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
   std::vector<size_t> stk_store;
   for (auto it = params->child.begin(); it != params->child.end(); ++it, i++) {
     RegCount start_reg = cur_register_;
-    DataType type =
-        func_attr
-            ? tab_[func_attr->params[i]].GetValue<VariableAttr>().data_type
-            : (*it)->data_type;
+    DataType type;
+    if (func_attr) {
+      VariableAttr& fattr = tab_[func_attr->params[i]].GetValue<VariableAttr>();
+      type = fattr.IsArray() ? INT_TYPE : fattr.data_type;
+    } else {
+      type = (*it)->data_type;
+    }
     if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
         type == FLOAT_PTR_TYPE || type == BOOLEAN_TYPE) {
       size_t reg =
@@ -392,7 +413,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
       VisitRelopExpr(*it, attr, reg);
       if (fval >= 8) {
         stk_store.push_back(ir_.size());
-        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, Reg(rv64::kSp), reg,
+        ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, Reg(rv64::kSp), reg,
                          IRInsr::kConst, 0);
       } else {
         ir_.emplace_back(PINSR_FMV_S, Reg(rv64::kFa0 + fval), reg);
@@ -541,7 +562,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
-    case FOR_STMT: {
+    case FOR_STMT: { // TODO
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
       size_t jump_label = InsertLabel();
@@ -601,7 +622,7 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
         if (value.kind == WITH_INIT_ID) {
           AstNode* init_val = (*it)->child.front();
           if (init_val->node_type == CONST_VALUE_NODE) {
-            uint32_t x = GetConst(init_val);
+            uint32_t x = GetConst(init_val, var_attr.data_type);
             std::vector<uint8_t> v(4);
             for (int i = 0; i < 4; i++) v[i] = x >> (i * 8) & 255;
             data_.emplace_back(std::move(v));
@@ -683,7 +704,8 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
     } else {
       reg = AllocRegister(attr, FLOAT_TYPE);
       if (fval >= 8) {
-        ir_.emplace_back(INSR_FLW, reg, Reg(rv64::kSp), stk++ * 8);
+        ir_.emplace_back(INSR_FLW, reg, Reg(rv64::kSp),
+                         IRInsr::kConst, stk++ * 8);
       } else {
         ir_.emplace_back(PINSR_FMV_S, reg, Reg(rv64::kFa0 + fval));
       }
