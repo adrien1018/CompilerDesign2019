@@ -298,14 +298,15 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     loc[to_replace].in_register = false;
     if (dirty[to_replace]) {
       if (loc[to_replace].addr == MemoryLocation::kUnAllocated) {
-        loc[to_replace].addr = -sp_offset_ * 8;
+        loc[to_replace].addr = -sp_offset_;
         sp_offset_ += 8;
       }
       // loc[to_replace].mem = -int64_t(to_replace) * 8;  // this is useless now
-      if (std::is_same_v<T, int>)
+      if (std::is_same_v<T, int>) {
         PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst, loc[to_replace].addr);
-      else
+      } else {
         PushInsr(INSR_FSD, rg, rv64::kFp, IRInsr::kConst, loc[to_replace].addr);
+      }
     }
     dirty[to_replace] = false;
   }
@@ -729,7 +730,6 @@ void InsrGen::Initialize(size_t ireg, size_t freg) {
 void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
                          size_t next_func, bool is_main) {
   Initialize(ireg, freg);
-  sp_offset_ = local;
 #ifdef INSRGEN_DEBUG
   std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
 #endif
@@ -778,7 +778,7 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
   // for (uint8_t i : rv64::kFloatArgs) {
   //   if (float_used_[i ^ 128]) caller_saved.push_back(i);
   // }
-  sp_offset_ += 8 * callee_saved.size();
+  sp_offset_ += 8 * callee_saved.size() + local;
   for (auto &v : buf_) {
     if (v.imm == kPosSpOffset) v.imm = sp_offset_;
     if (v.imm == kNegSpOffset) v.imm = -sp_offset_;
@@ -802,7 +802,6 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
     if (i >= st_prologue && i < ed_prologue) continue;
     insr_.push_back(std::move(buf_[i]));
   }
-  std::cerr << "end\n";
 }
 
 namespace {
@@ -905,10 +904,8 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
-#ifdef INSRGEN_DEBUG
     std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
               << "\n";
-#endif
     std::cerr << "sp_offset = " << attr.sp_offset << "\n";
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
                std::string(func_[i].second) == "main");
