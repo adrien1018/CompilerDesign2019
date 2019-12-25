@@ -113,7 +113,6 @@ size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
       int64_t dist = int64_t(p) - insr.imm;
       if ((size_t)insr.imm < p) dist -= pref[p] - pref[insr.imm];
       if (((size_t)std::abs(dist) << 2) > kJumpThreshold) {
-        // TODO: Check whether t0 is dirty.
         ofs << "lui t0, \%hi(" << GetLabel(insr) << ")\n";
         ofs << "jalr x0, \%lo(" << GetLabel(insr) << ")(t0)\n";
         return 1;

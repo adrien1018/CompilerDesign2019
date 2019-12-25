@@ -8,15 +8,26 @@ Compile:
 Usage:
   $ ./parser [file]
 
-New features / modifications:
-* Allow negative constant values (in scanner)
-* Allow unlimited array dimensions
-* Imitate GCC error messages (e.g. notes, code printing, colors, exit status)
-  (note that we don't print message on success)
+Notes:
+* The entrance function is declared as `main` instead of `MAIN`.
 
-Implemented additional errors / warnings:
-* [ERROR] Calling variables
-* [ERROR] Negative / non-integer array size
-* [ERROR] Assigning void values / functions
-* [WARNING] Return with value in void function / return without value in non-void function
-* [WARNING] Incompatible array dimensions / types in parameter passing
+Implementation detail:
+* The code generation is split into two components, the IR instruction generator and the RISC-V instruction generator. The instructions produced by the IR generator comprise of pseudo registers, and the RISC-V generator converts the unlimited pseudo registers into real registers.
+* When the real registers run out, load/store operations must be performed. To minimize the stack usage, each pseudo register is associated with its offset to the stack pointer (or not being allocated yet) and whether it's dirty. The store operation is performed only when the pseudo register is dirty (being modified after loaded). Clean registsers have higher priorities to be assigned to the pseudo registers.
+* There will only be one epilogue for each function declaration. The return statement is translated into two steps: 
+  - move the return value into `a0`
+  - jump to the epilogue of the function
+* Calling convension:
+  - the local arrays allocated by the IR generator are refernces by `sp + offset`.
+  - the stack storage allocated for the pseudo registers are referenced by `fp - offset`.
+  - the (used) callee-saved registers are stored in `sp + local + offset`.
+  - the (used) caller-saved registers are stored in `sp + local + callee-saved + offset`.
+
+New features / modifications:
+* Supports unconditional jumps of distances > 2^19.
+
+Implemented additional errors / warnings (in comparison with hw4):
+* [ERROR] Non-const initialization of global variables.
+* [ERROR] Declarations of void arrays.
+* [ERROR] Passing strings to scalar arguments.
+* [ERROR] Declaring functions that return arrays.
