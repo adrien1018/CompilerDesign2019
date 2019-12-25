@@ -259,8 +259,7 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
     ir_.emplace_back(PINSR_LA, dest, IRInsr::kData, data_.size());
     data_.emplace_back(std::get<std::string>(value));
   } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
-    size_t chval =
-        expr->data_type == INT_TYPE ? dest : AllocRegister(attr, FLOAT_TYPE);
+    size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
     LoadConst(GetConst(expr), chval);
     if (expr->data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FMV_W_X, dest, chval);
