@@ -529,10 +529,11 @@ struct RV64Insr {
 };
 
 struct MemoryLocation {
+  static constexpr int64_t kUnAllocated = LLONG_MAX;
   bool in_register;
-  std::variant<uint8_t, int64_t> mem;
-
-  MemoryLocation() : in_register(false) {}
+  uint8_t reg;
+  int64_t addr;
+  MemoryLocation() : in_register(false), addr(kUnAllocated) {}
 };
 
 struct Label {
@@ -693,13 +694,14 @@ class InsrGen {
   RegCtrl<float> float_reg_;
   std::array<bool, rv64::kRegisters> int_used_{};
   std::array<bool, rv64::kRegisters> float_used_{};
+  int64_t sp_offset_;
 
   void Initialize();
 
   template <class... Args>
-  void GenerateInsr(Opcode op, Args&&... args);
+  void PushInsr(Opcode op, Args&&... args);
   template <class... Args>
-  void GeneratePInsr(Opcode op, Args&&... args);
+  void PushPInsr(Opcode op, Args&&... args);
 
   void GenerateInsrImpl(const IRInsr& v, std::vector<MemoryLocation>& loc,
                         std::vector<uint8_t>& dirty);
@@ -722,10 +724,8 @@ class InsrGen {
   void GeneratePseudoInsr(const IRInsr& ir, std::vector<MemoryLocation>& loc,
                           std::vector<uint8_t>& dirty, int64_t offset);
 
-  void GeneratePrologue(size_t local, int64_t sp_offset,
-                        const std::vector<uint8_t>& saved);
-  void GenerateEpilogue(size_t local, int64_t sp_offset,
-                        const std::vector<uint8_t>& saved);
+  void GeneratePrologue(size_t local, const std::vector<uint8_t>& saved);
+  void GenerateEpilogue(size_t local, const std::vector<uint8_t>& saved);
 
   void PushCalleeRegs(int64_t offset, const std::vector<uint8_t>& saved);
   void PushCallerRegs(int64_t offset);
