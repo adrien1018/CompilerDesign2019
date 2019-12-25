@@ -174,10 +174,10 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
           ir_.emplace_back(INSR_FLE_S, dest, chval1, chval2);
           break;
         case BINARY_OP_GT:
-          ir_.emplace_back(INSR_FLE_S, dest, chval2, chval1);
+          ir_.emplace_back(INSR_FLT_S, dest, chval2, chval1);
           break;
         case BINARY_OP_GE:
-          ir_.emplace_back(INSR_FLT_S, dest, chval2, chval1);
+          ir_.emplace_back(INSR_FLE_S, dest, chval2, chval1);
           break;
         case BINARY_OP_EQ:
           ir_.emplace_back(INSR_FEQ_S, dest, chval1, chval2);
