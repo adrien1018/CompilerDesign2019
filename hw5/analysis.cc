@@ -347,6 +347,8 @@ void Analyzer::BuildFunctionCall(AstNode* node) {
   AstNode* relop_expr_list = *std::next(node->child.begin());
   if (size_t num_param = relop_expr_list->child.size();
       num_param != func.NumParam()) {
+    Debug_("num_param ", num_param, "\n");
+    Debug_("func.NumParam ", func.NumParam(), "\n");
     success_ = false;
     PrintMsg(file_, id_node->loc,
              num_param > func.NumParam() ? ERR_ARGS_TOO_MANY : ERR_ARGS_TOO_FEW,
@@ -514,15 +516,18 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
     }
     auto entry = BuildEntry<FUNCTION>(id_node, attr.data_type);
     size_t f = InsertSymTab(func_name, std::move(entry), id_node);
-    std::vector<size_t>& refs = tab_[f].GetValue<FunctionAttr>().params;
+    // Debug_("f = ", f, "\n");
+    // std::vector<size_t>& refs = tab_[f].GetValue<FunctionAttr>().params;
     mp_.PushScope();  // push scope for the function parameters
     flag = true;
     size_t i = 0;
     for (AstNode* param : param_list_node->child) {
       auto& et = entries[i++];
       size_t pos = InsertParam(param, std::move(et));
-      refs.push_back(pos);
+      tab_[f].GetValue<FunctionAttr>().params.push_back(pos);
     }
+    // Debug_("refs.size() = ", refs.size(), "\n");
+    // Debug_("tab = ", tab_[f].GetValue<FunctionAttr>().params.size(), "\n");
     BuildBlock(*it);
   } catch (StopExpression&) {
   }

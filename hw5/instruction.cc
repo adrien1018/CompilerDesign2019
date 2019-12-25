@@ -710,18 +710,22 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
   // int64_t sp_offset =
   //     8 * saved.size() + 8 * num_register;  // TODO: optimize this number
   if (is_main) PushInsr(PINSR_MV, rv64::kA0, rv64::kZero);
+  // move all the instructions in the buffer to insr_
+  size_t st_prologue = buf_.size();
+  GeneratePrologue(local, saved);
+  size_t ed_prologue = buf_.size();
   lab.emplace_back(buf_.size(), tot_label_++);
   GenerateEpilogue(local, saved);
-  // move all the instructions in the buffer to insr_
-  size_t stop = buf_.size();
-  GeneratePrologue(local, saved);
-  for (size_t i = 0, j = 0; i < stop; ++i) {
+  for (size_t i = 0, j = 0; i < buf_.size(); ++i) {
     while (j < lab.size() && lab[j].first == i) {
       insr_.push_back(lab[j++].second);
     }
     if (i == prologue) {
-      for (size_t k = stop; k < buf_.size(); ++k) insr_.push_back(buf_[k]);
+      for (size_t k = st_prologue; k < ed_prologue; ++k) {
+        insr_.push_back(std::move(buf_[k]));
+      }
     }
+    if (i >= st_prologue && i < ed_prologue) continue;
     insr_.push_back(std::move(buf_[i]));
   }
   std::cerr << "end\n";
