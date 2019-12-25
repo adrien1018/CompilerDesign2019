@@ -718,10 +718,14 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
       if (GetMsgClass(x) == ERROR) success_ = false;
     }
     if (!args.IsArray() && !param.IsArray()) {
-      AstNode* conv =
-          MakeConvNode(param.data_type, args.data_type, relop_expr_list, nd);
-      it = relop_expr_list->child.erase(it);
-      relop_expr_list->child.insert(it, conv);
+      if (args.data_type != param.data_type) {
+        AstNode* conv =
+            MakeConvNode(param.data_type, args.data_type, relop_expr_list, nd);
+        it = relop_expr_list->child.erase(it);
+        relop_expr_list->child.insert(it, conv);
+      } else {
+        it = std::next(it);
+      }
     } else {
       it = std::next(it);
     }
@@ -1024,6 +1028,14 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
       success_ = false;
       PrintMsg(file_, init_val->loc, ERR_VOID_ASSIGN);
       throw StopExpression();
+    }
+    VariableAttr& attr = tab_[std::get<Identifier>(value.identifier).first]
+                             .GetValue<VariableAttr>();
+    if (init_val->data_type != attr.data_type) {
+      AstNode* conv =
+          MakeConvNode(init_val->data_type, attr.data_type, init_id, init_val);
+      init_id->child.pop_back();
+      init_id->child.push_back(conv);
     }
   }
 }
