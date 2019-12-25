@@ -82,6 +82,7 @@ inline void PrintMsg(const FileInfor& f, const Location& l, Func&& msg_callback,
 inline std::string TypeStr(DataType a) {
   switch (a) {
     case INT_TYPE:
+    case BOOLEAN_TYPE:
       return "int";
     case FLOAT_TYPE:
       return "float";
