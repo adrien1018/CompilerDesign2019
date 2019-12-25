@@ -47,6 +47,11 @@ constexpr bool IsCvtFFOp(Opcode op) {
   return op == INSR_FCVT_S_D || op == INSR_FCVT_D_S;
 }
 
+constexpr bool IsLogicIFFOp(Opcode op) {
+  return op == INSR_FEQ_S || op == INSR_FLT_S || op == INSR_FLE_S ||
+         op == INSR_FEQ_D || op == INSR_FLT_D || op == INSR_FLE_D;
+}
+
 #define RD(v)                               \
   (v.rd < 32 ? rv64::kIntRegisterName[v.rd] \
              : rv64::kFloatRegisterName[v.rd - 128])
@@ -503,10 +508,15 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &ir) {
     rs2 = GetSavedReg(ir.rs2, true, int_loc_, int_dirty_, int_reg_);
     if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
   } else {
-    rd = GetSavedReg(ir.rd, false, float_loc_, float_dirty_, float_reg_);
+    if (IsLogicIFFOp(ir.op)) {
+      rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
+      if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
+    } else {
+      rd = GetSavedReg(ir.rd, false, float_loc_, float_dirty_, float_reg_);
+      if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
+    }
     rs1 = GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
     rs2 = GetSavedReg(ir.rs2, true, float_loc_, float_dirty_, float_reg_);
-    if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
   }
   PushInsr(ir.op, rd, rs1, rs2);
 }
