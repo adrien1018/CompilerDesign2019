@@ -366,27 +366,27 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
             : (*it)->data_type;
     if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
         type == FLOAT_PTR_TYPE) {
-      VisitRelopExpr(
-          *it, attr,
-          return_type == INT_TYPE ? dest : AllocRegister(attr, INT_TYPE));
+      size_t reg =
+          return_type == INT_TYPE ? dest : AllocRegister(attr, INT_TYPE);
+      VisitRelopExpr(*it, attr, reg);
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
         ir_.emplace_back(type == INT_TYPE ? INSR_SW : INSR_SD, IRInsr::kNoRD,
-                         Reg(rv64::kSp), dest, IRInsr::kConst, 0);
+                         Reg(rv64::kSp), reg, IRInsr::kConst, 0);
       } else {
-        ir_.emplace_back(PINSR_MV, Reg(rv64::kA0 + ival), dest);
+        ir_.emplace_back(PINSR_MV, Reg(rv64::kA0 + ival), reg);
       }
       ival++;
     } else if (type == FLOAT_TYPE) {
-      VisitRelopExpr(
-          *it, attr,
-          return_type == FLOAT_TYPE ? dest : AllocRegister(attr, FLOAT_TYPE));
+      size_t reg =
+          return_type == FLOAT_TYPE ? dest : AllocRegister(attr, FLOAT_TYPE);
+      VisitRelopExpr(*it, attr, reg);
       if (fval >= 8) {
         stk_store.push_back(ir_.size());
-        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, Reg(rv64::kSp), dest,
+        ir_.emplace_back(INSR_SW, IRInsr::kNoRD, Reg(rv64::kSp), reg,
                          IRInsr::kConst, 0);
       } else {
-        ir_.emplace_back(PINSR_FMV_S, Reg(rv64::kFa0 + fval), dest);
+        ir_.emplace_back(PINSR_FMV_S, Reg(rv64::kFa0 + fval), reg);
       }
       fval++;
     } else {
@@ -596,7 +596,7 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
         var_attr.offset = AllocStack(attr, var_attr.size);
       } else {
         auto& value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
-        var_attr.offset = AllocRegister(attr, (*it)->data_type);
+        var_attr.offset = AllocRegister(attr, var_attr.data_type);
         if (value.kind == WITH_INIT_ID) {
           AstNode* init_val = (*it)->child.front();
           VisitRelopExpr(init_val, attr, var_attr.offset);
