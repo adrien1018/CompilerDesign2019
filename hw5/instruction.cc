@@ -94,7 +94,10 @@ size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
                                 size_t p, const std::vector<size_t> &pos,
                                 const std::vector<size_t> &pref) const {
   static constexpr size_t kJumpThreshold = 1 << 17;
-  if (insr.op != PINSR_J) ofs << kRV64InsrCode.at(insr.op) << ' ';
+  if (insr.op != PINSR_J) {
+    ofs << kRV64InsrCode.at(insr.op);
+    if (insr.op != PINSR_RET) ofs << '\t';
+  }
   switch (insr.op) {
     case PINSR_J: {
       if (insr.imm_type == IRInsr::kConst) {
@@ -142,7 +145,7 @@ size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
   if (insr.op >= kFloatingPointInsr) {
     return PrintPseudoInsr(ofs, insr, p, pos, pref);
   }
-  ofs << kRV64InsrCode.at(insr.op) << ' ';
+  ofs << kRV64InsrCode.at(insr.op) << '\t';
   switch (kRV64InsrFormat.at(insr.op)) {
     case R_TYPE:
       ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr);
@@ -752,7 +755,7 @@ void PrintData(std::ofstream &ofs, const CodeData &data) {
       auto &v = std::get<std::vector<uint8_t>>(data);
       ofs << ".word";
       if (!v.empty()) {
-        ofs << " ";
+        ofs << "\t";
         int32_t init = 0;
         assert(v.size() == 4);
         for (size_t i = 0; i < 4; ++i) init |= v[i] << (i << 3);
@@ -762,15 +765,15 @@ void PrintData(std::ofstream &ofs, const CodeData &data) {
     }
     case 1: {  // std::string
       std::string s = std::get<std::string>(data);
-      ofs << ".string \"" << EscapeString(s) << "\"\n";
-      ofs << ".align 3";
+      ofs << ".string\t\"" << EscapeString(s) << '\"';
       break;
     }
     case 2: {  // size_t
-      ofs << ".space " << std::get<size_t>(data);
+      ofs << ".zero\t" << std::get<size_t>(data);
       break;
     }
   }
+  ofs << "\n\t.align\t3";
 }
 
 }  // namespace
@@ -793,7 +796,7 @@ void InsrGen::Flush() {
       if (str_cache_.find(str) != str_cache_.end()) continue;
       str_cache_[str] = i;
     }
-    ofs_ << ".D" << i << ": ";
+    ofs_ << ".D" << i << ":\n";
     PrintData(ofs_, data_[i]);
     ofs_ << "\n";
   }
