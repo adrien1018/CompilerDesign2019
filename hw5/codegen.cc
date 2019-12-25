@@ -292,10 +292,12 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
       ir_.emplace_back(INSR_MUL, dest, dest, reg);
     }
   }
-  uint64_t x = 4;
-  for (i++; i < var_attr.dims.size(); i++) x *= var_attr.dims[i];
-  LoadConst(x, reg);
-  ir_.emplace_back(INSR_MUL, dest, dest, reg);
+  if (i < var_attr.dims.size()) {
+    uint64_t x = 4;
+    for (i++; i < var_attr.dims.size(); i++) x *= var_attr.dims[i];
+    LoadConst(x, reg);
+    ir_.emplace_back(INSR_MUL, dest, dest, reg);
+  }
   if (var_attr.is_param) {
     ir_.emplace_back(INSR_ADD, dest, dest, var_attr.offset);
   } else if (var_attr.local) {
