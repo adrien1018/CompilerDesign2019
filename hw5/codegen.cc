@@ -49,7 +49,7 @@ inline void CodeGen::InitState(FunctionAttr& attr) {
 inline size_t CodeGen::AllocStack(FunctionAttr& attr, size_t sz) {
   cur_stack_ += sz;
   if (cur_stack_ > attr.sp_offset) attr.sp_offset = cur_stack_;
-  return cur_stack_;
+  return cur_stack_ - sz;
 }
 inline size_t CodeGen::AllocRegister(FunctionAttr& attr,
                                      DataType type = INT_TYPE) {
@@ -303,8 +303,7 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
     ir_.emplace_back(INSR_ADD, dest, dest, var_attr.offset);
   } else if (var_attr.local) {
     ir_.emplace_back(INSR_ADD, dest, dest, Reg(rv64::kSp));
-    ir_.emplace_back(INSR_ADDI, dest, dest, IRInsr::kConst,
-                     (int64_t)var_attr.offset);
+    ir_.emplace_back(INSR_ADDI, dest, dest, IRInsr::kConst, var_attr.offset);
   } else {
     ir_.emplace_back(PINSR_LA, reg, IRInsr::kData, var_attr.offset);
     ir_.emplace_back(INSR_ADD, dest, dest, reg);
