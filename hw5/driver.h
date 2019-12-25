@@ -68,7 +68,7 @@ class Driver : public yyFlexLexer {
   }
 
   ~Driver() {
-    if (stream_create_) delete file_.streamptr;
+    //if (stream_create_) delete file_.streamptr;
     DeleteAst_();
   }
 
