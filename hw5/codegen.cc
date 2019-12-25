@@ -87,7 +87,7 @@ void CodeGen::VisitConversion(AstNode* expr, FunctionAttr& attr, size_t dest) {
     case BOOLEAN_TYPE: {
       if (value.to == BOOLEAN_TYPE) {
         if (value.from == INT_TYPE) {
-          // TODO: check if this is unnecessary?
+          ir_.emplace_back(INSR_SLTU, dest, Reg(rv64::kZero), chval);
         }
       } else if (value.to == FLOAT_TYPE) {
         ir_.emplace_back(INSR_FCVT_S_W, dest, chval);
@@ -541,8 +541,20 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
-    case FOR_STMT:  // TODO
+    case FOR_STMT: {
+      RegCount now_reg = cur_register_;
+      size_t reg = AllocRegister(attr);
+      size_t jump_label = InsertLabel();
+      VisitRelopExpr(*it, attr, reg);  // while expr
+      size_t now_label = ir_.size();
+      ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
+                       IRInsr::kLabel, 0);
+      cur_register_ = now_reg;
+      VisitStatement(*++it, attr);  // while block
+      ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
+      ir_[now_label].imm = InsertLabel();  // beq
       break;
+    }
     case RETURN_STMT: {
       if (stmt->child.size()) {
         Debug_("Return\n");
