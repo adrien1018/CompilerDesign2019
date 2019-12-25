@@ -694,6 +694,7 @@ class InsrGen {
   RegCtrl<float> float_reg_;
   std::array<bool, rv64::kRegisters> int_used_{};
   std::array<bool, rv64::kRegisters> float_used_{};
+  std::unordered_map<std::string, size_t> str_cache_;
   int64_t sp_offset_;
 
   void Initialize();
@@ -735,6 +736,8 @@ class InsrGen {
   void InitLabel();
   inline std::string GetLabel(const RV64Insr& insr) const;
   inline std::string GetLabel(int64_t imm) const;
+  inline std::string GetData(const RV64Insr& insr) const;
+  inline std::string GetData(int64_t imm) const;
   size_t PrintInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
                    const std::vector<size_t>& pos,
                    std::vector<size_t>& pref) const;

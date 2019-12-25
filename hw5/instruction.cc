@@ -61,7 +61,6 @@ constexpr bool IsCvtFFOp(Opcode op) {
               : rv64::kFloatRegisterName[v.rs3 - 128])
 
 #define IMM(v) (v.imm)
-#define DATA(v) (".D" + std::to_string(v.imm))
 #define ROUND(v) (rv64::kRoundingModeName[v.imm])
 
 }  // namespace
@@ -77,6 +76,18 @@ inline std::string InsrGen::GetLabel(int64_t imm) const {
   }
   if (label_[imm].is_func) return label_func_[imm];
   return ".L" + std::to_string(imm);
+}
+
+inline std::string InsrGen::GetData(const RV64Insr &insr) const {
+  return GetData(insr.imm);
+}
+
+inline std::string InsrGen::GetData(int64_t imm) const {
+  if (data_[imm].index() == 1) {
+    auto &str = std::get<std::string>(data_[imm]);
+    return ".D" + std::to_string(str_cache_.at(str));
+  }
+  return ".D" + std::to_string(imm);
 }
 
 size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
@@ -114,7 +125,7 @@ size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
       break;
     case PINSR_LA:
       assert(insr.imm_type == IRInsr::kData);
-      ofs << RD(insr) << ", " << DATA(insr);
+      ofs << RD(insr) << ", " << GetData(insr);
       break;
     case PINSR_MV:
       ofs << RD(insr) << ", " << RS1(insr);
@@ -142,7 +153,7 @@ size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
           ofs << RD(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
         } else {
           assert(insr.imm_type == IRInsr::kData);
-          ofs << RD(insr) << ", " << DATA(insr) << "(" << RS1(insr) << ")";
+          ofs << RD(insr) << ", " << GetData(insr) << "(" << RS1(insr) << ")";
         }
       } else {
         assert(insr.imm_type == IRInsr::kConst);
@@ -157,7 +168,7 @@ size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
         ofs << RS2(insr) << ", " << IMM(insr) << "(" << RS1(insr) << ")";
       } else {
         assert(insr.imm_type == IRInsr::kData);
-        ofs << RS2(insr) << ", " << DATA(insr) << "(" << RS1(insr) << ")";
+        ofs << RS2(insr) << ", " << GetData(insr) << "(" << RS1(insr) << ")";
       }
       break;
     case B_TYPE:
@@ -405,7 +416,7 @@ void InsrGen::PushCalleeRegs(int64_t offset,
   for (size_t i = 0; i < saved.size(); ++i) {
     uint8_t rg = saved[i];
     PushInsr(rg >= 32 ? INSR_FSD : INSR_SD, rg, rv64::kSp, IRInsr::kConst,
-             offset + 8 * int64_t(i));
+             -sp_offset_ + offset + 8 * int64_t(i));
   }
   // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
   //   uint8_t reg = rv64::kCalleeSaved[i];
@@ -459,9 +470,9 @@ void InsrGen::PopCallerRegs(int64_t offset) {
 
 void InsrGen::GeneratePrologue(size_t local,
                                const std::vector<uint8_t> &saved) {
-  PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, -sp_offset_);
+  // PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, -sp_offset_);
   PushCalleeRegs(local, saved);
-  PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, sp_offset_);
+  // PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, sp_offset_);
 }
 
 void InsrGen::GenerateEpilogue(size_t local,
@@ -678,7 +689,6 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
 #ifdef INSRGEN_DEBUG
   std::cerr << "ir_pos_ = " << ir_pos_ << " ed = " << ed << "\n";
 #endif
-  size_t prologue = -1;
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
@@ -687,7 +697,9 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
     }
     // std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
     if (v.op == PINSR_PUSH_SP) {
-      prologue = buf_.size();
+      PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
+      PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
+      // push_sp = buf_.size();
       // GeneratePrologue(local);
     } else if (IsPseudoOp(v.op)) {
       GeneratePseudoInsr(v, loc, dirty, local);
@@ -703,12 +715,11 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
   for (size_t i : rv64::kFloatSavedRegs) {
     if (float_used_[i ^ 128]) saved.push_back(i);
   }
-  // std::cerr << "saved = ";
-  // for (auto s : saved) std::cerr << int(s) << ' ';
-  // std::cerr << "\n";
   sp_offset_ += 8 * saved.size();
-  // int64_t sp_offset =
-  //     8 * saved.size() + 8 * num_register;  // TODO: optimize this number
+  for (auto &v : buf_) {
+    if (v.imm == kPosSpOffset) v.imm = sp_offset_;
+    if (v.imm == kNegSpOffset) v.imm = -sp_offset_;
+  }
   if (is_main) PushInsr(PINSR_MV, rv64::kA0, rv64::kZero);
   // move all the instructions in the buffer to insr_
   size_t st_prologue = buf_.size();
@@ -720,7 +731,7 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
     while (j < lab.size() && lab[j].first == i) {
       insr_.push_back(lab[j++].second);
     }
-    if (i == prologue) {
+    if (i == 0) {
       for (size_t k = st_prologue; k < ed_prologue; ++k) {
         insr_.push_back(std::move(buf_[k]));
       }
@@ -751,7 +762,8 @@ void PrintData(std::ofstream &ofs, const CodeData &data) {
     }
     case 1: {  // std::string
       std::string s = std::get<std::string>(data);
-      ofs << ".string \"" << EscapeString(s) << "\"";
+      ofs << ".string \"" << EscapeString(s) << "\"\n";
+      ofs << ".align 3";
       break;
     }
     case 2: {  // size_t
@@ -773,7 +785,14 @@ void InsrGen::GenerateData(std::vector<CodeData> &&data) {
 
 void InsrGen::Flush() {
   ofs_ << ".data\n";
+  str_cache_.clear();
   for (size_t i = 0; i < data_.size(); ++i) {
+    if (data_[i].index() == 1) {
+      // .string, can be optimized
+      std::string &str = std::get<std::string>(data_[i]);
+      if (str_cache_.find(str) != str_cache_.end()) continue;
+      str_cache_[str] = i;
+    }
     ofs_ << ".D" << i << ": ";
     PrintData(ofs_, data_[i]);
     ofs_ << "\n";
