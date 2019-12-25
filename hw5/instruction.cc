@@ -268,12 +268,10 @@ template <class T>
 uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
                              std::vector<MemoryLocation> &loc,
                              std::vector<uint8_t> &dirty, RegCtrl<T> &ctrl) {
-  // std::cerr << "reg.id = " << reg.id << "\n";
   if (reg.is_real) {
     // TODO: Check the current usage of the specified register, and store it
     // back to memory if neccesary. For now the reserved register will not be
     // used, so leave this to optimzation.
-    // std::cerr << "is_real\n";
     if constexpr (std::is_same_v<T, int>) {
       int_used_[reg.id] = true;
       return reg.id;
@@ -282,26 +280,18 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
       return reg.id;
     }
   }
-  // std::cerr << "Get id = " << reg.id << "\n";
   size_t id = reg.id;
-  // std::cerr << "id = " << id << "\n";
-  // std::cerr << "loc.size() = " << loc.size() << "\n";
   if (loc[id].in_register) return loc[id].reg;
-  // std::cerr << "idid = " << id << "\n";
   size_t to_replace = (size_t)-1;
   uint8_t rg = ctrl.GetSavedReg(to_replace, dirty);
-  // std::cerr << "ididid = " << id << "\n";
-  // std::cerr << "InsrGen::rg = " << int(rg) << "\n";
   if (to_replace != (size_t)-1) {
     // store the register back to memory if the register is dirty
-    // std::cerr << "to_replace\n";
     loc[to_replace].in_register = false;
     if (dirty[to_replace]) {
       if (loc[to_replace].addr == MemoryLocation::kUnAllocated) {
-        loc[to_replace].addr = -sp_offset_;
+        loc[to_replace].addr = -sp_offset_ - 8;
         sp_offset_ += 8;
       }
-      // loc[to_replace].mem = -int64_t(to_replace) * 8;  // this is useless now
       if (std::is_same_v<T, int>) {
         PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst, loc[to_replace].addr);
       } else {
@@ -316,12 +306,12 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
   if (load) {
     assert(loc[id].addr != MemoryLocation::kUnAllocated);
     // load the pseudo register from memory
-    if (std::is_same_v<T, int>)
+    if (std::is_same_v<T, int>) {
       PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
-    else
+    } else {
       PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
+    }
   }
-  // std::cerr << "rg = " << int(rg) << "\n";
   if constexpr (std::is_same_v<T, int>) {
     int_used_[rg] = true;
   } else {
@@ -904,9 +894,11 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
+#ifdef INSRGEN_DEBUG
     std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
               << "\n";
     std::cerr << "sp_offset = " << attr.sp_offset << "\n";
+#endif
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
                std::string(func_[i].second) == "main");
   }
