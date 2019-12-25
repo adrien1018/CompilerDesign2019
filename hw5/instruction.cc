@@ -67,11 +67,16 @@ constexpr bool IsCvtFFOp(Opcode op) {
 }  // namespace
 
 inline std::string InsrGen::GetLabel(const RV64Insr &insr) const {
-  if (insr.imm < 0) return kBuiltinLabel[~insr.imm];
-  if (insr.imm >= label_.size())
-    return "_end_" + func_name_[insr.imm - label_.size()];
-  if (label_[insr.imm].is_func) return label_func_[insr.imm];
-  return ".L" + std::to_string(insr.imm);
+  return GetLabel(insr.imm);
+}
+
+inline std::string InsrGen::GetLabel(int64_t imm) const {
+  if (imm < 0) return kBuiltinLabel[~imm];
+  if ((size_t)imm >= label_.size()) {
+    return "_end_" + func_name_[imm - label_.size()];
+  }
+  if (label_[imm].is_func) return label_func_[imm];
+  return ".L" + std::to_string(imm);
 }
 
 size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
@@ -396,7 +401,7 @@ void InsrGen::PushCalleeRegs(int64_t offset,
   for (size_t i = 0; i < saved.size(); ++i) {
     uint8_t rg = saved[i];
     GenerateInsr(rg >= 32 ? INSR_FSD : INSR_SD, rg, rv64::kSp, IRInsr::kConst,
-                 offset + 8 * i);
+                 offset + 8 * int64_t(i));
   }
   // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
   //   uint8_t reg = rv64::kCalleeSaved[i];
@@ -424,7 +429,7 @@ void InsrGen::PopCalleeRegs(int64_t offset, const std::vector<uint8_t> &saved) {
   for (size_t i = 0; i < saved.size(); ++i) {
     uint8_t rg = saved[i];
     GenerateInsr(rg >= 32 ? INSR_FLD : INSR_LD, rg, rv64::kSp, IRInsr::kConst,
-                 offset + 8 * i);
+                 offset + 8 * int64_t(i));
   }
   // for (size_t i = 0; i < rv64::kNumCalleeSaved; ++i) {
   //   uint8_t reg = rv64::kCalleeSaved[i];
@@ -683,10 +688,10 @@ void InsrGen::GenerateAR(size_t local, size_t num_register, size_t next_func,
     ir_pos_++;
   }
   std::vector<uint8_t> saved;
-  for (size_t i = 0; i < rv64::kRegisters; ++i) {
+  for (size_t i : rv64::kCalleeSaved) {
     if (int_used_[i]) saved.push_back(i);
   }
-  for (size_t i = 0; i < rv64::kRegisters; ++i) {
+  for (size_t i : rv64::kFloatSavedRegs) {
     if (float_used_[i]) saved.push_back(i | 128);
   }
   std::cerr << "saved = ";
@@ -780,16 +785,9 @@ void InsrGen::Flush() {
       ofs_ << "\n";
     } catch (std::bad_variant_access &) {
       size_t lb = std::get<size_t>(insr_[p]);
-      if (lb < label_.size() && label_[lb].is_func) {
-        if (label_func_[lb] == "main")
-          ofs_ << "_start_MAIN:\n";
-        else
-          ofs_ << label_func_[lb] << ":\n";
-      } else if (lb >= label_.size()) {
-        ofs_ << "_end_" << func_name_[lb - label_.size()] << ":\n";
-      } else {
-        ofs_ << ".L" << lb << ":\n";
-      }
+      auto s = GetLabel(lb);
+      if (s == "main") s = "_start_MAIN";
+      ofs_ << s << ":\n";
     }
     if (p > 0) pref[p] += pref[p - 1];
   }

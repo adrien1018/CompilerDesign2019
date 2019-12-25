@@ -16,7 +16,7 @@
 namespace rv64 {
 
 constexpr size_t kRegisters = 32;
-constexpr size_t kNumCalleeSaved = 14;
+constexpr size_t kNumCalleeSaved = 13;
 constexpr size_t kNumCallerSaved = 15;
 constexpr size_t kNumIntSavedRegs = 11;
 constexpr size_t kNumIntTempRegs = 6;
@@ -98,7 +98,7 @@ constexpr uint8_t kRUP = 3;
 constexpr uint8_t kRMM = 4;
 
 constexpr std::array<uint8_t, kNumCalleeSaved> kCalleeSaved = {
-    1, 2, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
+    1, 8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
 
 constexpr std::array<uint8_t, kNumCallerSaved> kCallerSaved = {
     5, 6, 7, 10, 11, 12, 13, 14, 15, 16, 17, 28, 29, 30, 31};
@@ -733,7 +733,8 @@ class InsrGen {
   void PopCallerRegs(int64_t offset);
 
   void InitLabel();
-  std::string GetLabel(const RV64Insr& insr) const;
+  inline std::string GetLabel(const RV64Insr& insr) const;
+  inline std::string GetLabel(int64_t imm) const;
   size_t PrintInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
                    const std::vector<size_t>& pos,
                    std::vector<size_t>& pref) const;
