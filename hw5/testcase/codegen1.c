@@ -13,8 +13,13 @@ int Convert(float a, int b) {
   return c + d + e;
 }
 
-int FloatLT(float a, float b) {
-  return a < b;
+void FloatCompare(float a, float b) {
+  write(a < b); write(" ");
+  write(a <= b); write(" ");
+  write(a > b); write(" ");
+  write(a >= b); write(" ");
+  write(a == b); write(" ");
+  write(a != b); write("\n");
 }
 
 int main() {
@@ -24,10 +29,6 @@ int main() {
   write("\n");
   write(Convert(3.6, 6)); /* 17 */
   write("\n");
-  write(FloatLT(1.0, 2.0)); /* 1 */
-  write("\n");
-  if (1) {
-    float y = 2.5;
-    float x = 3.0 + y;
-  }
+  FloatCompare(1.0, 2.0); /* 1 1 0 0 0 1 */
+  FloatCompare(1.5, 1.5); /* 0 1 0 1 1 0 */
 }

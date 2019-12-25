@@ -678,6 +678,7 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
             id = ~(size_t)0;
             break;
           case INT_TYPE:
+          case BOOLEAN_TYPE:
             id = ~(size_t)1;
             break;
           case FLOAT_TYPE:

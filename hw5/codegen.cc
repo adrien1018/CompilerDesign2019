@@ -242,7 +242,7 @@ void CodeGen::LoadConst(uint64_t x, size_t dest) {
       uint32_t tx = (x & 0xfffffc00) + (x & 0x400);
       ir_.emplace_back(INSR_LUI, dest, IRInsr::kConst, tx >> 12);
       if (x != tx) {
-        ir_.emplace_back(INSR_ADDIW, dest, Reg(rv64::kZero), IRInsr::kConst,
+        ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst,
                          (int32_t)(x - tx));
       }
     }
@@ -371,7 +371,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
             ? tab_[func_attr->params[i]].GetValue<VariableAttr>().data_type
             : (*it)->data_type;
     if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
-        type == FLOAT_PTR_TYPE) {
+        type == FLOAT_PTR_TYPE || type == BOOLEAN_TYPE) {
       size_t reg =
           return_type == INT_TYPE ? dest : AllocRegister(attr, INT_TYPE);
       VisitRelopExpr(*it, attr, reg);
@@ -679,7 +679,9 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
   }
   ir_.emplace_back(PINSR_PUSH_SP);
   VisitBlock(block, attr);
-  Debug_("sp_offset = ", attr.sp_offset, '\n');
+  if (ir_.back().op != PINSR_RET) {
+    ir_.emplace_back(PINSR_RET);
+  }
 }
 
 void CodeGen::VisitGlobalDecl(AstNode* decl) {
