@@ -1,10 +1,11 @@
 TARGET = parser
 INTERMEDIATE = parser.cc scanner.cc
-OBJS = $(INTERMEDIATE:%.cc=%.o) gv.o main.o driver.o analysis.o codegen.o error.o instruction.o ast.o
+OBJS = $(INTERMEDIATE:%.cc=%.o) main.o driver.o analysis.o codegen.o error.o instruction.o ast.o
+PROFILE_OBJS = codegen.o instruction.o
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++
-CXXFLAGS = -O3 -Wall -std=c++17 -Wno-register -Wno-switch -DNDEBUG
+CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch -DNDEBUG# -DCODEGEN_DEBUG
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -o $@ $^
@@ -15,9 +16,9 @@ scanner.cc: lexer.ll parser.cc
 parser.cc: parser.yy
 	$(YACC) -o $@ $(YACCFLAGS) $<
 
-$(OBJS): %.o: %.cc
+$(OBJS): %.o: %.cc Makefile
 
-analysis.o: CXXFLAGS += -fprofile-arcs -ftest-coverage
+$(PROFILE_OBJS): CXXFLAGS += -fprofile-arcs -ftest-coverage
 
 # dependency list
 analysis.o: analysis.h entry.h ast.h error.h symtab.h utils.h

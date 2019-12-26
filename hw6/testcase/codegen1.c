@@ -215,6 +215,40 @@ int LargeArray2() {
   return a[395][566];
 }
 
+void ManyVariable() {
+  int a0 = 0  + 0, a1 = a0 + 1, a2 = a1 + 2, a3 = a2 + 3, a4 = a3 + 4;
+  int a5 = a4 + 5, a6 = a5 + 6, a7 = a6 + 7, a8 = a7 + 8, a9 = a8 + 9;
+  int b0 = a9 + 0, b1 = b0 + 1, b2 = b1 + 2, b3 = b2 + 3, b4 = b3 + 4;
+  int b5 = b4 + 5, b6 = b5 + 6, b7 = b6 + 7, b8 = b7 + 8, b9 = b8 + 9;
+  int c0 = b9 + 0, c1 = c0 + 1, c2 = c1 + 2, c3 = c2 + 3, c4 = c3 + 4;
+  int c5 = c4 + 5, c6 = c5 + 6, c7 = c6 + 7, c8 = c7 + 8, c9 = c8 + 9;
+  int d0 = c9 + 0, d1 = d0 + 1, d2 = d1 + 2, d3 = d2 + 3, d4 = d3 + 4;
+  int d5 = d4 + 5, d6 = d5 + 6, d7 = d6 + 7, d8 = d7 + 8, d9 = d8 + 9;
+  int e0 = d9 + 0, e1 = e0 + 1, e2 = e1 + 2, e3 = e2 + 3, e4 = e3 + 4;
+  int e5 = e4 + 5, e6 = e5 + 6, e7 = e6 + 7, e8 = e7 + 8, e9 = e8 + 9;
+  int f0 = e9 + 0, f1 = f0 + 1, f2 = f1 + 2, f3 = f2 + 3, f4 = f3 + 4;
+  int f5 = f4 + 5, f6 = f5 + 6, f7 = f6 + 7, f8 = f7 + 8, f9 = f8 + 9;
+  int g0 = f9 + 0, g1 = g0 + 1, g2 = g1 + 2, g3 = g2 + 3, g4 = g3 + 4;
+  int g5 = g4 + 5, g6 = g5 + 6, g7 = g6 + 7, g8 = g7 + 8, g9 = g8 + 9;
+  int h0 = g9 + 0, h1 = h0 + 1, h2 = h1 + 2, h3 = h2 + 3, h4 = h3 + 4;
+  int h5 = h4 + 5, h6 = h5 + 6, h7 = h6 + 7, h8 = h7 + 8, h9 = h8 + 9;
+  int i0 = h9 + 0, i1 = i0 + 1, i2 = i1 + 2, i3 = i2 + 3, i4 = i3 + 4;
+  int i5 = i4 + 5, i6 = i5 + 6, i7 = i6 + 7, i8 = i7 + 8, i9 = i8 + 9;
+  int j0 = i9 + 0, j1 = j0 + 1, j2 = j1 + 2, j3 = j2 + 3, j4 = j3 + 4;
+  int j5 = j4 + 5, j6 = j5 + 6, j7 = j6 + 7, j8 = j7 + 8, j9 = j8 + 9;
+  write(b1); write(" ");
+  write(a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 +
+        b0 + b1 + b2 + b3 + b4 + b5 + b6 + b7 + b8 + b9 +
+        c0 + c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8 + c9 +
+        d0 + d1 + d2 + d3 + d4 + d5 + d6 + d7 + d8 + d9 +
+        e0 + e1 + e2 + e3 + e4 + e5 + e6 + e7 + e8 + e9 +
+        f0 + f1 + f2 + f3 + f4 + f5 + f6 + f7 + f8 + f9 +
+        g0 + g1 + g2 + g3 + g4 + g5 + g6 + g7 + g8 + g9 +
+        h0 + h1 + h2 + h3 + h4 + h5 + h6 + h7 + h8 + h9 +
+        i0 + i1 + i2 + i3 + i4 + i5 + i6 + i7 + i8 + i9 +
+        j0 + j1 + j2 + j3 + j4 + j5 + j6 + j7 + j8 + j9); write("\n");
+}
+
 int glob_1 = 3;
 int glob_2 = !((4 + 5 - 6 * 7) && 0);
 float glob_3 = 3.5 + 7;
@@ -292,6 +326,7 @@ int main() {
   write("\n");
   write(LargeArray2()); /* 395566 */
   write("\n");
+  ManyVariable(); /* 46 21900 */
   write(ReadGlobal()); /* 27 */
   write("\n");
   write(WriteGlobal()); /* 6 */
