@@ -284,8 +284,39 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     }
   }
   size_t id = reg.id;
+  if constexpr (std::is_same_v<T, int>) {
+    auto it = int_query_.find(id);
+    if (it != int_query_.end()) {
+      if (!it->second.second && load) {
+        // the last query is not a load query but it's actually neccesary.
+        assert(loc[id].addr != MemoryLocation::kUnAllocated);
+        PushInsr(INSR_LD, it->second.first, rv64::kFp, IRInsr::kConst,
+                 loc[id].addr);
+        it->second.second = true;
+      }
+      return it->second.first;
+    }
+  } else {
+    auto it = float_query_.find(id);
+    if (it != float_query_.end()) {
+      if (!it->second.second && load) {
+        // the last query is not a load query but it's actually neccesary.
+        assert(loc[id].addr != MemoryLocation::kUnAllocated);
+        PushInsr(INSR_FLD, it->second.first, rv64::kFp, IRInsr::kConst,
+                 loc[id].addr);
+        it->second.second = true;
+      }
+      return it->second.first;
+    }
+  }
   if (loc[id].in_register) {
-    ctrl.Push(loc[id].reg);
+    if constexpr (std::is_same_v<T, int>) {
+      ctrl.Lock(loc[id].reg);
+      int_query_[id] = std::make_pair(loc[id].reg, true);
+    } else {
+      ctrl.Lock(loc[id].reg ^ 128);
+      float_query_[id] = std::make_pair(loc[id].reg, true);
+    }
     return loc[id].reg;
   }
   size_t to_replace = (size_t)-1;
@@ -320,8 +351,12 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
   }
   if constexpr (std::is_same_v<T, int>) {
     int_used_[rg] = true;
+    int_query_[id] = std::make_pair(rg, load);
+    ctrl.Lock(rg);
   } else {
     float_used_[rg ^ 128] = true;
+    float_query_[id] = std::make_pair(rg, load);
+    ctrl.Lock(rg ^ 128);
   }
   return rg;
 }
@@ -536,6 +571,7 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &ir) {
     rs1 = GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
     rs2 = GetSavedReg(ir.rs2, true, float_loc_, float_dirty_, float_reg_);
   }
+  UnlockRegs();
   PushInsr(ir.op, rd, rs1, rs2);
 }
 
@@ -604,6 +640,7 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir) {
       rd = GetSavedReg(ir.rd, false, float_loc_, float_dirty_, float_reg_);
       if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
     }
+    UnlockRegs();
     PushInsr(ir.op, rd, rv64::kT0, IRInsr::kConst, 0);
     return;
   }
@@ -621,6 +658,7 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir) {
     }
     if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
   }
+  UnlockRegs();
   if (std::abs(ir.imm) >= (1 << 11)) {
     for (auto &v : ExpandImm(ir, rd, rs1)) PushInsr(v);
   } else {
@@ -637,6 +675,7 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
     } else {
       rs2 = GetSavedReg(ir.rs2, true, float_loc_, float_dirty_, float_reg_);
     }
+    UnlockRegs();
     PushInsr(ir.op, rs2, rv64::kT0, IRInsr::kConst, 0);
     return;
   }
@@ -648,6 +687,7 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
     rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
     rs2 = GetSavedReg(ir.rs2, true, float_loc_, float_dirty_, float_reg_);
   }
+  UnlockRegs();
   // assert(ir.imm_type == IRInsr::kConst);
   PushInsr(ir.op, rs2, rs1, ir.imm_type, ir.imm);
 }
@@ -655,6 +695,7 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
 void InsrGen::GenerateUTypeInsr(const IRInsr &ir) {
   uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
   if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
+  UnlockRegs();
   assert(ir.imm_type == IRInsr::kConst);
   PushInsr(ir.op, rd, ir.imm_type, ir.imm);
 }
@@ -662,6 +703,7 @@ void InsrGen::GenerateUTypeInsr(const IRInsr &ir) {
 void InsrGen::GenerateBTypeInsr(const IRInsr &ir) {
   uint8_t rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
   uint8_t rs2 = GetSavedReg(ir.rs2, true, int_loc_, int_dirty_, int_reg_);
+  UnlockRegs();
   PushInsr(ir.op, rs1, rs2, ir.imm_type, ir.imm);
 }
 
@@ -670,6 +712,7 @@ void InsrGen::GenerateJTypeInsr(const IRInsr &ir) {
   if (ir.op == INSR_JAL) {
     if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
   }
+  UnlockRegs();
   PushInsr(ir.op, rd, ir.imm_type, ir.imm);
 }
 
@@ -689,6 +732,7 @@ void InsrGen::GenerateR0TypeInsr(const IRInsr &ir) {
       if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
       PushInsr(ir.op, rd, rs1);
     }
+    UnlockRegs();
   } else {
     uint8_t rd = 0, rs1 = 0;
     if (ir.op == INSR_FMV_X_W) {
@@ -702,6 +746,7 @@ void InsrGen::GenerateR0TypeInsr(const IRInsr &ir) {
       if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
       // std::cerr << "rd = " << int(rd) << " rs1 = " << int(rs1) << "\n";
     }
+    UnlockRegs();
     PushInsr(ir.op, rd, rs1);
   }
 }
@@ -718,6 +763,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
     case PINSR_LA: {
       uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
       if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
+      UnlockRegs();
       PushInsr(ir.op, rd, ir.imm_type, ir.imm);
       break;
     }
@@ -731,6 +777,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       uint8_t rd = GetSavedReg(ir.rd, false, int_loc_, int_dirty_, int_reg_);
       uint8_t rs1 = GetSavedReg(ir.rs1, true, int_loc_, int_dirty_, int_reg_);
       if (!ir.rd.is_real) int_dirty_[ir.rd.id] = 1;
+      UnlockRegs();
       PushInsr(ir.op, rd, rs1);
       break;
     }
@@ -740,6 +787,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       uint8_t rs1 =
           GetSavedReg(ir.rs1, true, float_loc_, float_dirty_, float_reg_);
       if (!ir.rd.is_real) float_dirty_[ir.rd.id] = 1;
+      UnlockRegs();
       PushInsr(ir.op, rd, rs1);
       break;
     }
@@ -780,6 +828,13 @@ void InsrGen::Initialize(size_t ireg, size_t freg) {
   int_loc_.assign(ireg, MemoryLocation());
   float_loc_.assign(freg, MemoryLocation());
   sp_offset_ = 0;
+}
+
+void InsrGen::UnlockRegs() {
+  int_reg_.Unlock();
+  float_reg_.Unlock();
+  int_query_.clear();
+  float_query_.clear();
 }
 
 void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,

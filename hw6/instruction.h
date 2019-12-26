@@ -5,6 +5,7 @@
 #include <cassert>
 #include <climits>
 #include <fstream>
+#include <iostream>
 #include <queue>
 #include <set>
 #include <string>
@@ -570,7 +571,7 @@ class RegCtrl {
 
   void Clear() {
     std::fill(regs_.begin(), regs_.end(), kReserved);
-    std::fill(last_push_.begin(), last_push_.end(), 0);
+    std::fill(locked_.begin(), locked_.end(), false);
     if constexpr (std::is_same_v<T, int>) {
       for (uint8_t p : rv64::kIntSavedRegs) regs_[p] = kEmpty;
       for (uint8_t p : rv64::kIntTempRegs) regs_[p] = kEmpty;
@@ -579,8 +580,7 @@ class RegCtrl {
       for (uint8_t p : rv64::kFloatSavedRegs) regs_[p ^ 128] = kEmpty;
       for (uint8_t p : rv64::kFloatTempRegs) regs_[p ^ 128] = kEmpty;
     }
-    heap_.clear();
-    inque_ = 0;
+    lock_que_.clear();
     ptr_ = 0;
     tptr_ = 0;
   }
@@ -603,32 +603,45 @@ class RegCtrl {
   size_t GetPseudoReg(uint8_t pos) const {
     if constexpr (std::is_same_v<T, int>) return regs_[pos];
     return regs_[pos ^ 128];
-  };
+  }
   void SetPseudoReg(uint8_t pos, size_t id) {
     if constexpr (std::is_same_v<T, int>) {
       regs_[pos] = id;
     } else {
       regs_[pos ^ 128] = id;
     }
-  };
-
-  void Pop() {
-    while (!heap_.empty() && tptr_ > heap_.begin()->first + kQueueSize) {
-      uint8_t v = heap_.begin()->second;
-      heap_.erase(heap_.begin());
-      inque_ &= ~(1ULL << v);
-    }
-    tptr_++;
   }
 
-  void Push(uint8_t c) {
-    if (inque_ >> c & 1ULL) {
-      heap_.erase(std::make_pair(last_push_[c], c));
-    }
-    inque_ |= (1ULL << c);
-    last_push_[c] = tptr_;
-    heap_.insert(std::make_pair(last_push_[c], c));
+  void Lock(uint8_t v) {
+    std::cerr << "Lock v = " << int(v) << "\n";
+    // assert(!locked_[v]);
+    locked_[v] = true;
+    lock_que_.push_back(v);
   }
+
+  void Unlock() {
+    std::cerr << "Unlocked\n";
+    for (uint8_t v : lock_que_) locked_[v] = false;
+    lock_que_.clear();
+  }
+
+  // void Pop() {
+  //   while (!heap_.empty() && tptr_ > heap_.begin()->first + kQueueSize) {
+  //     uint8_t v = heap_.begin()->second;
+  //     heap_.erase(heap_.begin());
+  //     inque_ &= ~(1ULL << v);
+  //   }
+  //   tptr_++;
+  // }
+
+  // void Push(uint8_t c) {
+  //   if (inque_ >> c & 1ULL) {
+  //     heap_.erase(std::make_pair(last_push_[c], c));
+  //   }
+  //   inque_ |= (1ULL << c);
+  //   last_push_[c] = tptr_;
+  //   heap_.insert(std::make_pair(last_push_[c], c));
+  // }
 
  private:
   static constexpr size_t kEmpty = (size_t)-1;
@@ -637,8 +650,10 @@ class RegCtrl {
 
   std::array<size_t, rv64::kRegisters> regs_{};
   std::array<size_t, rv64::kRegisters> last_push_{};
-  std::set<std::pair<size_t, uint8_t>> heap_{};
-  uint64_t inque_{};
+  std::array<bool, rv64::kRegisters> locked_{};
+  std::vector<uint8_t> lock_que_{};
+  // std::set<std::pair<size_t, uint8_t>> heap_{};
+  // uint64_t inque_{};
   size_t ptr_{}, tptr_{};
 
   // Get available register. If no registers are available, check whether
@@ -651,7 +666,6 @@ class RegCtrl {
       if constexpr (std::is_same_v<T, int>) return p;
       return p ^ 128;
     };
-    Pop();
     bool found = false, found_clean = false;
     size_t fptr = 0;
     uint8_t rg = 0;
@@ -662,11 +676,8 @@ class RegCtrl {
       if (++ptr_ >= N) ptr_ = 0;
       size_t idx = Convert(p);
       assert(idx < 32);
-      if (inque_ >> idx & 1ULL) continue;
-      if (regs_[idx] == kEmpty) {
-        Push(idx);
-        return p;
-      }
+      if (locked_[idx]) continue;
+      if (regs_[idx] == kEmpty) return p;
       if (regs_[idx] != kReserved) {
         if (!found || !dirty[regs_[idx]]) {
           if (!dirty[regs_[idx]]) found_clean = true;
@@ -678,7 +689,6 @@ class RegCtrl {
     }
     assert(found);
     uint8_t c = Convert(rg);
-    Push(c);
     ptr_ = fptr;
     replaced = regs_[c];
     return rg;
@@ -762,6 +772,7 @@ class InsrGen {
   std::array<bool, rv64::kRegisters> int_used_{};
   std::array<bool, rv64::kRegisters> float_used_{};
   std::unordered_map<std::string, size_t> str_cache_;
+  std::unordered_map<size_t, std::pair<uint8_t, bool>> int_query_, float_query_;
   std::vector<uint8_t> int_dirty_, float_dirty_;
   std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
@@ -812,6 +823,7 @@ class InsrGen {
   uint8_t GetSavedReg(const IRInsr::Register& reg, bool load,
                       std::vector<MemoryLocation>& loc,
                       std::vector<uint8_t>& dirty, RegCtrl<T>& ctrl);
+  void UnlockRegs();
 
   static constexpr int64_t kPosSpOffset = LLONG_MAX;
   static constexpr int64_t kNegSpOffset = LLONG_MIN;
