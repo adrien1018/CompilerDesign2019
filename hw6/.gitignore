@@ -1,0 +1,17 @@
+*.o
+parser.output
+parser
+parser.cc
+parser.hh
+scanner.cc
+location.hh
+calc++/
+testing/
+*.gv
+*.png
+*.gcov
+*.gcda
+*.gcno
+*.s
+*.out
+tags
