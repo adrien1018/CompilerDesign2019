@@ -1,7 +1,16 @@
 int tmp_array_for_sort[10000000 + 7];
+void print(int idx[]) {
+  int i;
+  i = 0;
+  while (i < 10) {
+    write(idx[i]); write(" ");
+    i = i + 1;
+  }
+  write("\n");
+}
 void sort_(int lb, int rb, int idx[], int R[]) { /* [lb, rb] */
   int mid, i1, i2, p, i;
-  write(lb); write(" "); write(rb); write("\n");
+  write(lb); write(" "); write(rb); write("a\n");
   if (lb >= rb)
     return;
 
@@ -10,6 +19,7 @@ void sort_(int lb, int rb, int idx[], int R[]) { /* [lb, rb] */
   sort_(lb, mid, idx, R);
   sort_(mid + 1, rb, idx, R);
 
+  write(lb); write(" "); write(rb); write("b\n");
   i1 = lb;
   i2 = mid + 1;
   p = lb;
@@ -31,6 +41,7 @@ void sort_(int lb, int rb, int idx[], int R[]) { /* [lb, rb] */
     }
     p = p + 1;
   }
+  write(lb); write(" "); write(rb); write("c\n");
   i = lb;
   while (rb > i + 1) {
     idx[i] = tmp_array_for_sort[i];
