@@ -988,17 +988,16 @@ void InsrGen::Flush() {
   std::vector<size_t> pos(tot_label_);
   std::vector<size_t> pref(insr_.size());
   for (size_t p = 0; p < insr_.size(); ++p) {
-    try {
+    if (std::holds_alternative<size_t>(insr_[p])) {
       size_t l = std::get<size_t>(insr_[p]);
       pos[l] = p;
-    } catch (std::bad_variant_access &) {
     }
   }
   for (size_t p = 0; p < insr_.size(); ++p) {
-    try {
+    if (std::holds_alternative<RV64Insr>(insr_[p])) {
       pref[p] = PrintInsr(ofs_, std::get<RV64Insr>(insr_[p]), p, pos, pref);
       ofs_ << "\n";
-    } catch (std::bad_variant_access &) {
+    } else {
       size_t lb = std::get<size_t>(insr_[p]);
       auto s = GetLabel(lb);
       if (s == "main") s = "_start_MAIN";
