@@ -2,8 +2,11 @@
 #define INSTRUCTION_H_
 
 #include <array>
+#include <cassert>
 #include <climits>
 #include <fstream>
+#include <queue>
+#include <set>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -567,6 +570,7 @@ class RegCtrl {
 
   void Clear() {
     std::fill(regs_.begin(), regs_.end(), kReserved);
+    std::fill(last_push_.begin(), last_push_.end(), 0);
     if constexpr (std::is_same_v<T, int>) {
       for (uint8_t p : rv64::kIntSavedRegs) regs_[p] = kEmpty;
       for (uint8_t p : rv64::kIntTempRegs) regs_[p] = kEmpty;
@@ -575,6 +579,10 @@ class RegCtrl {
       for (uint8_t p : rv64::kFloatSavedRegs) regs_[p ^ 128] = kEmpty;
       for (uint8_t p : rv64::kFloatTempRegs) regs_[p ^ 128] = kEmpty;
     }
+    heap_.clear();
+    inque_ = 0;
+    ptr_ = 0;
+    tptr_ = 0;
   }
 
   uint8_t GetSavedReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
@@ -597,16 +605,41 @@ class RegCtrl {
     return regs_[pos ^ 128];
   };
   void SetPseudoReg(uint8_t pos, size_t id) {
-    if constexpr (std::is_same_v<T, int>)
+    if constexpr (std::is_same_v<T, int>) {
       regs_[pos] = id;
-    else
+    } else {
       regs_[pos ^ 128] = id;
+    }
   };
+
+  void Pop() {
+    while (!heap_.empty() && tptr_ > heap_.begin()->first + kQueueSize) {
+      uint8_t v = heap_.begin()->second;
+      heap_.erase(heap_.begin());
+      inque_ &= ~(1ULL << v);
+    }
+    tptr_++;
+  }
+
+  void Push(uint8_t c) {
+    if (inque_ >> c & 1ULL) {
+      heap_.erase(std::make_pair(last_push_[c], c));
+    }
+    inque_ |= (1ULL << c);
+    last_push_[c] = tptr_;
+    heap_.insert(std::make_pair(last_push_[c], c));
+  }
 
  private:
   static constexpr size_t kEmpty = (size_t)-1;
   static constexpr size_t kReserved = (size_t)-2;
+  static constexpr size_t kQueueSize = 4;
+
   std::array<size_t, rv64::kRegisters> regs_{};
+  std::array<size_t, rv64::kRegisters> last_push_{};
+  std::set<std::pair<size_t, uint8_t>> heap_{};
+  uint64_t inque_{};
+  size_t ptr_{}, tptr_{};
 
   // Get available register. If no registers are available, check whether
   // there is a clean register. Try to avoid returning dirty register (an
@@ -618,19 +651,41 @@ class RegCtrl {
       if constexpr (std::is_same_v<T, int>) return p;
       return p ^ 128;
     };
-    bool found = false;
+    Pop();
+    bool found = false, found_clean = false;
+    size_t fptr;
     uint8_t rg = 0;
-    for (size_t i = 0; i < N; ++i) {
-      size_t idx = Convert(pool[i]);
-      if (regs_[idx] == kEmpty) return pool[i];
+    for (size_t i = 0; i < N && !found_clean; ++i) {
+      // TODO: this is incorrect.
+      assert(ptr_ < pool.size());
+      uint8_t p = pool[ptr_];
+      if (++ptr_ >= N) ptr_ = 0;
+      size_t idx = Convert(p);
+      assert(idx < 32);
+      if (inque_ >> idx & 1ULL) continue;
+      if (regs_[idx] == kEmpty) {
+        Push(idx);
+        return p;
+      }
       if (regs_[idx] != kReserved) {
-        if (!found || !dirty[regs_[idx]]) {
+        /* if (!found || !dirty[regs_[idx]]) {
+          if (!dirty[regs_[idx]]) found_clean = true;
           found = true;
-          rg = pool[i];
+          rg = p;
+          fptr = ptr_;
+        } */
+        if (!found) {
+          found = true;
+          rg = p;
+          break;
         }
       }
     }
-    replaced = regs_[Convert(rg)];
+    assert(found);
+    uint8_t c = Convert(rg);
+    Push(c);
+    replaced = regs_[c];
+    // ptr_ = fptr;
     return rg;
   }
 };

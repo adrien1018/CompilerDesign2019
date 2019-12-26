@@ -5,7 +5,7 @@ PROFILE_OBJS = codegen.o instruction.o
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++
-CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch -DNDEBUG# -DCODEGEN_DEBUG
+CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch -DCODEGEN_DEBUG# -DNDEBUG
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -o $@ $^

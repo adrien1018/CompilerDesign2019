@@ -284,7 +284,10 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
     }
   }
   size_t id = reg.id;
-  if (loc[id].in_register) return loc[id].reg;
+  if (loc[id].in_register) {
+    ctrl.Push(loc[id].reg);
+    return loc[id].reg;
+  }
   size_t to_replace = (size_t)-1;
   uint8_t rg = ctrl.GetSavedReg(to_replace, dirty);
   if (to_replace != (size_t)-1) {
