@@ -653,7 +653,7 @@ class RegCtrl {
     };
     Pop();
     bool found = false, found_clean = false;
-    size_t fptr;
+    size_t fptr = 0;
     uint8_t rg = 0;
     for (size_t i = 0; i < N && !found_clean; ++i) {
       // TODO: this is incorrect.
@@ -668,24 +668,19 @@ class RegCtrl {
         return p;
       }
       if (regs_[idx] != kReserved) {
-        /* if (!found || !dirty[regs_[idx]]) {
+        if (!found || !dirty[regs_[idx]]) {
           if (!dirty[regs_[idx]]) found_clean = true;
           found = true;
           rg = p;
           fptr = ptr_;
-        } */
-        if (!found) {
-          found = true;
-          rg = p;
-          break;
         }
       }
     }
     assert(found);
     uint8_t c = Convert(rg);
     Push(c);
+    ptr_ = fptr;
     replaced = regs_[c];
-    // ptr_ = fptr;
     return rg;
   }
 };
