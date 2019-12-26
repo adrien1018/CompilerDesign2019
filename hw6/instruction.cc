@@ -258,7 +258,7 @@ InsrGen::InsrGen(const std::string &file, std::vector<CodeData> &&data,
       tab_(std::move(tab)),
       tot_label_(label_.size()) {}
 
-InsrGen::InsrGen(const std::string &file, CodeGenInfo &&code_gen)
+InsrGen::InsrGen(const std::string &file, CodeGenInfo code_gen)
     : ofs_(file),
       data_(std::move(std::get<2>(code_gen))),
       label_(std::move(std::get<1>(code_gen))),
@@ -925,7 +925,6 @@ void InsrGen::Flush() {
     PrintData(ofs_, data_[i]);
     ofs_ << "\n";
   }
-  data_.clear();
   ofs_ << ".text\n";
   std::vector<size_t> pos(tot_label_);
   std::vector<size_t> pref(insr_.size());
@@ -949,6 +948,7 @@ void InsrGen::Flush() {
     if (p > 0) pref[p] += pref[p - 1];
   }
   insr_.clear();
+  data_.clear();
 }
 
 void InsrGen::InitLabel() {

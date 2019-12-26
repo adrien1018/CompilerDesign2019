@@ -31,7 +31,7 @@ bool Driver::SemanticAnalysis() {
 void Driver::CodeGeneration(const std::string& outfile) {
   CodeGen generator(std::move(tab_));
   generator.CodeGeneration(prog);
-  InsrGen insr(outfile, std::move(generator.MoveInfo()));
+  InsrGen insr(outfile, generator.MoveInfo());
   insr.GenerateRV64();
 }
 
