@@ -341,12 +341,13 @@ uint8_t InsrGen::GetSavedReg(const IRInsr::Register &reg, bool load,
   loc[id].reg = rg;
   ctrl.SetPseudoReg(rg, id);
   if (load) {
-    assert(loc[id].addr != MemoryLocation::kUnAllocated);
-    // load the pseudo register from memory
-    if (std::is_same_v<T, int>) {
-      PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
-    } else {
-      PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
+    if (loc[id].addr != MemoryLocation::kUnAllocated) {
+      // load the pseudo register from memory
+      if (std::is_same_v<T, int>) {
+        PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
+      } else {
+        PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[id].addr);
+      }
     }
   }
   if constexpr (std::is_same_v<T, int>) {

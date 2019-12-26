@@ -613,35 +613,13 @@ class RegCtrl {
   }
 
   void Lock(uint8_t v) {
-    std::cerr << "Lock v = " << int(v) << "\n";
-    // assert(!locked_[v]);
     locked_[v] = true;
     lock_que_.push_back(v);
   }
-
   void Unlock() {
-    std::cerr << "Unlocked\n";
     for (uint8_t v : lock_que_) locked_[v] = false;
     lock_que_.clear();
   }
-
-  // void Pop() {
-  //   while (!heap_.empty() && tptr_ > heap_.begin()->first + kQueueSize) {
-  //     uint8_t v = heap_.begin()->second;
-  //     heap_.erase(heap_.begin());
-  //     inque_ &= ~(1ULL << v);
-  //   }
-  //   tptr_++;
-  // }
-
-  // void Push(uint8_t c) {
-  //   if (inque_ >> c & 1ULL) {
-  //     heap_.erase(std::make_pair(last_push_[c], c));
-  //   }
-  //   inque_ |= (1ULL << c);
-  //   last_push_[c] = tptr_;
-  //   heap_.insert(std::make_pair(last_push_[c], c));
-  // }
 
  private:
   static constexpr size_t kEmpty = (size_t)-1;
@@ -652,8 +630,6 @@ class RegCtrl {
   std::array<size_t, rv64::kRegisters> last_push_{};
   std::array<bool, rv64::kRegisters> locked_{};
   std::vector<uint8_t> lock_que_{};
-  // std::set<std::pair<size_t, uint8_t>> heap_{};
-  // uint64_t inque_{};
   size_t ptr_{}, tptr_{};
 
   // Get available register. If no registers are available, check whether
