@@ -201,6 +201,20 @@ int LargeArray() {
   return a[0] + a[1] + b[0] + b[1];
 }
 
+int LargeArray2() {
+  int a[1000][1000];
+  int i = 0;
+  while (i < 1000) {
+    int j = 0;
+    while (j < 1000) {
+      a[i][j] = i * 1000 + j;
+      j = j + 1;
+    }
+    i = i + 1;
+  }
+  return a[395][566];
+}
+
 int glob_1 = 3;
 int glob_2 = !((4 + 5 - 6 * 7) && 0);
 float glob_3 = 3.5 + 7;
@@ -275,6 +289,8 @@ int main() {
    * 6 7.000000 8 9.000000 10 11.000000
    * 12 13.000000 14 15.000000 16 17.000000 */
   write(LargeArray()); /* 18 */
+  write("\n");
+  write(LargeArray2()); /* 395566 */
   write("\n");
   write(ReadGlobal()); /* 27 */
   write("\n");

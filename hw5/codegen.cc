@@ -18,7 +18,7 @@ T& GetAttribute(AstNode* id, std::vector<TableEntry>& tab) {
 
 inline uint32_t GetConst(AstNode* expr, DataType type = UNKNOWN_TYPE) {
   auto& value = std::get<ConstValue>(expr->semantic_value);
-  uint32_t x;
+  uint32_t x = 0;
   if (expr->data_type == INT_TYPE || expr->data_type == BOOLEAN_TYPE) {
     Debug_("GetConst (int)", std::get<int32_t>(value), "\n");
     if (type != FLOAT_TYPE) {
@@ -272,8 +272,9 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
   if (expr->data_type == CONST_STRING_TYPE) {
     ir_.emplace_back(PINSR_LA, dest, IRInsr::kData, data_.size());
     data_.emplace_back(std::get<std::string>(value));
-  } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE) {
-    size_t chval = expr->data_type == INT_TYPE ? dest : AllocRegister(attr);
+  } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE ||
+             expr->data_type == BOOLEAN_TYPE) {
+    size_t chval = expr->data_type != FLOAT_TYPE ? dest : AllocRegister(attr);
     LoadConst(GetConst(expr), chval);
     if (expr->data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FMV_W_X, dest, chval);

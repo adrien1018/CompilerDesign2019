@@ -68,12 +68,14 @@ constexpr bool IsArithmaticOp(BinaryOperator op) {
   return !IsLogicalOp(op);
 }
 
-inline DataType MixDataType(AstNode *a, AstNode *b, BinaryOperator op) {
+inline DataType MixDataType(AstNode* a, AstNode* b, BinaryOperator op,
+                            const Location& loc) {
   if (a->data_type == CONST_STRING_TYPE || b->data_type == CONST_STRING_TYPE) {
     std::string x = GetTypeName(a->data_type);
     std::string y = GetTypeName(b->data_type);
     std::string z = GetOpName(op);
-    throw std::invalid_argument("invalid operands to binary " + z + " (have '" + x + "' and '" + y + "')");
+    throw yy::parser::syntax_error(loc, "invalid operands to binary " + z +
+                                   " (have '" + x + "' and '" + y + "')");
   }
   if (IsLogicalOp(op)) return BOOLEAN_TYPE;
   if (a->data_type == UNKNOWN_TYPE || b->data_type == UNKNOWN_TYPE) return UNKNOWN_TYPE;
@@ -110,6 +112,7 @@ typename Wider<T, U>::type DoArithmaticOperation(BinaryOperator op, T x, U y) {
     case BINARY_OP_MUL:
       return lhs * rhs;
     case BINARY_OP_DIV:
+      if (rhs == 0) return -1; // TODO: emit warning
       return lhs / rhs;
   }
   return 0;
@@ -179,7 +182,7 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
   }
   AstNode* node = new AstNode(CONST_VALUE_NODE, loc);
   try {
-    node->data_type = MixDataType(lhs, rhs, op);
+    node->data_type = MixDataType(lhs, rhs, op, loc);
   } catch (const std::exception& e) {
     throw yy::parser::syntax_error(loc, e.what());
   }
@@ -187,8 +190,8 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
   ConstValue& rcv = std::get<ConstValue>(rhs->semantic_value);
   ConstValue cv{};
   bool b = IsLogicalOp(op);
-  if (lhs->data_type == INT_TYPE) {
-    if (rhs->data_type == INT_TYPE) {
+  if (lhs->data_type == INT_TYPE || lhs->data_type == BOOLEAN_TYPE) {
+    if (rhs->data_type == INT_TYPE || rhs->data_type == BOOLEAN_TYPE) {
       if (!b) {
         cv = DoArithmaticOperation(
             op, std::get<int32_t>(lcv), std::get<int32_t>(rcv));
@@ -206,7 +209,7 @@ AstNode* MergeConstNode(BinaryOperator op, AstNode* lhs, AstNode* rhs,
       }
     }
   } else {
-    if (rhs->data_type == INT_TYPE) {
+    if (rhs->data_type == INT_TYPE || rhs->data_type == BOOLEAN_TYPE) {
       if (!b) {
         cv = DoArithmaticOperation(op, std::get<FloatType>(lcv),
                                    std::get<int32_t>(rcv));
@@ -706,7 +709,7 @@ relop_expr:
   } |
   relop_expr O_ADDITION relop_expr {
     try {
-      auto type = MixDataType($1, $3, BINARY_OP_ADD);
+      auto type = MixDataType($1, $3, BINARY_OP_ADD, @2);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_ADD, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -714,7 +717,7 @@ relop_expr:
   } |
   relop_expr O_SUBTRACTION relop_expr {
     try {
-      auto type = MixDataType($1, $3, BINARY_OP_SUB);
+      auto type = MixDataType($1, $3, BINARY_OP_SUB, @2);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_SUB, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -722,7 +725,7 @@ relop_expr:
   } |
   relop_expr O_MULTIPLICATION relop_expr {
     try {
-      auto type = MixDataType($1, $3, BINARY_OP_MUL);
+      auto type = MixDataType($1, $3, BINARY_OP_MUL, @2);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_MUL, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -730,7 +733,7 @@ relop_expr:
   } |
   relop_expr O_DIVISION relop_expr {
     try {
-      auto type = MixDataType($1, $3, BINARY_OP_DIV);
+      auto type = MixDataType($1, $3, BINARY_OP_DIV, @2);
       $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_DIV, @$, {$1, $3});
     } catch (const std::exception &e) {
       throw yy::parser::syntax_error(@$, e.what());
@@ -782,11 +785,11 @@ unifact:
 const_value:
   O_ADDITION CONST {
     $$ = $2;
-    assert($$->node_type == CONST_VALUE_NODE); 
+    assert($$->node_type == CONST_VALUE_NODE);
     if ($$->data_type == CONST_STRING_TYPE) {
       throw yy::parser::syntax_error(@$, "wrong type argument to unary plus");
     }
-  } | 
+  } |
   CONST {
     $$ = $1;
   };
