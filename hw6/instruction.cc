@@ -908,7 +908,6 @@ void InsrGen::GenerateData(std::vector<CodeData> &&data) {
 }
 
 void InsrGen::Flush() {
-  ofs_ << ".data\n";
   str_cache_.clear();
   for (size_t i = 0; i < data_.size(); ++i) {
     if (data_[i].index() == 1) {
@@ -916,6 +915,11 @@ void InsrGen::Flush() {
       std::string &str = std::get<std::string>(data_[i]);
       if (str_cache_.find(str) != str_cache_.end()) continue;
       str_cache_[str] = i;
+    }
+    if (data_[i].index() == 2) {
+      ofs_ << ".bss\n";
+    } else {
+      ofs_ << ".data\n";
     }
     ofs_ << ".D" << i << ":\n";
     PrintData(ofs_, data_[i]);
