@@ -62,6 +62,14 @@ const Identifier& GetIdentifier(const AstNode* nd) {
  */
 TypeAttr Analyzer::BuildType(AstNode* nd) {
   auto& value = std::get<TypeSpecSemanticValue>(nd->semantic_value);
+  if (std::holds_alternative<size_t>(value.type)) {
+    size_t id = std::get<size_t>(value.type);
+    return tab_[id].GetValue<TypeAttr>();
+  }
+  if (std::holds_alternative<DataType>(value.type)) {
+    // built-in types.
+    return TypeAttr(std::get<DataType>(value.type));
+  }
   try {
     std::string type_name = std::get<std::string>(value.type);
     Debug_("type_name = ", type_name, '\n');
@@ -78,14 +86,6 @@ TypeAttr Analyzer::BuildType(AstNode* nd) {
       }
       value.type = id;
       return tab_[id].GetValue<TypeAttr>();
-    }
-  } catch (const std::bad_variant_access& e) {
-    try {
-      size_t id = std::get<size_t>(value.type);
-      return tab_[id].GetValue<TypeAttr>();
-    } catch (const std::bad_variant_access& e) {
-      // built-in types.
-      return TypeAttr(std::get<DataType>(value.type));
     }
   } catch (...) {
     // unexpected exceptions.
