@@ -5,7 +5,7 @@ PROFILE_OBJS = codegen.o instruction.o
 LEX = flex
 YACC = bison
 YACCFLAGS = -v -t -d -Lc++
-CXXFLAGS = -O3 -Wall -std=c++17 -Wno-register -Wno-switch # -DCODEGEN_DEBUG # -DINSRGEN_DEBUG # -DNDEBUG
+CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch #-DVERBOSE #-DCODEGEN_DEBUG # -DINSRGEN_DEBUG # -DNDEBUG
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -o $@ $^
@@ -30,7 +30,7 @@ gv.o: gv.h ast.h symtab.h
 instruction.o: instruction.h utils.h
 main.o: driver.h ast.h symtab.h codegen.h analysis.h error.h gv.h parser.cc
 
-clean:
-	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output *.gcno *.gcda *.gcov
+clean: clean_gcov
+	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output
 clean_gcov:
-	rm -f *.gcda *.gcov
+	rm -f *.gcda *.gcov *.out

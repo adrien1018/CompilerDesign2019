@@ -476,6 +476,11 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
   cur_register_ = start_reg;
 }
 
+void CodeGen::VisitRelopExprList(AstNode* expr_list, FunctionAttr& attr,
+                                 size_t dest) {
+  for (AstNode* expr : expr_list->child) VisitRelopExpr(expr, attr, dest);
+}
+
 void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
   Debug_("VisitAssignment\n");
   RegCount start_reg = cur_register_;
@@ -514,6 +519,13 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
   cur_register_ = start_reg;
 }
 
+void CodeGen::VisitAssignmentList(AstNode* stmt_list, FunctionAttr& attr) {
+  Debug_((int)stmt_list->node_type, "\n");
+  assert(stmt_list->node_type == NONEMPTY_ASSIGN_EXPR_LIST_NODE ||
+         stmt_list->node_type == NULL_NODE);
+  for (AstNode* stmt : stmt_list->child) VisitAssignment(stmt, attr);
+}
+
 void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
   if (stmt->node_type == BLOCK_NODE) return VisitBlock(stmt, attr);
   if (stmt->node_type != STMT_NODE) return;
@@ -524,26 +536,26 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
       size_t jump_label = InsertLabel();
-      VisitRelopExpr(*it, attr, reg);  // while expr
+      VisitRelopExpr(*it, attr, reg);     // while expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);  // while block
+      VisitStatement(*++it, attr);        // while block
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
-      ir_[now_label].imm = InsertLabel();  // beq
+      ir_[now_label].imm = InsertLabel(); // beq
       break;
     }
     case IF_ELSE_STMT: {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExpr(*it, attr, reg);  // if expr
+      VisitRelopExpr(*it, attr, reg);      // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);          // if block
-      ir_[now_label].imm = labels_.size();  // beq; get label num here
+      VisitStatement(*++it, attr);         // if block
+      ir_[now_label].imm = labels_.size(); // beq; get label num here
       now_label = ir_.size();
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, 0);
       InsertLabel();                       // beq
@@ -554,27 +566,30 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     case IF_STMT: {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExpr(*it, attr, reg);  // if expr
+      VisitRelopExpr(*it, attr, reg);     // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);         // if block
-      ir_[now_label].imm = InsertLabel();  // beq
+      VisitStatement(*++it, attr);        // if block
+      ir_[now_label].imm = InsertLabel(); // beq
       break;
     }
-    case FOR_STMT: { // TODO
+    case FOR_STMT: {
       RegCount now_reg = cur_register_;
+      VisitAssignmentList(*it, attr);       // for init
       size_t reg = AllocRegister(attr);
       size_t jump_label = InsertLabel();
-      VisitRelopExpr(*it, attr, reg);  // while expr
+      VisitRelopExprList(*++it, attr, reg); // for expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);  // while block
+      auto for_stmt = ++it;
+      VisitStatement(*++it, attr);          // for block
+      VisitAssignmentList(*for_stmt, attr); // for continue
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
-      ir_[now_label].imm = InsertLabel();  // beq
+      ir_[now_label].imm = InsertLabel();   // beq
       break;
     }
     case RETURN_STMT: {

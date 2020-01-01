@@ -7,6 +7,7 @@ scanner.cc
 location.hh
 calc++/
 testing/
+output.txt
 *.gv
 *.png
 *.gcov
