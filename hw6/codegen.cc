@@ -9,6 +9,8 @@
 
 namespace {
 
+const size_t kNoDest = -(size_t)1;
+
 template <class T>
 T& GetAttribute(AstNode* id, std::vector<TableEntry>& tab) {
   assert(id->node_type == IDENTIFIER_NODE);
@@ -366,7 +368,7 @@ void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
 }
 
 void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
-                                size_t dest = -(size_t)1) {
+                                size_t dest = kNoDest) {
   AstNode* id_node = *expr->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
@@ -434,7 +436,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
                      (int64_t)stk * -8);
   }
   ir_.emplace_back(PINSR_CALL, IRInsr::kLabel, func_label);
-  if (dest != -(size_t)1) {
+  if (dest != kNoDest) {
     switch (return_type) {
       case INT_TYPE:
         ir_.emplace_back(PINSR_MV, dest, Reg(rv64::kA0));
@@ -453,6 +455,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
 }
 
 void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
+  if (dest == kNoDest && expr->node_type != STMT_NODE) return;
   RegCount start_reg = cur_register_;
   switch (expr->node_type) {
     case CONVERSION_NODE:
@@ -478,7 +481,10 @@ void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
 
 void CodeGen::VisitRelopExprList(AstNode* expr_list, FunctionAttr& attr,
                                  size_t dest) {
-  for (AstNode* expr : expr_list->child) VisitRelopExpr(expr, attr, dest);
+  size_t i = 0;
+  for (AstNode* expr : expr_list->child) {
+    VisitRelopExpr(expr, attr, ++i == expr_list->child.size() ? dest : kNoDest);
+  }
 }
 
 void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
@@ -576,20 +582,24 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       break;
     }
     case FOR_STMT: {
-      RegCount now_reg = cur_register_;
       VisitAssignmentList(*it, attr);       // for init
-      size_t reg = AllocRegister(attr);
-      size_t jump_label = InsertLabel();
-      VisitRelopExprList(*++it, attr, reg); // for expr
-      size_t now_label = ir_.size();
-      ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
-                       IRInsr::kLabel, 0);
-      cur_register_ = now_reg;
+      size_t jump_label = InsertLabel(), now_label = kNoDest;
+      if ((*++it)->child.size()) {
+        RegCount now_reg = cur_register_;
+        size_t reg = AllocRegister(attr);
+        VisitRelopExprList(*it, attr, reg); // for expr
+        now_label = ir_.size();
+        ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
+                        IRInsr::kLabel, 0);
+        cur_register_ = now_reg;
+      }
       auto for_stmt = ++it;
       VisitStatement(*++it, attr);          // for block
       VisitAssignmentList(*for_stmt, attr); // for continue
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
-      ir_[now_label].imm = InsertLabel();   // beq
+      if (now_label != kNoDest) {
+        ir_[now_label].imm = InsertLabel(); // beq
+      }
       break;
     }
     case RETURN_STMT: {
