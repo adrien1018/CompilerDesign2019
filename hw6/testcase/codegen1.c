@@ -84,6 +84,18 @@ int WhileStatement() {
   return a;
 }
 
+void ForStatement(int c) {
+  int i, j, k;
+  for (i = 0, j = 0, k = 0; j < c, i < c; i = i + j, j = j + 1) {
+    k = k + i;
+  }
+  write(i); write(" "); write(j); write(" "); write(k); write("\n");
+  for (i = 0, j = 0, k = 0; i < c, j < c; i = i + j, j = j + 1) {
+    k = k + i;
+  }
+  write(i); write(" "); write(j); write(" "); write(k); write("\n");
+}
+
 void LocalArray() {
   if (1) {
     int a[8][8];
@@ -306,6 +318,9 @@ int main() {
   write("\n");
   write(WhileStatement()); /* 21 */
   write("\n");
+  ForStatement(200);
+  /* 210 21 1330
+   * 19900 200 1313400 */
   LocalArray();
   /* 1
    * 1 1
