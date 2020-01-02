@@ -357,7 +357,7 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 %type <AstNode*> program function_decl block decl var_decl init_id stmt
 %type <AstNode*> relop_expr var_ref const_value
 %type <AstNode*> param assign_expr cexpr cexpr_uni assign_expr_list
-%type <AstNode*> type_decl id_item relop_expr_list unifact
+%type <AstNode*> type_decl id_item relop_expr_list nonempty_relop_expr_list_node unifact
 %type <std::list<AstNode*>> global_decl_list stmt_list decl_list init_id_list
 %type <std::list<AstNode*>> param_list id_list dim_list
 %type <std::list<AstNode*>> nonempty_relop_expr_list
@@ -621,7 +621,7 @@ stmt:
   S_L_BRACE block S_R_BRACE {
     $$ = $2;
   } |
-  R_WHILE S_L_PAREN relop_expr S_R_PAREN stmt {
+  R_WHILE S_L_PAREN nonempty_relop_expr_list_node S_R_PAREN stmt {
     $$ = MakeStmtNode(WHILE_STMT, @$);
     MakeChild($$, {$3, $5});
   } |
@@ -633,11 +633,11 @@ stmt:
     $$ = MakeStmtNode(ASSIGN_STMT, @$);
     MakeChild($$, {$1, $3});
   } |
-  R_IF S_L_PAREN relop_expr S_R_PAREN stmt %prec LOWER_THAN_ELSE {
+  R_IF S_L_PAREN nonempty_relop_expr_list_node S_R_PAREN stmt %prec LOWER_THAN_ELSE {
     $$ = MakeStmtNode(IF_STMT, @$);
     MakeChild($$, {$3, $5});
   } |
-  R_IF S_L_PAREN relop_expr S_R_PAREN stmt R_ELSE stmt {
+  R_IF S_L_PAREN nonempty_relop_expr_list_node S_R_PAREN stmt R_ELSE stmt {
     $$ = MakeStmtNode(IF_ELSE_STMT, @$);
     MakeChild($$, {$3, $5, $7});
   } |
@@ -648,10 +648,7 @@ stmt:
   S_SEMICOLON {
     $$ = new AstNode(NULL_NODE, @$);
   } |
-  R_RETURN S_SEMICOLON {
-    $$ = MakeStmtNode(RETURN_STMT, @1);
-  } |
-  R_RETURN relop_expr S_SEMICOLON {
+  R_RETURN relop_expr_list S_SEMICOLON {
     $$ = MakeStmtNode(RETURN_STMT, @$);
     MakeChild($$, {$2});
   };
@@ -760,6 +757,12 @@ nonempty_relop_expr_list:
   } |
   relop_expr {
     $$ = {$1};
+  };
+
+nonempty_relop_expr_list_node:
+  nonempty_relop_expr_list {
+    $$ = new AstNode(NONEMPTY_RELOP_EXPR_LIST_NODE, @$);
+    MakeChild($$, $1);
   };
 
 unifact:

@@ -408,7 +408,7 @@ void Analyzer::BuildStatement(AstNode* stmt) noexcept {
       case WHILE_STMT:
       case IF_STMT:
         BuildStatementImpl(stmt->child.begin(),
-                           Func(&Analyzer::BuildRelopExpr, false),
+                           Func(&Analyzer::BuildRelopExprList, false),
                            Func(&Analyzer::BuildStatement));
         break;
       case FOR_STMT:
@@ -420,7 +420,7 @@ void Analyzer::BuildStatement(AstNode* stmt) noexcept {
         break;
       case IF_ELSE_STMT:
         BuildStatementImpl(
-            stmt->child.begin(), Func(&Analyzer::BuildRelopExpr, false),
+            stmt->child.begin(), Func(&Analyzer::BuildRelopExprList, false),
             Func(&Analyzer::BuildStatement), Func(&Analyzer::BuildStatement));
         break;
       case ASSIGN_STMT:
@@ -428,7 +428,7 @@ void Analyzer::BuildStatement(AstNode* stmt) noexcept {
         break;
       case RETURN_STMT:
         if (!stmt->child.empty()) {
-          BuildRelopExpr(*stmt->child.begin());
+          BuildRelopExprList(*stmt->child.begin());
         }
         break;
       case FUNCTION_CALL_STMT:
@@ -877,17 +877,19 @@ void Analyzer::AnalyzeRelopExprList(AstNode* relop_expr_list) noexcept {
 }
 
 void Analyzer::AnalyzeWhileStmt(AstNode* stmt) noexcept {
-  AstNode* relop_expr = *stmt->child.begin();
-  TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
+  AstNode* relop_expr_list = *stmt->child.begin();
+  AnalyzeRelopExprList(relop_expr_list);
+  assert(!relop_expr_list->child.empty());
+  AstNode* relop_expr = *std::prev(relop_expr_list->child.end());
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
   }
   if (relop_expr->data_type != BOOLEAN_TYPE) {
-    AstNode* conv =
-        MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE, stmt, relop_expr);
-    stmt->child.pop_front();
-    stmt->child.push_front(conv);
+    AstNode* conv = MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE,
+                                 relop_expr_list, relop_expr);
+    relop_expr_list->child.pop_back();
+    relop_expr_list->child.push_back(conv);
   }
   AnalyzeStatement(*std::next(stmt->child.begin()));
 }
@@ -916,34 +918,38 @@ void Analyzer::AnalyzeForStmt(AstNode* stmt) noexcept {
 
 void Analyzer::AnalyzeIfStmt(AstNode* stmt) noexcept {
   auto it = stmt->child.begin();
-  AstNode* relop_expr = *it++;
-  TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
+  AstNode* relop_expr_list = *it++;
+  AnalyzeRelopExprList(relop_expr_list);
+  assert(!relop_expr_list->child.empty());
+  AstNode* relop_expr = *std::prev(relop_expr_list->child.end());
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
   }
   if (relop_expr->data_type != BOOLEAN_TYPE) {
-    AstNode* conv =
-        MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE, stmt, relop_expr);
-    stmt->child.pop_front();
-    stmt->child.push_front(conv);
+    AstNode* conv = MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE,
+                                 relop_expr_list, relop_expr);
+    relop_expr_list->child.pop_back();
+    relop_expr_list->child.push_back(conv);
   }
   AnalyzeStatement(*it++);
 }
 
 void Analyzer::AnalyzeIfElseStmt(AstNode* stmt) noexcept {
   auto it = stmt->child.begin();
-  AstNode* relop_expr = *it++;
-  TRY_EXPRESSION(AnalyzeRelopExpr(relop_expr));
+  AstNode* relop_expr_list = *it++;
+  AnalyzeRelopExprList(relop_expr_list);
+  assert(!relop_expr_list->child.empty());
+  AstNode* relop_expr = *std::prev(relop_expr_list->child.end());
   if (relop_expr->data_type == VOID_TYPE) {
     success_ = false;
     PrintMsg(file_, relop_expr->loc, ERR_VOID_ASSIGN);
   }
   if (relop_expr->data_type != BOOLEAN_TYPE) {
-    AstNode* conv =
-        MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE, stmt, relop_expr);
-    stmt->child.pop_front();
-    stmt->child.push_front(conv);
+    AstNode* conv = MakeConvNode(relop_expr->data_type, BOOLEAN_TYPE,
+                                 relop_expr_list, relop_expr);
+    relop_expr_list->child.pop_back();
+    relop_expr_list->child.push_back(conv);
   }
   AnalyzeStatement(*it++);
   AnalyzeStatement(*it++);
@@ -974,22 +980,27 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
         break;
       case RETURN_STMT:
         try {
-          if (!stmt->child.empty()) AnalyzeRelopExpr(*stmt->child.begin());
+          assert(!stmt->child.empty());
+          AstNode* relop_expr_list = *stmt->child.begin();
+          AnalyzeRelopExprList(relop_expr_list);
           DataType type =
-              stmt->child.empty() ? VOID_TYPE : stmt->child.front()->data_type;
+              relop_expr_list->child.empty()
+                  ? VOID_TYPE
+                  : (*std::prev(relop_expr_list->child.end()))->data_type;
           if (func_ptr_ && type != func_ptr_->return_type) {
             if (func_ptr_->return_type == VOID_TYPE) {
-              PrintMsg(file_, stmt->child.front()->loc, WARN_VOID_RETURN);
+              AstNode* retval = *std::prev(relop_expr_list->child.end());
+              PrintMsg(file_, retval->loc, WARN_VOID_RETURN);
             } else if (type == VOID_TYPE) {
               PrintMsg(file_, stmt->loc, WARN_RETURN_NOVAL);
             } else {
-              PrintMsg(file_, stmt->child.front()->loc, WARN_CONVERSION, type,
+              AstNode* retval = *std::prev(relop_expr_list->child.end());
+              PrintMsg(file_, retval->loc, WARN_CONVERSION, type,
                        func_ptr_->return_type);
-              AstNode* ret = *stmt->child.begin();
-              AstNode* conv =
-                  MakeConvNode(type, func_ptr_->return_type, stmt, ret);
-              stmt->child.pop_front();
-              stmt->child.push_front(conv);
+              AstNode* conv = MakeConvNode(type, func_ptr_->return_type,
+                                           relop_expr_list, retval);
+              relop_expr_list->child.pop_back();
+              relop_expr_list->child.push_back(conv);
             }
           }
         } catch (StopExpression&) {
