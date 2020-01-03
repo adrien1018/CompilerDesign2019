@@ -356,8 +356,8 @@ AstNode* MakeExprNode(ExprKind expr_kind, DataType data_type,
 
 %type <AstNode*> program function_decl block decl var_decl init_id stmt
 %type <AstNode*> relop_expr var_ref const_value
-%type <AstNode*> param assign_expr cexpr cexpr_uni assign_expr_list
-%type <AstNode*> type_decl id_item relop_expr_list nonempty_relop_expr_list_node unifact
+%type <AstNode*> param assign_expr cexpr cexpr_uni assign_expr_list_node
+%type <AstNode*> type_decl id_item relop_expr_list_node nonempty_relop_expr_list_node unifact
 %type <std::list<AstNode*>> global_decl_list stmt_list decl_list init_id_list
 %type <std::list<AstNode*>> param_list id_list dim_list
 %type <std::list<AstNode*>> nonempty_relop_expr_list
@@ -625,7 +625,8 @@ stmt:
     $$ = MakeStmtNode(WHILE_STMT, @$);
     MakeChild($$, {$3, $5});
   } |
-  R_FOR S_L_PAREN assign_expr_list S_SEMICOLON relop_expr_list S_SEMICOLON assign_expr_list S_R_PAREN stmt {
+  R_FOR S_L_PAREN assign_expr_list_node S_SEMICOLON relop_expr_list_node
+      S_SEMICOLON assign_expr_list_node S_R_PAREN stmt {
     $$ = MakeStmtNode(FOR_STMT, @$);
     MakeChild($$, {$3, $5, $7, $9});
   } |
@@ -641,19 +642,19 @@ stmt:
     $$ = MakeStmtNode(IF_ELSE_STMT, @$);
     MakeChild($$, {$3, $5, $7});
   } |
-  IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN S_SEMICOLON {
+  IDENTIFIER S_L_PAREN relop_expr_list_node S_R_PAREN S_SEMICOLON {
     $$ = MakeStmtNode(FUNCTION_CALL_STMT, @$);
     MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
   } |
   S_SEMICOLON {
     $$ = new AstNode(NULL_NODE, @$);
   } |
-  R_RETURN relop_expr_list S_SEMICOLON {
+  R_RETURN relop_expr_list_node S_SEMICOLON {
     $$ = MakeStmtNode(RETURN_STMT, @$);
     MakeChild($$, {$2});
   };
 
-assign_expr_list:
+assign_expr_list_node:
   nonempty_assign_expr_list {
     $$ = new AstNode(ASSIGN_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
@@ -725,7 +726,7 @@ relop_expr:
     $$ = $1;
   };
 
-relop_expr_list:
+relop_expr_list_node:
   nonempty_relop_expr_list {
     $$ = new AstNode(RELOP_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
@@ -745,7 +746,7 @@ nonempty_relop_expr_list:
 
 nonempty_relop_expr_list_node:
   nonempty_relop_expr_list {
-    $$ = new AstNode(NONEMPTY_RELOP_EXPR_LIST_NODE, @$);
+    $$ = new AstNode(RELOP_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
   };
 
@@ -765,7 +766,7 @@ unifact:
   S_L_PAREN relop_expr S_R_PAREN {
     $$ = $2;
   } |
-  IDENTIFIER S_L_PAREN relop_expr_list S_R_PAREN {
+  IDENTIFIER S_L_PAREN relop_expr_list_node S_R_PAREN {
     $$ = MakeStmtNode(FUNCTION_CALL_STMT, @$);
     MakeChild($$, {MakeIDNode($1, NORMAL_ID, @1), $3});
   };
