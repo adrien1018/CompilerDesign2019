@@ -67,7 +67,7 @@ class Analyzer {
   void AnalyzeGlobalDecl(AstNode* decl) noexcept;
   void AnalyzeFunctionDecl(AstNode* func);
   void AnalyzeBlock(AstNode* block) noexcept;
-  void AnalyzeStmtList(AstNode* stmt_list) noexcept;
+  void AnalyzeStmtList(AstNode* stmt_list);
   void AnalyzeDeclList(AstNode* decl_list) noexcept;
   void AnalyzeVariableDecl(AstNode* var_decl) noexcept;
   void AnalyzeInitID(AstNode* init_id);

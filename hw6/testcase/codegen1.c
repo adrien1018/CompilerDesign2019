@@ -56,7 +56,7 @@ void FloatCompare(float a, float b) {
 int IfStatement() {
   int a = 2, b = 3, c = 0;
   if (a < b) { c = c + 2; }
-  if (a > b) { c = c + 1; }
+  if (a < b, a > b) { c = c + 1; }
   return c;
 }
 
@@ -67,7 +67,7 @@ int IfElseStatement() {
   } else {
     c = c + 4;
   }
-  if (a > b) {
+  if (a < b, a > b) {
     c = c + 2;
   } else {
     c = c + 1;
@@ -75,13 +75,17 @@ int IfElseStatement() {
   return c;
 }
 
-int WhileStatement() {
-  int c = 1048576, a = 0;
-  while (c) {
+void WhileStatement() {
+  int c = 1048576, d = 1048576, a = 0;
+  while (d) {
+    d = d / 2;
+    a = a + 1;
+  }
+  while (write("a"), c) {
     c = c / 2;
     a = a + 1;
   }
-  return a;
+  write(" "); write(a); write("\n");
 }
 
 void ForStatement(int c) {
@@ -322,8 +326,7 @@ int main() {
   write("\n");
   write(IfElseStatement()); /* 9 */
   write("\n");
-  write(WhileStatement()); /* 21 */
-  write("\n");
+  WhileStatement(); /* aaaaaaaaaaaaaaaaaaaaaa 42 */
   ForStatement(200);
   /* 210 21 1330
    * 19900 200 1313400 */

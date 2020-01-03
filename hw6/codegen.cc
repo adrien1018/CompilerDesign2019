@@ -541,7 +541,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
       size_t jump_label = InsertLabel();
-      VisitRelopExpr(*it, attr, reg);     // while expr
+      VisitRelopExprList(*it, attr, reg); // while expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
@@ -554,7 +554,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     case IF_ELSE_STMT: {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExpr(*it, attr, reg);      // if expr
+      VisitRelopExprList(*it, attr, reg);  // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
@@ -571,7 +571,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     case IF_STMT: {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExpr(*it, attr, reg);     // if expr
+      VisitRelopExprList(*it, attr, reg); // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
@@ -606,7 +606,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
         Debug_("Return\n");
         RegCount now_reg = cur_register_;
         size_t reg = AllocRegister(attr, attr.return_type);
-        VisitRelopExpr(*it, attr, reg);
+        VisitRelopExprList(*it, attr, reg);
         size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
         ir_.emplace_back(attr.return_type == INT_TYPE ? PINSR_MV : PINSR_FMV_S,
                          Reg(retreg), reg);
