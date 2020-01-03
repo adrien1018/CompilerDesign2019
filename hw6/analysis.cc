@@ -70,26 +70,21 @@ TypeAttr Analyzer::BuildType(AstNode* nd) {
     // built-in types.
     return TypeAttr(std::get<DataType>(value.type));
   }
-  try {
-    std::string type_name = std::get<std::string>(value.type);
-    Debug_("type_name = ", type_name, '\n');
-    size_t id = mp_.Query(type_name);
-    if (id == SymMap_::npos) {
+  std::string type_name = std::get<std::string>(value.type);
+  Debug_("type_name = ", type_name, '\n');
+  size_t id = mp_.Query(type_name);
+  if (id == SymMap_::npos) {
+    success_ = false;
+    PrintMsg(file_, nd->loc, ERR_TYPE_UNDECL, type_name);
+    throw StopExpression();
+  } else {
+    if (tab_[id].GetType() != TYPE_ALIAS) {
       success_ = false;
-      PrintMsg(file_, nd->loc, ERR_TYPE_UNDECL, type_name);
+      PrintMsg(file_, nd->loc, ERR_NOT_TYPE, type_name);
       throw StopExpression();
-    } else {
-      if (tab_[id].GetType() != TYPE_ALIAS) {
-        success_ = false;
-        PrintMsg(file_, nd->loc, ERR_NOT_TYPE, type_name);
-        throw StopExpression();
-      }
-      value.type = id;
-      return tab_[id].GetValue<TypeAttr>();
     }
-  } catch (...) {
-    // unexpected exceptions.
-    throw;
+    value.type = id;
+    return tab_[id].GetValue<TypeAttr>();
   }
 }
 
@@ -244,20 +239,15 @@ void Analyzer::BuildTypeDecl(AstNode* type_decl) noexcept {
 }
 
 TableEntry Analyzer::BuildParam(AstNode* param) {
-  try {
-    const TypeAttr& attr = BuildType(*param->child.begin());
-    AstNode* identifier = *std::next(param->child.begin());
-    auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
-    if (value.kind == NORMAL_ID) {
-      return BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims);
-    }
-    auto dims = ParseDimDecl(identifier);
-    dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
-    return BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims));
-  } catch (...) {
-    // rethrow
-    throw;
+  const TypeAttr& attr = BuildType(*param->child.begin());
+  AstNode* identifier = *std::next(param->child.begin());
+  auto& value = std::get<IdentifierSemanticValue>(identifier->semantic_value);
+  if (value.kind == NORMAL_ID) {
+    return BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims);
   }
+  auto dims = ParseDimDecl(identifier); // propagate throws
+  dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
+  return BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims));
 }
 
 void Analyzer::BuildVarRef(AstNode* node, bool is_function_arg) {
@@ -856,11 +846,7 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       expr->child.push_back(conv);
     }
   } else {
-    try {
-      AnalyzeRelopExpr(expr);
-    } catch (...) {
-      throw;
-    }
+    AnalyzeRelopExpr(expr); // propagate throws
   }
 }
 
@@ -1012,7 +998,7 @@ void Analyzer::AnalyzeStatement(AstNode* stmt) noexcept {
   }
 }
 
-void Analyzer::AnalyzeStmtList(AstNode* stmt_list) noexcept {
+void Analyzer::AnalyzeStmtList(AstNode* stmt_list) {
   for (AstNode* stmt : stmt_list->child) AnalyzeStatement(stmt);
 }
 
@@ -1021,11 +1007,7 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
   auto& value = std::get<IdentifierSemanticValue>(init_id->semantic_value);
   if (value.kind == WITH_INIT_ID) {
     AstNode* init_val = *init_id->child.begin();
-    try {
-      AnalyzeRelopExpr(init_val);
-    } catch (...) {
-      throw;
-    }
+    AnalyzeRelopExpr(init_val); // propagate throws
     if (init_val->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, init_val->loc, ERR_VOID_ASSIGN);
