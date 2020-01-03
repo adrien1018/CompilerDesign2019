@@ -655,11 +655,11 @@ stmt:
 
 assign_expr_list:
   nonempty_assign_expr_list {
-    $$ = new AstNode(NONEMPTY_ASSIGN_EXPR_LIST_NODE, @$);
+    $$ = new AstNode(ASSIGN_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
   } |
   /* null */ {
-    $$ = new AstNode(NULL_NODE, @$);
+    $$ = new AstNode(ASSIGN_EXPR_LIST_NODE, @$);
   };
 
 nonempty_assign_expr_list:
@@ -706,36 +706,20 @@ relop_expr:
     $$ = MakeExprNode(BINARY_OPERATION, BOOLEAN_TYPE, BINARY_OP_NE, @$, {$1, $3});
   } |
   relop_expr O_ADDITION relop_expr {
-    try {
-      auto type = MixDataType($1, $3, BINARY_OP_ADD, @2);
-      $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_ADD, @$, {$1, $3});
-    } catch (const std::exception &e) {
-      throw yy::parser::syntax_error(@$, e.what());
-    }
+    auto type = MixDataType($1, $3, BINARY_OP_ADD, @2);
+    $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_ADD, @$, {$1, $3});
   } |
   relop_expr O_SUBTRACTION relop_expr {
-    try {
-      auto type = MixDataType($1, $3, BINARY_OP_SUB, @2);
-      $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_SUB, @$, {$1, $3});
-    } catch (const std::exception &e) {
-      throw yy::parser::syntax_error(@$, e.what());
-    }
+    auto type = MixDataType($1, $3, BINARY_OP_SUB, @2);
+    $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_SUB, @$, {$1, $3});
   } |
   relop_expr O_MULTIPLICATION relop_expr {
-    try {
-      auto type = MixDataType($1, $3, BINARY_OP_MUL, @2);
-      $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_MUL, @$, {$1, $3});
-    } catch (const std::exception &e) {
-      throw yy::parser::syntax_error(@$, e.what());
-    }
+    auto type = MixDataType($1, $3, BINARY_OP_MUL, @2);
+    $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_MUL, @$, {$1, $3});
   } |
   relop_expr O_DIVISION relop_expr {
-    try {
-      auto type = MixDataType($1, $3, BINARY_OP_DIV, @2);
-      $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_DIV, @$, {$1, $3});
-    } catch (const std::exception &e) {
-      throw yy::parser::syntax_error(@$, e.what());
-    }
+    auto type = MixDataType($1, $3, BINARY_OP_DIV, @2);
+    $$ = MakeExprNode(BINARY_OPERATION, type, BINARY_OP_DIV, @$, {$1, $3});
   } |
   unifact {
     $$ = $1;
@@ -743,11 +727,11 @@ relop_expr:
 
 relop_expr_list:
   nonempty_relop_expr_list {
-    $$ = new AstNode(NONEMPTY_RELOP_EXPR_LIST_NODE, @$);
+    $$ = new AstNode(RELOP_EXPR_LIST_NODE, @$);
     MakeChild($$, $1);
   } |
   /* null */ {
-    $$ = new AstNode(NULL_NODE, @$);
+    $$ = new AstNode(RELOP_EXPR_LIST_NODE, @$);
   };
 
 nonempty_relop_expr_list:

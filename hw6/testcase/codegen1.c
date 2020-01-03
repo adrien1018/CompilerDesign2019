@@ -296,6 +296,12 @@ void PassGlobalArray() {
   write(PassArray4(glob_arr_2[1])); write("\n");
 }
 
+void NullNode() {
+  ;;;;;
+  write("null\n");
+  ;;;;;
+}
+
 int main() {
   write(IntFunction()); /* 3 */
   write("\n");
@@ -347,4 +353,5 @@ int main() {
   write(WriteGlobal()); /* 6 */
   write("\n");
   PassGlobalArray(); /* 1 0.700000 */
+  NullNode(); /* null */
 }

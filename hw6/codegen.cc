@@ -527,8 +527,7 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
 
 void CodeGen::VisitAssignmentList(AstNode* stmt_list, FunctionAttr& attr) {
   Debug_((int)stmt_list->node_type, "\n");
-  assert(stmt_list->node_type == NONEMPTY_ASSIGN_EXPR_LIST_NODE ||
-         stmt_list->node_type == NULL_NODE);
+  assert(stmt_list->node_type == ASSIGN_EXPR_LIST_NODE);
   for (AstNode* stmt : stmt_list->child) VisitAssignment(stmt, attr);
 }
 
