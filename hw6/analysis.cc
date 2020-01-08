@@ -245,7 +245,7 @@ TableEntry Analyzer::BuildParam(AstNode* param) {
   if (value.kind == NORMAL_ID) {
     return BuildEntry<VARIABLE>(identifier, attr.data_type, attr.dims);
   }
-  auto dims = ParseDimDecl(identifier); // propagate throws
+  auto dims = ParseDimDecl(identifier);  // propagate throws
   dims.insert(dims.end(), attr.dims.begin(), attr.dims.end());
   return BuildEntry<VARIABLE>(identifier, attr.data_type, std::move(dims));
 }
@@ -846,7 +846,7 @@ void Analyzer::AnalyzeAssignExpr(AstNode* expr) {
       expr->child.push_back(conv);
     }
   } else {
-    AnalyzeRelopExpr(expr); // propagate throws
+    AnalyzeRelopExpr(expr);  // propagate throws
   }
 }
 
@@ -1007,7 +1007,7 @@ void Analyzer::AnalyzeInitID(AstNode* init_id) {
   auto& value = std::get<IdentifierSemanticValue>(init_id->semantic_value);
   if (value.kind == WITH_INIT_ID) {
     AstNode* init_val = *init_id->child.begin();
-    AnalyzeRelopExpr(init_val); // propagate throws
+    AnalyzeRelopExpr(init_val);  // propagate throws
     if (init_val->data_type == VOID_TYPE) {
       success_ = false;
       PrintMsg(file_, init_val->loc, ERR_VOID_ASSIGN);

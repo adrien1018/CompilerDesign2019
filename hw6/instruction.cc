@@ -14,6 +14,11 @@ constexpr bool IsLoadOp(Opcode op) {
          op == INSR_LWU || op == INSR_FLW || op == INSR_FLD;
 }
 
+constexpr bool IsStoreOp(Opcode op) {
+  return op == INSR_SB || op == INSR_SH || op == INSR_SW || op == INSR_SD ||
+         op == INSR_FSD || op == INSR_FSW;
+}
+
 constexpr bool IsIntOp(Opcode op) { return op < kIntegerInsr; }
 
 constexpr bool IsFloatOp(Opcode op) {
@@ -622,6 +627,13 @@ std::vector<RV64Insr> InsrGen::ExpandImm(const T &v, uint8_t rd,
     res[1] =
         RV64Insr{INSR_ADD, rs1, rv64::kT0, 0, rv64::kT0, IRInsr::kConst, 0};
     res[2] = RV64Insr{v.op, rv64::kT0, 0, 0, rd, IRInsr::kConst, 0};
+  } else if (IsStoreOp(v.op)) {
+    uint8_t rs2 = rd;
+    res.resize(3);
+    res[0] = RV64Insr{PINSR_LI, 0, 0, 0, rv64::kT0, IRInsr::kConst, v.imm};
+    res[1] =
+        RV64Insr{INSR_ADD, rs1, rv64::kT0, 0, rv64::kT0, IRInsr::kConst, 0};
+    res[2] = RV64Insr{v.op, rv64::kT0, rs2, 0, 0, IRInsr::kConst, 0};
   } else {
     res.resize(2);
     res[0] = RV64Insr{PINSR_LI, 0, 0, 0, rv64::kT0, IRInsr::kConst, v.imm};
@@ -689,8 +701,9 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
     rs2 = GetSavedReg(ir.rs2, true, float_loc_, float_dirty_, float_reg_);
   }
   UnlockRegs();
-  // assert(ir.imm_type == IRInsr::kConst);
   PushInsr(ir.op, rs2, rs1, ir.imm_type, ir.imm);
+  // assert(ir.imm_type == IRInsr::kConst);
+  // PushInsr(ir.op, rs2, rs1, ir.imm_type, ir.imm);
 }
 
 void InsrGen::GenerateUTypeInsr(const IRInsr &ir) {
@@ -907,6 +920,9 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
     if (it != kRV64InsrFormat.end() && it->second == I_TYPE &&
         v.imm_type == IRInsr::kConst && std::abs(v.imm) >= (1 << 11)) {
       auto e = ExpandImm(v, v.rd, v.rs1);
+      insr_.insert(insr_.end(), e.begin(), e.end());
+    } else if (IsStoreOp(v.op) && std::abs(v.imm) >= (1 << 11)) {
+      auto e = ExpandImm(v, v.rs2, v.rs1);
       insr_.insert(insr_.end(), e.begin(), e.end());
     } else {
       insr_.push_back(v);
