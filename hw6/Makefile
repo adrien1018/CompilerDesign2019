@@ -27,7 +27,7 @@ codegen.o: codegen.h entry.h ast.h symtab.h instruction.h utils.h analysis.h
 driver.o: driver.h ast.h codegen.h analysis.h entry.h error.h symtab.h parser.cc
 error.o: error.h ast.h symtab.h
 gv.o: gv.h ast.h symtab.h
-instruction.o: instruction.h utils.h
+instruction.o: instruction.h symtab.h utils.h
 main.o: driver.h ast.h symtab.h codegen.h analysis.h error.h gv.h parser.cc
 
 clean: clean_gcov

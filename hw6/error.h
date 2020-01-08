@@ -64,15 +64,16 @@ void PrintFileError(const FileInfor&, const std::string&);
 void PrintMsg(const FileInfor&, const Location&, MsgClass, const std::string&);
 
 void PrintMsg(const FileInfor&, const Location&, MsgType);
-void PrintMsg(const FileInfor&, const Location&, MsgType, const std::string&);
+void PrintMsg(const FileInfor&, const Location&, MsgType,
+              const std::string_view&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
-              const std::string&);
+              const std::string_view&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
-              size_t, const std::string&);
+              size_t, const std::string_view&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
-              size_t, DataType, const std::string&);
+              size_t, DataType, const std::string_view&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, const Location&,
-              size_t, const std::string&, const std::string&);
+              size_t, const std::string_view&, const std::string_view&);
 void PrintMsg(const FileInfor&, const Location&, MsgType, DataType, DataType);
 
 #endif  // ERROR_H_

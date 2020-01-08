@@ -1,7 +1,7 @@
 #include "error.h"
 
 #include <errno.h>
-
+#include <cassert>
 #include <iomanip>
 
 namespace {
@@ -149,15 +149,14 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << " with no value, in function returning non-void";
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
 }
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
-              const std::string& var) {
+              const std::string_view& var) {
   PrintMsg(
       f, l,
       [&]() {
@@ -262,15 +261,14 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " declared as function returning an array";
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
 }
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
-              const Location& l2, const std::string& var) {
+              const Location& l2, const std::string_view& var) {
   PrintMsg(
       f, l,
       [&]() {
@@ -317,8 +315,7 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             EndColor(f.color_output);
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
@@ -342,15 +339,14 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << "declared here";
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       NOTE, true);
 }
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
-              const Location& l2, size_t arg, const std::string& var2) {
+              const Location& l2, size_t arg, const std::string_view& var2) {
   PrintMsg(
       f, l,
       [&]() {
@@ -359,8 +355,7 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << "initialize array parameter from scalar";
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
@@ -383,7 +378,7 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
               const Location& l2, size_t arg, DataType type,
-              const std::string& var2) {
+              const std::string_view& var2) {
   PrintMsg(
       f, l,
       [&]() {
@@ -395,8 +390,7 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             EndColor(f.color_output);
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
@@ -422,8 +416,8 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
 }
 
 void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
-              const Location& l2, size_t arg, const std::string& var1,
-              const std::string& var2) {
+              const Location& l2, size_t arg, const std::string_view& var1,
+              const std::string_view& var2) {
   PrintMsg(
       f, l,
       [&]() {
@@ -458,8 +452,7 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err,
             std::cerr << " with different type";
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
@@ -501,8 +494,7 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err, DataType t1,
             std::cerr << " may change value";
             break;
           }
-          default:
-            throw;  // incorrect parameters
+          default: assert(false); // incorrect parameters
         }
       },
       GetMsgClass(err), true);
