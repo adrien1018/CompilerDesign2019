@@ -139,6 +139,19 @@ const std::string kFloatRegisterName[] = {
 
 const std::string kRoundingModeName[] = {"rne", "rtz", "rdn", "rup", "rmm"};
 
+template <class T>
+constexpr bool IsSavedReg(uint8_t v) {
+  if constexpr (std::is_same_v<T, int>) {
+    return v == kS1 || v == kS2 || v == kS3 || v == kS4 || v == kS5 ||
+           v == kS6 || v == kS7 || v == kS8 || v == kS9 || v == kS10 ||
+           v == kS11;
+  } else {
+    return v == kFs0 || v == kFs1 || v == kFs2 || v == kFs3 || v == kFs4 ||
+           v == kFs5 || v == kFs6 || v == kFs7 || v == kFs8 || v == kFs9 ||
+           v == kFs10 || v == kFs11;
+  }
+}
+
 }  // namespace rv64
 
 enum Opcode {
@@ -743,13 +756,13 @@ class InsrGen {
   std::vector<TableEntry> tab_;
   std::vector<std::string> label_func_, func_name_;
   size_t ir_pos_ = 0, label_pos_ = 0, tot_label_;
+  uint8_t int_tmp_ = 0, float_tmp_ = 0;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
   std::array<bool, rv64::kRegisters> int_used_{};
   std::array<bool, rv64::kRegisters> float_used_{};
   std::unordered_map<std::string, size_t> str_cache_;
   std::unordered_map<size_t, std::pair<uint8_t, bool>> int_query_, float_query_;
-  std::vector<uint8_t> int_dirty_, float_dirty_;
   std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
 
@@ -796,9 +809,11 @@ class InsrGen {
                          const std::vector<size_t>& pref) const;
 
   template <class T>
-  uint8_t GetSavedReg(const IRInsr::Register& reg, bool load,
-                      std::vector<MemoryLocation>& loc,
-                      std::vector<uint8_t>& dirty, RegCtrl<T>& ctrl);
+  uint8_t GetRealReg(const IRInsr::Register& reg, bool load,
+                     std::vector<MemoryLocation>& loc);
+  template <class T>
+  void PushStack(IRInsr::Register reg, uint8_t rg,
+                 std::vector<MemoryLocation>& loc);
   void UnlockRegs();
 
   static constexpr int64_t kPosSpOffset = LLONG_MAX;
