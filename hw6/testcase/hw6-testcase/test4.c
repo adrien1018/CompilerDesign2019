@@ -28,7 +28,7 @@ void quicksort(int Left,int Right){
   quicksort(j+1,Right);
 }
 
-int MAIN(){
+int main(){
   int i;
   a[0]=2;
   a[1]=10;

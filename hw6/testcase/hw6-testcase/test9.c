@@ -14,7 +14,7 @@ void dfs(int x){
   return;
 }
 
-int MAIN(){
+int main(){
   int i;
   for(i=0;i<20;i=i+1){
     a[i]=i;

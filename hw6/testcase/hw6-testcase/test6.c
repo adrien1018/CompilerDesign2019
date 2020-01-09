@@ -39,7 +39,7 @@ void heapsort(int N){
   return;
 }
 
-int MAIN(){
+int main(){
   int i;
   a[0]=2;
   a[1]=10;

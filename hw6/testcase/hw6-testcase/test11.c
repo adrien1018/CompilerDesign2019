@@ -45,7 +45,7 @@ int Prim(){
   return sum;
 }
 
-int MAIN(){
+int main(){
   int w;
   build_graph();
   w=Prim();

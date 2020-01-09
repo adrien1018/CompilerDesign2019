@@ -51,7 +51,7 @@ void mergesort(int Left,int Right){
   merge(Left,Mid,Right);
 }
 
-int MAIN(){
+int main(){
   int i;
   a[0]=2;
   a[1]=10;

@@ -21,7 +21,7 @@ int binary_search(int N,int x){
   return -1;
 }
 
-int MAIN(){
+int main(){
   int pos;
   a[0]=2;
   a[1]=7;

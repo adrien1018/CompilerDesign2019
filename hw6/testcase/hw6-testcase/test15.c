@@ -1,5 +1,5 @@
 
-int MAIN(){
+int main(){
   int N=10;
   int W=100;
   int w[11];

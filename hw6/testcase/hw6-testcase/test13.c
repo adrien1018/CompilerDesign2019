@@ -29,7 +29,7 @@ void Folyd(){
   return;
 }
 
-int MAIN(){
+int main(){
   int i,j;
   build_graph();
   Folyd();

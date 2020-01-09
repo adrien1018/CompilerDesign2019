@@ -1,4 +1,4 @@
-int MAIN(){
+int main(){
   int a[10];
   int i,j,ans;
   int dp[10];

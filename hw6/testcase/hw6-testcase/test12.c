@@ -43,7 +43,7 @@ void Dijkstra(){
   }
 }
 
-int MAIN(){
+int main(){
   int i;
   build_graph();
   Dijkstra();
