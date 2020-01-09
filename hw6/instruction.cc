@@ -288,6 +288,7 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load,
       int_used_[rv64::kIntSavedRegs[reg.id]] = true;
       return rv64::kIntSavedRegs[reg.id];
     }
+    if (reg.id == 37) std::cerr << "int here\n";
     uint8_t rg = rv64::kIntTempRegs[int_tmp_++];
     if (load) {
       assert(loc[reg.id].addr != MemoryLocation::kUnAllocated);
@@ -299,8 +300,12 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load,
       float_used_[rv64::kFloatSavedRegs[reg.id] ^ 128] = true;
       return rv64::kFloatSavedRegs[reg.id];
     }
+    if (reg.id == 37) std::cerr << "float here\n";
     uint8_t rg = rv64::kFloatTempRegs[float_tmp_++];
     if (load) {
+      if (loc[reg.id].addr == MemoryLocation::kUnAllocated) {
+        std::cerr << "reg.id = " << reg.id << "\n";
+      }
       assert(loc[reg.id].addr != MemoryLocation::kUnAllocated);
       PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
     }
@@ -488,23 +493,26 @@ void InsrGen::GenerateRTypeInsr(const IRInsr &ir) {
     uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
     uint8_t rs2 = GetRealReg<int>(ir.rs2, true, int_loc_);
     PushInsr(ir.op, rd, rs1, rs2);
-    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd))
+    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
       PushStack<int>(ir.rd, rd, int_loc_);
+    }
   } else {
     if (IsLogicIFFOp(ir.op)) {
       uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
       uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
       uint8_t rs2 = GetRealReg<float>(ir.rs2, true, float_loc_);
       PushInsr(ir.op, rd, rs1, rs2);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd))
+      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
         PushStack<int>(ir.rd, rd, int_loc_);
+      }
     } else {
-      uint8_t rd = GetRealReg<float>(ir.rd, false, int_loc_);
+      uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
       uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
       uint8_t rs2 = GetRealReg<float>(ir.rs2, true, float_loc_);
       PushInsr(ir.op, rd, rs1, rs2);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd))
-        PushStack<float>(ir.rd, rd, int_loc_);
+      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
+        PushStack<float>(ir.rd, rd, float_loc_);
+      }
     }
   }
   UnlockRegs();
@@ -663,8 +671,9 @@ void InsrGen::GenerateJTypeInsr(const IRInsr &ir) {
   uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
   PushInsr(ir.op, rd, ir.imm_type, ir.imm);
   if (ir.op == INSR_JAL) {
-    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd))
+    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
       PushStack<int>(ir.rd, rd, int_loc_);
+    }
   }
   UnlockRegs();
 }
@@ -748,7 +757,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
       PushInsr(ir.op, rd, rs1);
       if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-        PushStack<float>(ir.rd, rd, int_loc_);
+        PushStack<float>(ir.rd, rd, float_loc_);
       }
       UnlockRegs();
       break;
@@ -796,24 +805,16 @@ void InsrGen::UnlockRegs() {
 void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
                          size_t next_func, bool is_main) {
   Initialize(ireg, freg);
-#ifdef INSRGEN_DEBUG
-  std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
-#endif
   std::vector<std::pair<size_t, size_t>> lab;
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
-#ifdef INSRGEN_DEBUG
-  std::cerr << "ir_pos_ = " << ir_pos_ << " ed = " << ed << "\n";
-#endif
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
-#ifdef INSRGEN_DEBUG
     std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
-#endif
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
@@ -986,11 +987,6 @@ void InsrGen::GenerateRV64() {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
-#ifdef INSRGEN_DEBUG
-    std::cerr << "label_pos = " << label_pos_ << " next_pos = " << next_pos
-              << "\n";
-    std::cerr << "sp_offset = " << attr.sp_offset << "\n";
-#endif
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
                std::string(func_[i].second) == "main");
   }
