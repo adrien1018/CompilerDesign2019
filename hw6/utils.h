@@ -65,7 +65,7 @@ template <size_t N>
 CString(const char (&lit)[N])->CString<N - 1>;
 
 // Debug message printer
-#ifdef VERBOSE
+#if VERBOSE
 #include <iostream>
 
 template <class T>

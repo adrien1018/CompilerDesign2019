@@ -766,13 +766,13 @@ void CodeGen::VisitGlobalDecl(AstNode* decl) {
 
 void CodeGen::VisitProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
-#ifdef CODEGEN_DEBUG
+#if CODEGEN_DEBUG
   Debug_(labels_.size(), ' ', labels_.back().is_func, '\n');
   PrintIR();
 #endif
 }
 
-#ifdef CODEGEN_DEBUG
+#if CODEGEN_DEBUG
 namespace {
 
 std::string RegString(const IRInsr::Register& reg) {
@@ -831,4 +831,4 @@ void CodeGen::PrintIR() {
   }
   fprintf(stderr, "\n");
 }
-#endif
+#endif  // CODEGEN_DEBUG

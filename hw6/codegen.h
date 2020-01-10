@@ -54,7 +54,7 @@ class CodeGen {
   void VisitAssignmentList(AstNode*, FunctionAttr&);
   bool VisitArray(AstNode*, FunctionAttr&, size_t dest);
   void VisitFunctionCall(AstNode*, FunctionAttr&, size_t dest);
-#ifdef CODEGEN_DEBUG
+#if CODEGEN_DEBUG
   void PrintIR();
 #endif
 };
