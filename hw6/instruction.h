@@ -755,7 +755,7 @@ class InsrGen {
   std::vector<IRInsr> ir_insr_;
   std::vector<TableEntry> tab_;
   std::vector<std::string> label_func_, func_name_;
-  size_t ir_pos_ = 0, label_pos_ = 0, tot_label_;
+  size_t ir_pos_ = 0, label_pos_ = 0, tot_label_, num_branch_expand_ = 0;
   uint8_t int_tmp_ = 0, float_tmp_ = 0;
   RegCtrl<int> int_reg_;
   RegCtrl<float> float_reg_;
@@ -801,12 +801,15 @@ class InsrGen {
   inline std::string GetLabel(int64_t imm) const;
   inline std::string GetData(const RV64Insr& insr) const;
   inline std::string GetData(int64_t imm) const;
-  size_t PrintInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
-                   const std::vector<size_t>& pos,
-                   std::vector<size_t>& pref) const;
-  size_t PrintPseudoInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
-                         const std::vector<size_t>& pos,
-                         const std::vector<size_t>& pref) const;
+  void PrintInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
+                 const std::vector<size_t>& pos);
+  void PrintPseudoInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
+                       const std::vector<size_t>& pos) const;
+  void PrintBranchInsr(std::ofstream& ofs, const RV64Insr& insr, size_t p,
+                       const std::vector<size_t>& pos);
+  void PrintNegBranch(std::ofstream& ofs, const RV64Insr& insr) const;
+  void PrintJal(std::ofstream& ofs, size_t p, const std::vector<size_t>& pos,
+                int64_t imm) const;
 
   template <class T>
   uint8_t GetRealReg(const IRInsr::Register& reg, bool load,

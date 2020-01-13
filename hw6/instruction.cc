@@ -84,7 +84,10 @@ inline std::string InsrGen::GetLabel(int64_t imm) const {
   if ((size_t)imm >= label_.size()) {
     return "_end_" + func_name_[imm - label_.size()];
   }
-  if (label_[imm].is_func) return label_func_[imm];
+  if (label_[imm].is_func) {
+    if (label_func_[imm] == "main") return "_start_MAIN";
+    return label_func_[imm];
+  }
   return ".L" + std::to_string(imm);
 }
 
@@ -100,65 +103,114 @@ inline std::string InsrGen::GetData(int64_t imm) const {
   return ".D" + std::to_string(imm);
 }
 
-size_t InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
-                                size_t p, const std::vector<size_t> &pos,
-                                const std::vector<size_t> &pref) const {
-  static constexpr size_t kJumpThreshold = 1 << 17;
-  if (insr.op != PINSR_J) {
-    ofs << kRV64InsrCode.at(insr.op);
-    if (insr.op != PINSR_RET) ofs << '\t';
-  }
+void InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
+                              size_t p, const std::vector<size_t> &pos) const {
   switch (insr.op) {
     case PINSR_J: {
       if (insr.imm_type == IRInsr::kConst) {
         ofs << kRV64InsrCode.at(insr.op) << ' ' << IMM(insr);
-        return 0;
+        break;
       }
+      PrintJal(ofs, p, pos, insr.imm);
       assert(insr.imm_type == IRInsr::kLabel);
-      int64_t dist = int64_t(p) - insr.imm;
-      if ((size_t)insr.imm < p) dist -= pref[p] - pref[insr.imm];
-      if (((size_t)std::abs(dist) << 2) > kJumpThreshold) {
-        ofs << "lui t0, \%hi(" << GetLabel(insr) << ")\n";
-        ofs << "jalr x0, \%lo(" << GetLabel(insr) << ")(t0)\n";
-        return 1;
-      } else {
-        ofs << kRV64InsrCode.at(insr.op) << ' ' << GetLabel(insr);
-        return 0;
-      }
+      break;
     }
     case PINSR_CALL:
     case PINSR_TAIL:
       if (insr.imm_type == IRInsr::kConst) {
-        ofs << IMM(insr);
+        ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << IMM(insr);
       } else {
         assert(insr.imm_type == IRInsr::kLabel);
-        ofs << GetLabel(insr);
+        ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << GetLabel(insr);
       }
       break;
     case PINSR_LA:
       assert(insr.imm_type == IRInsr::kData);
-      ofs << RD(insr) << ", " << GetData(insr);
+      ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << RD(insr) << ", "
+          << GetData(insr);
       break;
     case PINSR_MV:
     case PINSR_FMV_S:
-      ofs << RD(insr) << ", " << RS1(insr);
+      ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << RD(insr) << ", "
+          << RS1(insr);
       break;
     case PINSR_LI: {
-      ofs << RD(insr) << ", " << IMM(insr);
+      ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << RD(insr) << ", "
+          << IMM(insr);
       break;
     }
+    case PINSR_RET:
+      ofs << "\tret";
+      break;
   }
-  return 0;
+}
+
+void InsrGen::PrintNegBranch(std::ofstream &ofs, const RV64Insr &insr) const {
+  switch (insr.op) {
+    case INSR_BEQ:
+      ofs << "\tbne";
+      break;
+    case INSR_BNE:
+      ofs << "\tbeq";
+      break;
+    case INSR_BLT:
+      ofs << "\tbge";
+      break;
+    case INSR_BGE:
+      ofs << "\tblt";
+      break;
+    case INSR_BLTU:
+      ofs << "\tbgeu";
+      break;
+    case INSR_BGEU:
+      ofs << "\tbltu";
+      break;
+    default:
+      assert(false);
+  }
+  ofs << " " << RS1(insr) << ", " << RS2(insr) << ", .NEXT"
+      << num_branch_expand_ << "\n";
+}
+
+void InsrGen::PrintJal(std::ofstream &ofs, size_t p,
+                       const std::vector<size_t> &pos, int64_t imm) const {
+  static constexpr size_t kExpandThresh = 1 << 17;
+  int64_t dist = int64_t(p) - int64_t(pos[imm]);
+  if (((size_t)std::abs(dist) << 2) < kExpandThresh) {
+    ofs << "\tjal x0, " << GetLabel(imm);
+    return;
+  }
+  ofs << "\tlui t0, \%hi(" << GetLabel(imm) << ")\n";
+  ofs << "\tjalr x0, \%lo(" << GetLabel(imm) << ")(t0)";
+}
+
+void InsrGen::PrintBranchInsr(std::ofstream &ofs, const RV64Insr &insr,
+                              size_t p, const std::vector<size_t> &pos) {
+  static constexpr size_t kExpandThresh = 1 << 10;
+  int64_t dist = int64_t(p) - int64_t(pos[insr.imm]);
+  std::cerr << "dist = " << dist << "\n";
+  if (((size_t)std::abs(dist) << 2) < kExpandThresh) {
+    ofs << "\t" << kRV64InsrCode.at(insr.op) << ' ' << RS1(insr) << ", "
+        << RS2(insr) << ", " << GetLabel(insr);
+    return;
+  }
+  PrintNegBranch(ofs, insr);
+  PrintJal(ofs, p, pos, insr.imm);
+  ofs << "\n.NEXT" << (num_branch_expand_++) << ":";
 }
 
 // Serialize RV64 instructions
-size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
-                          const std::vector<size_t> &pos,
-                          std::vector<size_t> &pref) const {
-  ofs << "\t";
+void InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
+                        const std::vector<size_t> &pos) {
   if (insr.op >= kFloatingPointInsr) {
-    return PrintPseudoInsr(ofs, insr, p, pos, pref);
+    PrintPseudoInsr(ofs, insr, p, pos);
+    return;
   }
+  if (kRV64InsrFormat.at(insr.op) == B_TYPE) {
+    PrintBranchInsr(ofs, insr, p, pos);
+    return;
+  }
+  ofs << "\t";
   ofs << kRV64InsrCode.at(insr.op) << '\t';
   switch (kRV64InsrFormat.at(insr.op)) {
     case R_TYPE:
@@ -188,14 +240,6 @@ size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
         ofs << RS2(insr) << ", " << GetData(insr) << "(" << RS1(insr) << ")";
       }
       break;
-    case B_TYPE:
-      if (insr.imm_type == IRInsr::kConst) {
-        ofs << RS1(insr) << ", " << RS2(insr) << ", " << IMM(insr);
-      } else {
-        assert(insr.imm_type == IRInsr::kLabel);
-        ofs << RS1(insr) << ", " << RS2(insr) << ", " << GetLabel(insr);
-      }
-      break;
     case J_TYPE:
       if (insr.imm_type == IRInsr::kConst) {
         ofs << RD(insr) << ", " << IMM(insr);
@@ -217,7 +261,6 @@ size_t InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
           << RS3(insr);
       break;
   }
-  return 0;
 }
 
 namespace {
@@ -810,8 +853,6 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
-      // push_sp = buf_.size();
-      // GeneratePrologue(local);
     } else if (IsPseudoOp(v.op)) {
       GeneratePseudoInsr(v, local);
     } else {
@@ -830,13 +871,6 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
   for (uint8_t i : rv64::kFloatSavedRegs) {
     if (float_used_[i ^ 128]) callee_saved.push_back(i);
   }
-  // std::vector<uint8_t> caller_saved;
-  // for (uint8_t i : rv64::kIntArgs) {
-  //   if (int_used_[i]) caller_saved.push_back(i);
-  // }
-  // for (uint8_t i : rv64::kFloatArgs) {
-  //   if (float_used_[i ^ 128]) caller_saved.push_back(i);
-  // }
   sp_offset_ += 8 * callee_saved.size() + local;
   for (auto &v : buf_) {
     if (v.imm == kPosSpOffset) v.imm = sp_offset_;
@@ -937,7 +971,6 @@ void InsrGen::Flush() {
   }
   ofs_ << ".text\n";
   std::vector<size_t> pos(tot_label_);
-  std::vector<size_t> pref(insr_.size());
   for (size_t p = 0; p < insr_.size(); ++p) {
     if (std::holds_alternative<size_t>(insr_[p])) {
       size_t l = std::get<size_t>(insr_[p]);
@@ -946,15 +979,13 @@ void InsrGen::Flush() {
   }
   for (size_t p = 0; p < insr_.size(); ++p) {
     if (std::holds_alternative<RV64Insr>(insr_[p])) {
-      pref[p] = PrintInsr(ofs_, std::get<RV64Insr>(insr_[p]), p, pos, pref);
+      PrintInsr(ofs_, std::get<RV64Insr>(insr_[p]), p, pos);
       ofs_ << "\n";
     } else {
       size_t lb = std::get<size_t>(insr_[p]);
       auto s = GetLabel(lb);
-      if (s == "main") s = "_start_MAIN";
       ofs_ << s << ":\n";
     }
-    if (p > 0) pref[p] += pref[p - 1];
   }
   insr_.clear();
   data_.clear();
