@@ -325,7 +325,7 @@ bool CodeGen::VisitArray(AstNode* expr, size_t dest) {
     ir_.emplace_back(PINSR_LA, reg, IRInsr::kData, var_attr.offset);
     ir_.emplace_back(INSR_ADD, dest, dest, reg);
   }
-  //ABCDEFG;
+  cur_ = start_space;
   return expr->child.size() != var_attr.dims.size();
 }
 
@@ -347,7 +347,7 @@ void CodeGen::VisitIdentifier(AstNode* expr, size_t dest) {
     } else {
       ir_.emplace_back(PINSR_MV, dest, reg);
     }
-    //ABCDEFG;
+    cur_ = start_space;
   } else {
     if (var_attr.local) {
       if (var_attr.data_type == FLOAT_TYPE) {
@@ -422,7 +422,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, size_t dest = kNoDest) {
     } else {
       assert(false);
     }
-    //ABCDEFG;
+    cur_ = start_space;
   }
   size_t stk = (stk_store.size() + 1) / 2 * 2;  // 16-byte align
   for (size_t i = 0; i < stk_store.size(); i++) {
@@ -473,7 +473,7 @@ void CodeGen::VisitRelopExpr(AstNode* expr, size_t dest) {
     default:
       assert(false);
   }
-  //ABCDEFG;
+  cur_ = start_space;
 }
 
 void CodeGen::VisitRelopExprList(AstNode* expr_list, size_t dest) {
@@ -518,7 +518,7 @@ void CodeGen::VisitAssignment(AstNode* expr) {
       }
     }
   }
-  //ABCDEFG;
+  cur_ = start_space;
 }
 
 void CodeGen::VisitAssignmentList(AstNode* stmt_list) {
@@ -541,7 +541,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
-      //ABCDEFG;
+      cur_ = start_space;
       VisitStatement(*++it, attr);  // while block
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
       ir_[now_label].imm = InsertLabel(); // beq
@@ -554,7 +554,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
-      //ABCDEFG;
+      cur_ = start_space;
       VisitStatement(*++it, attr);         // if block
       ir_[now_label].imm = labels_.size(); // beq; get label num here
       now_label = ir_.size();
@@ -571,7 +571,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
-      //ABCDEFG;
+      cur_ = start_space;
       VisitStatement(*++it, attr);        // if block
       ir_[now_label].imm = InsertLabel(); // beq
       break;
@@ -586,7 +586,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
         now_label = ir_.size();
         ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                          IRInsr::kLabel, 0);
-        //ABCDEFG;
+        cur_ = start_space;
       }
       auto for_stmt = ++it;
       VisitStatement(*++it, attr);          // for block
@@ -598,7 +598,8 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       break;
     }
     case RETURN_STMT: {
-      if (stmt->child.size()) {
+      if (stmt->child.front()->child.size()) {
+        fprintf(stderr, "%d\n", (*stmt->child.begin())->node_type);
         Debug_("Return\n");
         FuncSpace start_space = cur_;
         size_t reg = AllocRegister(attr.return_type);
@@ -606,7 +607,8 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
         size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
         ir_.emplace_back(attr.return_type == INT_TYPE ? PINSR_MV : PINSR_FMV_S,
                          Reg(retreg), reg);
-        //ABCDEFG;
+        fprintf(stderr, "meow %d %d %d\n", attr.return_type, (int)attr.params.size(), (int)reg);
+        cur_ = start_space;
       }
       ir_.emplace_back(PINSR_RET);
       break;
@@ -618,7 +620,7 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     case FUNCTION_CALL_STMT: {
       FuncSpace start_space = cur_;
       VisitFunctionCall(stmt);
-      //ABCDEFG;
+      cur_ = start_space;
       break;
     }
   }
@@ -693,7 +695,7 @@ void CodeGen::VisitBlock(AstNode* block, FunctionAttr& attr) {
         break;
     }
   }
-  //ABCDEFG;
+  cur_ = start_space;
 }
 
 void CodeGen::VisitFunctionDecl(AstNode* decl) {
@@ -765,7 +767,7 @@ void CodeGen::VisitProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
 #if CODEGEN_DEBUG
   Debug_(labels_.size(), ' ', labels_.back().is_func, '\n');
-  //PrintIR();
+  PrintIR();
 #endif
 }
 
