@@ -496,8 +496,6 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
     }
     auto entry = BuildEntry<FUNCTION>(id_node, attr.data_type);
     size_t f = InsertSymTab(func_name, std::move(entry), id_node);
-    // Debug_("f = ", f, "\n");
-    // std::vector<size_t>& refs = tab_[f].GetValue<FunctionAttr>().params;
     mp_.PushScope();  // push scope for the function parameters
     flag = true;
     size_t i = 0;
@@ -506,8 +504,6 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
       size_t pos = InsertParam(param, std::move(et));
       tab_[f].GetValue<FunctionAttr>().params.push_back(pos);
     }
-    // Debug_("refs.size() = ", refs.size(), "\n");
-    // Debug_("tab = ", tab_[f].GetValue<FunctionAttr>().params.size(), "\n");
     BuildBlock(*it);
   } catch (StopExpression&) {
   }

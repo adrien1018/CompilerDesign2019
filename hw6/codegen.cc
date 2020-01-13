@@ -541,14 +541,14 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
       size_t jump_label = InsertLabel();
-      VisitRelopExprList(*it, attr, reg); // while expr
+      VisitRelopExprList(*it, attr, reg);  // while expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);        // while block
+      VisitStatement(*++it, attr);  // while block
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
-      ir_[now_label].imm = InsertLabel(); // beq
+      ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
     case IF_ELSE_STMT: {
@@ -559,8 +559,8 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);         // if block
-      ir_[now_label].imm = labels_.size(); // beq; get label num here
+      VisitStatement(*++it, attr);          // if block
+      ir_[now_label].imm = labels_.size();  // beq; get label num here
       now_label = ir_.size();
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, 0);
       InsertLabel();                       // beq
@@ -571,33 +571,33 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
     case IF_STMT: {
       RegCount now_reg = cur_register_;
       size_t reg = AllocRegister(attr);
-      VisitRelopExprList(*it, attr, reg); // if expr
+      VisitRelopExprList(*it, attr, reg);  // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
       cur_register_ = now_reg;
-      VisitStatement(*++it, attr);        // if block
-      ir_[now_label].imm = InsertLabel(); // beq
+      VisitStatement(*++it, attr);         // if block
+      ir_[now_label].imm = InsertLabel();  // beq
       break;
     }
     case FOR_STMT: {
-      VisitAssignmentList(*it, attr);       // for init
+      VisitAssignmentList(*it, attr);  // for init
       size_t jump_label = InsertLabel(), now_label = kNoDest;
       if ((*++it)->child.size()) {
         RegCount now_reg = cur_register_;
         size_t reg = AllocRegister(attr);
-        VisitRelopExprList(*it, attr, reg); // for expr
+        VisitRelopExprList(*it, attr, reg);  // for expr
         now_label = ir_.size();
         ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
-                        IRInsr::kLabel, 0);
+                         IRInsr::kLabel, 0);
         cur_register_ = now_reg;
       }
       auto for_stmt = ++it;
-      VisitStatement(*++it, attr);          // for block
-      VisitAssignmentList(*for_stmt, attr); // for continue
+      VisitStatement(*++it, attr);           // for block
+      VisitAssignmentList(*for_stmt, attr);  // for continue
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
       if (now_label != kNoDest) {
-        ir_[now_label].imm = InsertLabel(); // beq
+        ir_[now_label].imm = InsertLabel();  // beq
       }
       break;
     }
@@ -729,8 +729,8 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
     } else {
       reg = AllocRegister(attr, FLOAT_TYPE);
       if (fval >= 8) {
-        ir_.emplace_back(INSR_FLW, reg, Reg(rv64::kSp),
-                         IRInsr::kConst, stk++ * 8);
+        ir_.emplace_back(INSR_FLW, reg, Reg(rv64::kSp), IRInsr::kConst,
+                         stk++ * 8);
       } else {
         ir_.emplace_back(PINSR_FMV_S, reg, Reg(rv64::kFa0 + fval));
       }

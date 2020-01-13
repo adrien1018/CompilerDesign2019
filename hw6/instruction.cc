@@ -288,10 +288,8 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load,
       int_used_[rv64::kIntSavedRegs[reg.id]] = true;
       return rv64::kIntSavedRegs[reg.id];
     }
-    if (reg.id == 37) std::cerr << "int here\n";
     uint8_t rg = rv64::kIntTempRegs[int_tmp_++];
-    if (load) {
-      assert(loc[reg.id].addr != MemoryLocation::kUnAllocated);
+    if (load && loc[reg.id].addr != MemoryLocation::kUnAllocated) {
       PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
     }
     return rg;
@@ -300,13 +298,8 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load,
       float_used_[rv64::kFloatSavedRegs[reg.id] ^ 128] = true;
       return rv64::kFloatSavedRegs[reg.id];
     }
-    if (reg.id == 37) std::cerr << "float here\n";
     uint8_t rg = rv64::kFloatTempRegs[float_tmp_++];
-    if (load) {
-      if (loc[reg.id].addr == MemoryLocation::kUnAllocated) {
-        std::cerr << "reg.id = " << reg.id << "\n";
-      }
-      assert(loc[reg.id].addr != MemoryLocation::kUnAllocated);
+    if (load && loc[reg.id].addr != MemoryLocation::kUnAllocated) {
       PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
     }
     return rg;
@@ -814,7 +807,6 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
-    std::cerr << "instr = " << kRV64InsrCode.find(v.op)->second << "\n";
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);

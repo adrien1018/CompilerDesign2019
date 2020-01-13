@@ -55,18 +55,19 @@
  *   Complexity: O(#symbols inserted)
  */
 
-#include <string>
-#include <vector>
 #include <algorithm>
-#include <string_view>
 #include <forward_list>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 template <class T>
 class SymbolMap {
  public:
   typedef std::basic_string<T> KeyType;
+
  private:
   static const size_t kBlockSize_ = 1024;
   std::unordered_map<std::string_view, std::vector<size_t>> map_;
