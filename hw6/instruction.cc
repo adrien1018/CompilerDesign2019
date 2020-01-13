@@ -188,7 +188,6 @@ void InsrGen::PrintBranchInsr(std::ofstream &ofs, const RV64Insr &insr,
                               size_t p, const std::vector<size_t> &pos) {
   static constexpr size_t kExpandThresh = 1 << 10;
   int64_t dist = int64_t(p) - int64_t(pos[insr.imm]);
-  std::cerr << "dist = " << dist << "\n";
   if (((size_t)std::abs(dist) << 2) < kExpandThresh) {
     ofs << "\t" << kRV64InsrCode.at(insr.op) << ' ' << RS1(insr) << ", "
         << RS2(insr) << ", " << GetLabel(insr);
