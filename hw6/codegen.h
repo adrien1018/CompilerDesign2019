@@ -28,32 +28,34 @@ class CodeGen {
   std::vector<Label> labels_;
   std::vector<CodeData> data_;
   std::vector<Identifier> func_;
-  RegCount cur_register_;
-  size_t cur_stack_;
+  struct FuncSpace {
+    RegCount reg;
+    size_t stk;
+  } cur_, max_;
 
   size_t InsertLabel(bool func = false);
   void InitState(FunctionAttr&);
-  size_t AllocStack(FunctionAttr&, size_t);
-  size_t AllocRegister(FunctionAttr&, DataType);
+  size_t AllocStack(size_t);
+  size_t AllocRegister(DataType);
   void LoadConst(uint64_t x, size_t dest);
   void VisitProgram(AstNode*);
   void VisitGlobalDecl(AstNode*);
   void VisitFunctionDecl(AstNode*);
   void VisitStmtList(AstNode*, FunctionAttr&);
   void VisitStatement(AstNode*, FunctionAttr&);
-  void VisitDeclList(AstNode*, FunctionAttr&, bool global);
-  void VisitVariableDecl(AstNode*, FunctionAttr&, bool global);
+  void VisitDeclList(AstNode*, bool global);
+  void VisitVariableDecl(AstNode*, bool global);
   void VisitBlock(AstNode* block, FunctionAttr&);
-  void VisitRelopExpr(AstNode*, FunctionAttr&, size_t dest);
-  void VisitRelopExprList(AstNode*, FunctionAttr&, size_t dest);
-  void VisitConversion(AstNode*, FunctionAttr&, size_t dest);
-  void VisitOpr(AstNode*, FunctionAttr&, size_t dest);
-  void VisitConst(AstNode*, FunctionAttr&, size_t dest);
-  void VisitIdentifier(AstNode*, FunctionAttr&, size_t dest);
-  void VisitAssignment(AstNode*, FunctionAttr&);
-  void VisitAssignmentList(AstNode*, FunctionAttr&);
-  bool VisitArray(AstNode*, FunctionAttr&, size_t dest);
-  void VisitFunctionCall(AstNode*, FunctionAttr&, size_t dest);
+  void VisitRelopExpr(AstNode*, size_t dest);
+  void VisitRelopExprList(AstNode*, size_t dest);
+  void VisitConversion(AstNode*, size_t dest);
+  void VisitOpr(AstNode*, size_t dest);
+  void VisitConst(AstNode*, size_t dest);
+  void VisitIdentifier(AstNode*, size_t dest);
+  void VisitAssignment(AstNode*);
+  void VisitAssignmentList(AstNode*);
+  bool VisitArray(AstNode*, size_t dest);
+  void VisitFunctionCall(AstNode*, size_t dest);
 #if CODEGEN_DEBUG
   void PrintIR();
 #endif

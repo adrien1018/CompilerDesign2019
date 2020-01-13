@@ -21,20 +21,24 @@ RES1="$(mktemp)"
 RES2="$(mktemp)"
 EXE="$(mktemp)"
 
-make -j8 -C ..
+echo 'Compiling...'
+make -j8 -C .. > /dev/null
 if [ "$3" == '1' ]; then
   ../parser -o "$ASM" "$IN"
 else
   ../parser -o "$ASM" "$IN" > /dev/null 2> /dev/null
 fi
+echo -n 'Ours: '
 riscv64-linux-gnu-gcc -static -O0 -o "$EXE" main.S "$ASM"
-\time qemu-riscv64 "$EXE" > "$RES1"
+\time -f 'User: %U s, RSS: %M KB' qemu-riscv64 "$EXE" > "$RES1"
 
+echo -n 'GCC: '
 echo '#include "header.h"' > "$SOURCE"
 cat "$IN" >> "$SOURCE"
 riscv64-linux-gnu-gcc -static -O0 -o "$EXE" "$SOURCE"
-\time qemu-riscv64 "$EXE" > "$RES2"
+\time -f 'User: %U s, RSS: %M KB' qemu-riscv64 "$EXE" > "$RES2"
 
 diff "$RES1" "$RES2"
+if [ $? -eq 0 ]; then echo Correct; fi
 cp "$RES2" "$OUT"
 rm "$ASM" "$SOURCE" "$RES1" "$RES2" "$EXE"

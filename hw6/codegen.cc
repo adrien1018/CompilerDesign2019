@@ -55,34 +55,32 @@ inline size_t CodeGen::InsertLabel(bool func) {
   return ret;
 }
 inline void CodeGen::InitState(FunctionAttr& attr) {
-  cur_stack_ = attr.sp_offset = 0;
-  cur_register_ = attr.tot_preg = {0, 0};
+  max_.stk = cur_.stk = 0;
+  max_.reg = cur_.reg = {0, 0};
   attr.label = labels_.size();
   InsertLabel(true);
 }
-inline size_t CodeGen::AllocStack(FunctionAttr& attr, size_t sz) {
-  cur_stack_ += sz;
-  if (cur_stack_ > attr.sp_offset) attr.sp_offset = cur_stack_;
-  return cur_stack_ - sz;
+inline size_t CodeGen::AllocStack(size_t sz) {
+  cur_.stk += sz;
+  if (cur_.stk > max_.stk) max_.stk = cur_.stk;
+  return cur_.stk - sz;
 }
-inline size_t CodeGen::AllocRegister(FunctionAttr& attr,
-                                     DataType type = INT_TYPE) {
+inline size_t CodeGen::AllocRegister(DataType type = INT_TYPE) {
   if (type == FLOAT_TYPE) {
-    if (cur_register_.freg == attr.tot_preg.freg) attr.tot_preg.freg++;
-    return cur_register_.freg++;
+    if (cur_.reg.freg == max_.reg.freg) max_.reg.freg++;
+    return cur_.reg.freg++;
   } else {
-    if (cur_register_.ireg == attr.tot_preg.ireg) attr.tot_preg.ireg++;
-    return cur_register_.ireg++;
+    if (cur_.reg.ireg == max_.reg.ireg) max_.reg.ireg++;
+    return cur_.reg.ireg++;
   }
 }
 
-void CodeGen::VisitConversion(AstNode* expr, FunctionAttr& attr, size_t dest) {
+void CodeGen::VisitConversion(AstNode* expr, size_t dest) {
   auto& value = std::get<ConversionSemanticValue>(expr->semantic_value);
   size_t chval = value.to == FLOAT_TYPE || value.from == FLOAT_TYPE
-                     ? AllocRegister(attr, value.from)
-                     : dest;
+                     ? AllocRegister(value.from) : dest;
   Debug_("Conversion ", value.from, "->", value.to, "\n");
-  VisitRelopExpr(expr->child.front(), attr, chval);
+  VisitRelopExpr(expr->child.front(), chval);
   switch (value.from) {
     case FLOAT_TYPE: {
       if (value.to == INT_TYPE) {
@@ -90,7 +88,7 @@ void CodeGen::VisitConversion(AstNode* expr, FunctionAttr& attr, size_t dest) {
                          rv64::kRTZ);
         ir_.emplace_back(INSR_ADDIW, dest, dest, IRInsr::kConst, 0);
       } else if (value.to == BOOLEAN_TYPE) {
-        size_t tmp = AllocRegister(attr, FLOAT_TYPE);
+        size_t tmp = AllocRegister(FLOAT_TYPE);
         ir_.emplace_back(INSR_FMV_W_X, tmp, Reg(rv64::kZero));
         ir_.emplace_back(INSR_FEQ_S, dest, chval, tmp);
         ir_.emplace_back(INSR_XORI, dest, dest, IRInsr::kConst, 1);
@@ -111,7 +109,7 @@ void CodeGen::VisitConversion(AstNode* expr, FunctionAttr& attr, size_t dest) {
   }
 }
 
-void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
+void CodeGen::VisitOpr(AstNode* expr, size_t dest) {
   auto& value = std::get<ExprSemanticValue>(expr->semantic_value);
   DataType child_type = expr->child.front()->data_type;
   if (value.kind == BINARY_OPERATION) {
@@ -119,19 +117,19 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
     if (op == BINARY_OP_OR || op == BINARY_OP_AND) {  // short-circuit
       assert(child_type == BOOLEAN_TYPE);
       assert((*std::next(expr->child.begin()))->data_type == BOOLEAN_TYPE);
-      VisitRelopExpr(expr->child.front(), attr, dest);
+      VisitRelopExpr(expr->child.front(), dest);
       size_t now_label = ir_.size();
       ir_.emplace_back(op == BINARY_OP_OR ? INSR_BNE : INSR_BEQ, IRInsr::kNoRD,
                        dest, Reg(rv64::kZero), IRInsr::kLabel, 0);
-      VisitRelopExpr(*std::next(expr->child.begin()), attr, dest);
+      VisitRelopExpr(*std::next(expr->child.begin()), dest);
       ir_[now_label].imm = InsertLabel();
       return;
     }
     Debug_("Child type: ", (int)child_type, "\n");
     if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
-      size_t chval = AllocRegister(attr, INT_TYPE);
-      VisitRelopExpr(expr->child.front(), attr, dest);
-      VisitRelopExpr(*std::next(expr->child.begin()), attr, chval);
+      size_t chval = AllocRegister(INT_TYPE);
+      VisitRelopExpr(expr->child.front(), dest);
+      VisitRelopExpr(*std::next(expr->child.begin()), chval);
       switch (op) {
         case BINARY_OP_OR:
         case BINARY_OP_AND:
@@ -172,12 +170,12 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
           break;
       }
     } else if (child_type == FLOAT_TYPE) {
-      size_t chval1 = AllocRegister(attr, FLOAT_TYPE);
+      size_t chval1 = AllocRegister(FLOAT_TYPE);
       size_t chval2 = expr->data_type != FLOAT_TYPE
-                          ? AllocRegister(attr, FLOAT_TYPE)
+                          ? AllocRegister(FLOAT_TYPE)
                           : dest;
-      VisitRelopExpr(expr->child.front(), attr, chval1);
-      VisitRelopExpr(*std::next(expr->child.begin()), attr, chval2);
+      VisitRelopExpr(expr->child.front(), chval1);
+      VisitRelopExpr(*std::next(expr->child.begin()), chval2);
       switch (op) {
         case BINARY_OP_OR:
         case BINARY_OP_AND:
@@ -218,7 +216,7 @@ void CodeGen::VisitOpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
       assert(false);
     }
   } else {  // UNARY_OPERATION
-    VisitRelopExpr(expr->child.front(), attr, dest);
+    VisitRelopExpr(expr->child.front(), dest);
     UnaryOperator op = std::get<UnaryOperator>(value.op);
     if (child_type == INT_TYPE || child_type == BOOLEAN_TYPE) {
       switch (op) {
@@ -269,14 +267,14 @@ void CodeGen::LoadConst(uint64_t x, size_t dest) {
   }
 }
 
-void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
+void CodeGen::VisitConst(AstNode* expr, size_t dest) {
   auto& value = std::get<ConstValue>(expr->semantic_value);
   if (expr->data_type == CONST_STRING_TYPE) {
     ir_.emplace_back(PINSR_LA, dest, IRInsr::kData, data_.size());
     data_.emplace_back(std::get<std::string>(value));
   } else if (expr->data_type == INT_TYPE || expr->data_type == FLOAT_TYPE ||
              expr->data_type == BOOLEAN_TYPE) {
-    size_t chval = expr->data_type != FLOAT_TYPE ? dest : AllocRegister(attr);
+    size_t chval = expr->data_type != FLOAT_TYPE ? dest : AllocRegister();
     LoadConst(GetConst(expr), chval);
     if (expr->data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FMV_W_X, dest, chval);
@@ -287,20 +285,20 @@ void CodeGen::VisitConst(AstNode* expr, FunctionAttr& attr, size_t dest) {
 }
 
 // Load address to dest; if is slice, return true
-bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
+bool CodeGen::VisitArray(AstNode* expr, size_t dest) {
   Debug_("VisitArray");
-  RegCount start_reg = cur_register_;
+  FuncSpace start_space = cur_;
   auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
-  size_t reg = AllocRegister(attr), i = 0;
+  size_t reg = AllocRegister(INT_TYPE), i = 0;
   if (expr->child.size()) {
     for (AstNode* dim : expr->child) {
       if (i != 0) {
-        VisitRelopExpr(dim, attr, reg);
+        VisitRelopExpr(dim, reg);
         ir_.emplace_back(INSR_ADD, dest, dest, reg);
       } else {
-        VisitRelopExpr(dim, attr, dest);
+        VisitRelopExpr(dim, dest);
       }
       if (++i == var_attr.dims.size()) {
         ir_.emplace_back(INSR_SLLI, dest, dest, IRInsr::kConst, 2);
@@ -327,19 +325,19 @@ bool CodeGen::VisitArray(AstNode* expr, FunctionAttr& attr, size_t dest) {
     ir_.emplace_back(PINSR_LA, reg, IRInsr::kData, var_attr.offset);
     ir_.emplace_back(INSR_ADD, dest, dest, reg);
   }
-  cur_register_ = start_reg;
+  //ABCDEFG;
   return expr->child.size() != var_attr.dims.size();
 }
 
-void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
+void CodeGen::VisitIdentifier(AstNode* expr, size_t dest) {
   auto& value = std::get<IdentifierSemanticValue>(expr->semantic_value);
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
   assert(var_attr.data_type == FLOAT_TYPE || var_attr.data_type == INT_TYPE);
   if (var_attr.IsArray()) {
-    RegCount start_reg = cur_register_;
-    size_t reg = AllocRegister(attr);
-    if (!VisitArray(expr, attr, reg)) {
+    FuncSpace start_space = cur_;
+    size_t reg = AllocRegister(INT_TYPE);
+    if (!VisitArray(expr, reg)) {
       // not slice, load its content
       if (var_attr.data_type == FLOAT_TYPE) {
         ir_.emplace_back(INSR_FLW, dest, reg, IRInsr::kConst, 0);
@@ -349,7 +347,7 @@ void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
     } else {
       ir_.emplace_back(PINSR_MV, dest, reg);
     }
-    cur_register_ = start_reg;
+    //ABCDEFG;
   } else {
     if (var_attr.local) {
       if (var_attr.data_type == FLOAT_TYPE) {
@@ -367,8 +365,7 @@ void CodeGen::VisitIdentifier(AstNode* expr, FunctionAttr& attr, size_t dest) {
   }
 }
 
-void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
-                                size_t dest = kNoDest) {
+void CodeGen::VisitFunctionCall(AstNode* expr, size_t dest = kNoDest) {
   AstNode* id_node = *expr->child.begin();
   auto& value = std::get<IdentifierSemanticValue>(id_node->semantic_value);
   size_t id = std::get<Identifier>(value.identifier).first;
@@ -389,7 +386,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
   size_t ival = 0, fval = 0, i = 0;
   std::vector<size_t> stk_store;
   for (auto it = params->child.begin(); it != params->child.end(); ++it, i++) {
-    RegCount start_reg = cur_register_;
+    FuncSpace start_space = cur_;
     DataType type;
     if (func_attr) {
       VariableAttr& fattr = tab_[func_attr->params[i]].GetValue<VariableAttr>();
@@ -400,8 +397,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
         type == FLOAT_PTR_TYPE || type == BOOLEAN_TYPE) {
       size_t reg =
-          return_type == INT_TYPE ? dest : AllocRegister(attr, INT_TYPE);
-      VisitRelopExpr(*it, attr, reg);
+          return_type == INT_TYPE ? dest : AllocRegister(INT_TYPE);
+      VisitRelopExpr(*it, reg);
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
         ir_.emplace_back(type == INT_TYPE ? INSR_SW : INSR_SD, IRInsr::kNoRD,
@@ -412,8 +409,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
       ival++;
     } else if (type == FLOAT_TYPE) {
       size_t reg =
-          return_type == FLOAT_TYPE ? dest : AllocRegister(attr, FLOAT_TYPE);
-      VisitRelopExpr(*it, attr, reg);
+          return_type == FLOAT_TYPE ? dest : AllocRegister(FLOAT_TYPE);
+      VisitRelopExpr(*it, reg);
       if (fval >= 8) {
         stk_store.push_back(ir_.size());
         ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, Reg(rv64::kSp), reg,
@@ -425,7 +422,7 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
     } else {
       assert(false);
     }
-    cur_register_ = start_reg;
+    //ABCDEFG;
   }
   size_t stk = (stk_store.size() + 1) / 2 * 2;  // 16-byte align
   for (size_t i = 0; i < stk_store.size(); i++) {
@@ -454,52 +451,51 @@ void CodeGen::VisitFunctionCall(AstNode* expr, FunctionAttr& attr,
   }
 }
 
-void CodeGen::VisitRelopExpr(AstNode* expr, FunctionAttr& attr, size_t dest) {
+void CodeGen::VisitRelopExpr(AstNode* expr, size_t dest) {
   if (dest == kNoDest && expr->node_type != STMT_NODE) return;
-  RegCount start_reg = cur_register_;
+  FuncSpace start_space = cur_;
   switch (expr->node_type) {
     case CONVERSION_NODE:
-      VisitConversion(expr, attr, dest);
+      VisitConversion(expr, dest);
       break;
     case EXPR_NODE:
-      VisitOpr(expr, attr, dest);
+      VisitOpr(expr, dest);
       break;
     case CONST_VALUE_NODE:
-      VisitConst(expr, attr, dest);
+      VisitConst(expr, dest);
       break;
     case IDENTIFIER_NODE:
-      VisitIdentifier(expr, attr, dest);
+      VisitIdentifier(expr, dest);
       break;
     case STMT_NODE:
-      VisitFunctionCall(expr, attr, dest);
+      VisitFunctionCall(expr, dest);
       break;
     default:
       assert(false);
   }
-  cur_register_ = start_reg;
+  //ABCDEFG;
 }
 
-void CodeGen::VisitRelopExprList(AstNode* expr_list, FunctionAttr& attr,
-                                 size_t dest) {
+void CodeGen::VisitRelopExprList(AstNode* expr_list, size_t dest) {
   size_t i = 0;
   for (AstNode* expr : expr_list->child) {
-    VisitRelopExpr(expr, attr, ++i == expr_list->child.size() ? dest : kNoDest);
+    VisitRelopExpr(expr, ++i == expr_list->child.size() ? dest : kNoDest);
   }
 }
 
-void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
+void CodeGen::VisitAssignment(AstNode* expr) {
   Debug_("VisitAssignment\n");
-  RegCount start_reg = cur_register_;
+  FuncSpace start_space = cur_;
   AstNode* var = expr->child.front();
   auto& value = std::get<IdentifierSemanticValue>(var->semantic_value);
   const TableEntry& entry = tab_[std::get<Identifier>(value.identifier).first];
   const VariableAttr& var_attr = entry.GetValue<VariableAttr>();
   assert(var_attr.data_type == FLOAT_TYPE || var_attr.data_type == INT_TYPE);
-  size_t valreg = AllocRegister(attr, var_attr.data_type);
-  VisitRelopExpr(*std::next(expr->child.begin()), attr, valreg);
+  size_t valreg = AllocRegister(var_attr.data_type);
+  VisitRelopExpr(*std::next(expr->child.begin()), valreg);
   if (var_attr.IsArray()) {
-    size_t reg = AllocRegister(attr);
-    if (VisitArray(expr->child.front(), attr, reg)) assert(false);
+    size_t reg = AllocRegister(INT_TYPE);
+    if (VisitArray(expr->child.front(), reg)) assert(false);
     if (var_attr.data_type == FLOAT_TYPE) {
       ir_.emplace_back(INSR_FSW, IRInsr::kNoRD, reg, valreg, IRInsr::kConst, 0);
     } else {
@@ -522,13 +518,13 @@ void CodeGen::VisitAssignment(AstNode* expr, FunctionAttr& attr) {
       }
     }
   }
-  cur_register_ = start_reg;
+  //ABCDEFG;
 }
 
-void CodeGen::VisitAssignmentList(AstNode* stmt_list, FunctionAttr& attr) {
+void CodeGen::VisitAssignmentList(AstNode* stmt_list) {
   Debug_((int)stmt_list->node_type, "\n");
   assert(stmt_list->node_type == ASSIGN_EXPR_LIST_NODE);
-  for (AstNode* stmt : stmt_list->child) VisitAssignment(stmt, attr);
+  for (AstNode* stmt : stmt_list->child) VisitAssignment(stmt);
 }
 
 void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
@@ -538,29 +534,29 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
   auto it = stmt->child.begin();
   switch (value.kind) {
     case WHILE_STMT: {
-      RegCount now_reg = cur_register_;
-      size_t reg = AllocRegister(attr);
+      FuncSpace start_space = cur_;
+      size_t reg = AllocRegister(INT_TYPE);
       size_t jump_label = InsertLabel();
-      VisitRelopExprList(*it, attr, reg);  // while expr
+      VisitRelopExprList(*it, reg); // while expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
-      cur_register_ = now_reg;
+      //ABCDEFG;
       VisitStatement(*++it, attr);  // while block
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
-      ir_[now_label].imm = InsertLabel();  // beq
+      ir_[now_label].imm = InsertLabel(); // beq
       break;
     }
     case IF_ELSE_STMT: {
-      RegCount now_reg = cur_register_;
-      size_t reg = AllocRegister(attr);
-      VisitRelopExprList(*it, attr, reg);  // if expr
+      FuncSpace start_space = cur_;
+      size_t reg = AllocRegister(INT_TYPE);
+      VisitRelopExprList(*it, reg);  // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
-      cur_register_ = now_reg;
-      VisitStatement(*++it, attr);          // if block
-      ir_[now_label].imm = labels_.size();  // beq; get label num here
+      //ABCDEFG;
+      VisitStatement(*++it, attr);         // if block
+      ir_[now_label].imm = labels_.size(); // beq; get label num here
       now_label = ir_.size();
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, 0);
       InsertLabel();                       // beq
@@ -569,60 +565,60 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
       break;
     }
     case IF_STMT: {
-      RegCount now_reg = cur_register_;
-      size_t reg = AllocRegister(attr);
-      VisitRelopExprList(*it, attr, reg);  // if expr
+      FuncSpace start_space = cur_;
+      size_t reg = AllocRegister(INT_TYPE);
+      VisitRelopExprList(*it, reg);       // if expr
       size_t now_label = ir_.size();
       ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                        IRInsr::kLabel, 0);
-      cur_register_ = now_reg;
-      VisitStatement(*++it, attr);         // if block
-      ir_[now_label].imm = InsertLabel();  // beq
+      //ABCDEFG;
+      VisitStatement(*++it, attr);        // if block
+      ir_[now_label].imm = InsertLabel(); // beq
       break;
     }
     case FOR_STMT: {
-      VisitAssignmentList(*it, attr);  // for init
+      VisitAssignmentList(*it);       // for init
       size_t jump_label = InsertLabel(), now_label = kNoDest;
       if ((*++it)->child.size()) {
-        RegCount now_reg = cur_register_;
-        size_t reg = AllocRegister(attr);
-        VisitRelopExprList(*it, attr, reg);  // for expr
+        FuncSpace start_space = cur_;
+        size_t reg = AllocRegister(INT_TYPE);
+        VisitRelopExprList(*it, reg); // for expr
         now_label = ir_.size();
         ir_.emplace_back(INSR_BEQ, IRInsr::kNoRD, reg, Reg(rv64::kZero),
                          IRInsr::kLabel, 0);
-        cur_register_ = now_reg;
+        //ABCDEFG;
       }
       auto for_stmt = ++it;
-      VisitStatement(*++it, attr);           // for block
-      VisitAssignmentList(*for_stmt, attr);  // for continue
+      VisitStatement(*++it, attr);          // for block
+      VisitAssignmentList(*for_stmt);       // for continue
       ir_.emplace_back(PINSR_J, IRInsr::kLabel, jump_label);
       if (now_label != kNoDest) {
-        ir_[now_label].imm = InsertLabel();  // beq
+        ir_[now_label].imm = InsertLabel(); // beq
       }
       break;
     }
     case RETURN_STMT: {
       if (stmt->child.size()) {
         Debug_("Return\n");
-        RegCount now_reg = cur_register_;
-        size_t reg = AllocRegister(attr, attr.return_type);
-        VisitRelopExprList(*it, attr, reg);
+        FuncSpace start_space = cur_;
+        size_t reg = AllocRegister(attr.return_type);
+        VisitRelopExprList(*it, reg);
         size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
         ir_.emplace_back(attr.return_type == INT_TYPE ? PINSR_MV : PINSR_FMV_S,
                          Reg(retreg), reg);
-        cur_register_ = now_reg;
+        //ABCDEFG;
       }
       ir_.emplace_back(PINSR_RET);
       break;
     }
     case ASSIGN_STMT: {
-      VisitAssignment(stmt, attr);
+      VisitAssignment(stmt);
       break;
     }
     case FUNCTION_CALL_STMT: {
-      RegCount now_reg = cur_register_;
-      VisitFunctionCall(stmt, attr);
-      cur_register_ = now_reg;
+      FuncSpace start_space = cur_;
+      VisitFunctionCall(stmt);
+      //ABCDEFG;
       break;
     }
   }
@@ -632,8 +628,7 @@ void CodeGen::VisitStmtList(AstNode* stmt_list, FunctionAttr& attr) {
   for (AstNode* stmt : stmt_list->child) VisitStatement(stmt, attr);
 }
 
-void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
-                                bool global) {
+void CodeGen::VisitVariableDecl(AstNode* decl, bool global) {
   Debug_("VisitVariableDecl\n");
   for (auto it = std::next(decl->child.begin()); it != decl->child.end();
        it++) {
@@ -661,13 +656,13 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
       }
     } else {
       if (var_attr.IsArray()) {
-        var_attr.offset = AllocStack(attr, var_attr.size);
+        var_attr.offset = AllocStack(var_attr.size);
       } else {
         auto& value = std::get<IdentifierSemanticValue>((*it)->semantic_value);
-        var_attr.offset = AllocRegister(attr, var_attr.data_type);
+        var_attr.offset = AllocRegister(var_attr.data_type);
         if (value.kind == WITH_INIT_ID) {
           AstNode* init_val = (*it)->child.front();
-          VisitRelopExpr(init_val, attr, var_attr.offset);
+          VisitRelopExpr(init_val, var_attr.offset);
         }
       }
     }
@@ -677,29 +672,28 @@ void CodeGen::VisitVariableDecl(AstNode* decl, FunctionAttr& attr,
   Debug_("Done VisitVariableDecl\n");
 }
 
-void CodeGen::VisitDeclList(AstNode* decl_list, FunctionAttr& attr,
-                            bool global) {
+void CodeGen::VisitDeclList(AstNode* decl_list, bool global) {
   // TODO: Remove type-decls after in semantics phase
   for (AstNode* decl : decl_list->child) {
     DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
-    if (kind == VARIABLE_DECL) VisitVariableDecl(decl, attr, global);
+    if (kind == VARIABLE_DECL) VisitVariableDecl(decl, global);
   }
 }
 
 void CodeGen::VisitBlock(AstNode* block, FunctionAttr& attr) {
   Debug_("VisitBlock\n");
-  size_t stack_tmp = cur_stack_;
+  FuncSpace start_space = cur_;
   for (AstNode* nd : block->child) {
     switch (nd->node_type) {
       case STMT_LIST_NODE:
         VisitStmtList(nd, attr);
         break;
       case VARIABLE_DECL_LIST_NODE:
-        VisitDeclList(nd, attr, false);
+        VisitDeclList(nd, false);
         break;
     }
   }
-  cur_stack_ = stack_tmp;
+  //ABCDEFG;
 }
 
 void CodeGen::VisitFunctionDecl(AstNode* decl) {
@@ -718,7 +712,7 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
     VariableAttr& param = tab_[attr_param].GetValue<VariableAttr>();
     size_t reg;
     if (param.IsArray() || param.data_type == INT_TYPE) {
-      reg = AllocRegister(attr, INT_TYPE);
+      reg = AllocRegister(INT_TYPE);
       if (ival >= 8) {
         ir_.emplace_back(param.IsArray() ? INSR_LD : INSR_LW, reg,
                          Reg(rv64::kSp), IRInsr::kConst, stk++ * 8);
@@ -727,7 +721,7 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
       }
       ival++;
     } else {
-      reg = AllocRegister(attr, FLOAT_TYPE);
+      reg = AllocRegister(FLOAT_TYPE);
       if (fval >= 8) {
         ir_.emplace_back(INSR_FLW, reg, Reg(rv64::kSp), IRInsr::kConst,
                          stk++ * 8);
@@ -745,13 +739,16 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
   if (ir_.back().op != PINSR_RET) {
     ir_.emplace_back(PINSR_RET);
   }
+  attr.sp_offset = max_.stk;
+  attr.tot_preg = max_.reg;
+  Debug_(max_.stk, ' ', max_.reg.ireg, ' ', max_.reg.freg, '\n');
 }
 
 void CodeGen::VisitGlobalDecl(AstNode* decl) {
   Debug_("VisitGlobalDecl\n");
   if (decl->node_type == VARIABLE_DECL_LIST_NODE) {
     FunctionAttr attr;  // unused
-    VisitDeclList(decl, attr, true);
+    VisitDeclList(decl, true);
     return;
   }
   DeclKind kind = std::get<DeclSemanticValue>(decl->semantic_value).kind;
@@ -768,7 +765,7 @@ void CodeGen::VisitProgram(AstNode* prog) {
   for (AstNode* decl : prog->child) VisitGlobalDecl(decl);
 #if CODEGEN_DEBUG
   Debug_(labels_.size(), ' ', labels_.back().is_func, '\n');
-  PrintIR();
+  //PrintIR();
 #endif
 }
 
