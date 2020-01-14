@@ -31,6 +31,9 @@ New features:
   Since the lifetime of each pseudo register is an interval, register
   allocation becomes an interval scheduling or interval partition problem,
   which can be done in O(n log n).
+  Moreover, one can easily utilize caller-saved registers by allocating the
+  psuedo registers whose lifetime does not intersect with any function calls
+  to caller-saved registers.
 * Register frequency analysis:
   Pseudo registers that appear more frequently have higher priorities to be
   placed in the real registers.
