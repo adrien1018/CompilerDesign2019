@@ -397,7 +397,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, size_t dest = kNoDest) {
     }
     if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
         type == FLOAT_PTR_TYPE || type == BOOLEAN_TYPE) {
-      size_t reg = return_type == INT_TYPE ? dest : AllocRegister(INT_TYPE);
+      size_t reg = (dest != kNoDest && return_type == INT_TYPE)
+                       ? dest : AllocRegister(INT_TYPE);
       VisitRelopExpr(*it, reg);
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
@@ -408,7 +409,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, size_t dest = kNoDest) {
       }
       ival++;
     } else if (type == FLOAT_TYPE) {
-      size_t reg = return_type == FLOAT_TYPE ? dest : AllocRegister(FLOAT_TYPE);
+      size_t reg = (dest != kNoDest && return_type == FLOAT_TYPE)
+                       ? dest : AllocRegister(FLOAT_TYPE);
       VisitRelopExpr(*it, reg);
       if (fval >= 8) {
         stk_store.push_back(ir_.size());
@@ -920,9 +922,10 @@ class LifeTime {
  public:
   size_t l, r;
   bool freg;
-  LifeTime() : l(size_t(0) - 1), r(0), freg(false) {}
+  LifeTime() : l(0), r(0), freg(false) { l--; }
   void UpdateL(size_t x) { if (l > x) l = x; }
   void UpdateR(size_t x) { if (r < x) r = x; }
+  void Reset() { l = r = 0; l--; }
 };
 
 class BasicBlock {
@@ -958,7 +961,6 @@ inline size_t MapReg(const IRInsr& insr, int x,
     case 0:
       return map[insr.rd.id];
     case 1:
-      if (insr.rs1.id == kNoDest) return kNoDest;
       return map[insr.rs1.id];
     case 2:
       return map[insr.rs2.id];
@@ -1003,7 +1005,7 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
         // add a register for the previous write
         mp.push_back(new_reg);
         lifetime.emplace_back(lifetime[reg]);
-        lifetime[reg] = LifeTime();
+        lifetime[reg].Reset();
         // rename the register
         for (auto& x : preg_insr[reg]) {
           switch (x.second) {
