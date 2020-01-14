@@ -112,8 +112,8 @@ void InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
         ofs << kRV64InsrCode[insr.op] << ' ' << IMM(insr);
         break;
       }
-      PrintJal(ofs, p, pos, insr.imm);
       assert(insr.imm_type == IRInsr::kLabel);
+      PrintJal(ofs, p, pos, insr.imm);
       break;
     }
     case PINSR_CALL:
@@ -351,6 +351,7 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load) {
   } else {
     const MemoryLocation &mem = float_loc_[reg.id];
     if (mem.in_register) {
+      assert(std::holds_alternative<RegLocation>(mem.addr));
       const auto &rp = std::get<RegLocation>(mem.addr);
       uint8_t p = rp.loc;
       if (rp.callee_saved) {
@@ -360,6 +361,7 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load) {
         return rv64::kFloatTempRegs[p];
       }
     } else {
+      assert(std::holds_alternative<int64_t>(mem.addr));
       uint8_t rg = rv64::kFloatTempRegs[float_tmp_++];
       if (load && std::get<int64_t>(mem.addr) != MemoryLocation::kUnAllocated) {
         PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst,
@@ -720,9 +722,7 @@ void InsrGen::GenerateBTypeInsr(const IRInsr &ir) {
 void InsrGen::GenerateJTypeInsr(const IRInsr &ir) {
   uint8_t rd = GetRealReg<int>(ir.rd, false);
   PushInsr(ir.op, rd, ir.imm_type, ir.imm);
-  if (ir.op == INSR_JAL) {
-    PushStack<int>(ir.rd, rd);
-  }
+  if (ir.op == INSR_JAL) PushStack<int>(ir.rd, rd);
   ReleaseRegs();
 }
 
@@ -833,6 +833,8 @@ void InsrGen::RegAlloc(size_t ireg, size_t freg, const FuncRegInfo &info,
               return freq.float_freq[i] > freq.float_freq[j];
             });
   if (opt_.register_alloc) {
+    assert(info.float_caller.size() == freg);
+    assert(info.int_caller.size() == ireg);
     for (size_t i = 0, temp = 3, saved = 0; i < ireg; ++i) {
       size_t rg = int_order[i];
       if (info.int_caller[rg] && temp < rv64::kNumIntTempRegs) {
@@ -902,6 +904,7 @@ void InsrGen::ReleaseRegs() {
 
 FreqInfo InsrGen::CountFreq(size_t ireg, size_t freg, size_t ed) const {
   FreqInfo freq(ireg, freg);
+  std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
   for (size_t i = ir_pos_; i < ed; ++i) {
     const IRInsr &ir = ir_insr_[i];
     if (ir.op == PINSR_PUSH_SP) continue;
@@ -917,6 +920,8 @@ FreqInfo InsrGen::CountFreq(size_t ireg, size_t freg, size_t ed) const {
           break;
         }
         case PINSR_FMV_S: {
+          assert(ir.rd.id < freg);
+          assert(ir.rs1.id < freg);
           if (!ir.rd.is_real) freq.float_freq[ir.rd.id]++;
           if (!ir.rs1.is_real) freq.float_freq[ir.rs1.id]++;
           break;
@@ -1011,7 +1016,7 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
-    // std::cerr << "instr = " << kRV64InsrCode[v.op] << "\n";
+    std::cerr << "instr = " << kRV64InsrCode[v.op] << "\n";
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
@@ -1167,12 +1172,14 @@ void InsrGen::InitLabel() {
 void InsrGen::GenerateRV64() {
   InitLabel();
   assert(label_.empty() || label_[0].is_func);
+  const FuncRegInfo kNoOpt;
   for (size_t i = 0, j = 0; i < func_.size(); ++i) {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
-               std::string(func_[i].second) == "main", func_reg_info_[j++]);
+               std::string(func_[i].second) == "main",
+               opt_.register_alloc ? func_reg_info_[j++] : kNoOpt);
   }
   Flush();
 }

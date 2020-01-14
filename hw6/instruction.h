@@ -703,8 +703,10 @@ class InsrGen {
   std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
 
-  void InitRegs(size_t ireg, size_t freg, const FuncRegInfo& info, const FreqInfo &freq);
-  void RegAlloc(size_t ireg, size_t freg, const FuncRegInfo& info, const FreqInfo &freq);
+  void InitRegs(size_t ireg, size_t freg, const FuncRegInfo& info,
+                const FreqInfo& freq);
+  void RegAlloc(size_t ireg, size_t freg, const FuncRegInfo& info,
+                const FreqInfo& freq);
   FreqInfo CountFreq(size_t ireg, size_t freg, size_t ed) const;
 
   void PushInsr(const RV64Insr& v);
