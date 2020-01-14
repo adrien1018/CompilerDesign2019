@@ -4,7 +4,7 @@
 #include <iostream>
 
 void Driver::DeleteAst_() {
-  if (prog) RecursiveDelete(prog);
+  if (prog_) RecursiveDelete(prog_);
 }
 
 int Driver::Parse(bool debug) {
@@ -20,17 +20,18 @@ void Driver::PrintError(const Location& l, const std::string& m) {
 
 bool Driver::SemanticAnalysis() {
   Analyzer analyzer(file_);
-  if (!analyzer.BuildSymbolTable(prog)) return false;
-  bool success = analyzer.SemanticAnalysis(prog);
+  if (!analyzer.BuildSymbolTable(prog_)) return false;
+  bool success = analyzer.SemanticAnalysis(prog_);
   auto p = analyzer.MoveSymbolTable();
   tab_ = std::move(std::get<0>(p));
   mp_ = std::move(std::get<1>(p));
   return success;
 }
 
-void Driver::CodeGeneration(const std::string& outfile) {
+void Driver::CodeGeneration(const std::string& outfile,
+                            const CodeGenOptions& opt) {
   CodeGen generator(std::move(tab_));
-  generator.CodeGeneration(prog);
+  generator.CodeGeneration(prog_, opt);
   InsrGen insr(outfile, generator.MoveInfo());
   insr.GenerateRV64();
 }

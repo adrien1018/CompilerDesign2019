@@ -9,7 +9,7 @@ VERBOSE ?= 0
 CODEGEN_DEBUG ?= 0
 INSRGEN_DEBUG ?= 0
 LEXER_DEBUG ?= 0
-CXXFLAGS = -O3 -Wall -std=c++17 -Wno-register -Wno-switch -DVERBOSE=$(VERBOSE) -DCODEGEN_DEBUG=$(CODEGEN_DEBUG) -DINSRGEN_DEBUG=$(INSRGEN_DEBUG) -DLEXER_DEBUG=$(LEXER_DEBUG) -DNDEBUG
+CXXFLAGS = -Og -g -Wall -std=c++17 -Wno-register -Wno-switch -DVERBOSE=$(VERBOSE) -DCODEGEN_DEBUG=$(CODEGEN_DEBUG) -DINSRGEN_DEBUG=$(INSRGEN_DEBUG) -DLEXER_DEBUG=$(LEXER_DEBUG) -DNDEBUG
 
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -fprofile-arcs -ftest-coverage -o $@ $^
@@ -32,7 +32,7 @@ driver.o: driver.h ast.h codegen.h analysis.h entry.h error.h symtab.h parser.cc
 error.o: error.h ast.h symtab.h
 gv.o: gv.h ast.h symtab.h
 instruction.o: instruction.h symtab.h utils.h
-main.o: driver.h ast.h symtab.h codegen.h analysis.h error.h gv.h parser.cc
+main.o: driver.h ast.h symtab.h codegen.h analysis.h error.h gv.h parser.cc argparse.h
 
 clean: clean_gcov
 	rm -f $(TARGET) $(OBJS) $(INTERMEDIATE) parser.hh parser.output
