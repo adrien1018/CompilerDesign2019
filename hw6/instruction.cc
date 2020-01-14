@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <numeric>
 
 const IRInsr::NoRD IRInsr::kNoRD;
 
@@ -96,7 +97,7 @@ inline std::string InsrGen::GetData(const RV64Insr &insr) const {
 }
 
 inline std::string InsrGen::GetData(int64_t imm) const {
-  if (data_[imm].index() == 1) {
+  if (std::holds_alternative<std::string>(data_[imm])) {
     auto &str = std::get<std::string>(data_[imm]);
     return ".D" + std::to_string(str_cache_.at(str));
   }
@@ -329,6 +330,7 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load) {
   if constexpr (std::is_same_v<T, int>) {
     const MemoryLocation &mem = int_loc_[reg.id];
     if (mem.in_register) {
+      assert(std::holds_alternative<RegLocation>(mem.addr));
       const auto &rp = std::get<RegLocation>(mem.addr);
       uint8_t p = rp.loc;
       if (rp.callee_saved) {
@@ -338,6 +340,7 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load) {
         return rv64::kIntTempRegs[p];
       }
     } else {
+      assert(std::holds_alternative<int64_t>(mem.addr));
       uint8_t rg = rv64::kIntTempRegs[int_tmp_++];
       if (load && std::get<int64_t>(mem.addr) != MemoryLocation::kUnAllocated) {
         PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst,
@@ -351,7 +354,7 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load) {
       const auto &rp = std::get<RegLocation>(mem.addr);
       uint8_t p = rp.loc;
       if (rp.callee_saved) {
-        int_used_[rv64::kFloatSavedRegs[p] ^ 128] = true;
+        float_used_[rv64::kFloatSavedRegs[p] ^ 128] = true;
         return rv64::kFloatSavedRegs[p];
       } else {
         return rv64::kFloatTempRegs[p];
@@ -372,6 +375,7 @@ void InsrGen::PushStack(IRInsr::Register reg, uint8_t rg) {
   if (reg.is_real) return;
   if constexpr (std::is_same_v<T, int>) {
     if (int_loc_[reg.id].in_register) return;
+    assert(std::holds_alternative<int64_t>(int_loc_[reg.id].addr));
     if (std::get<int64_t>(int_loc_[reg.id].addr) ==
         MemoryLocation::kUnAllocated) {
       int_loc_[reg.id].addr = -sp_offset_ - 8;
@@ -379,8 +383,10 @@ void InsrGen::PushStack(IRInsr::Register reg, uint8_t rg) {
     }
     PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst,
              std::get<int64_t>(int_loc_[reg.id].addr));
+    assert(std::holds_alternative<int64_t>(int_loc_[reg.id].addr));
   } else {
-    if (int_loc_[reg.id].in_register) return;
+    if (float_loc_[reg.id].in_register) return;
+    assert(std::holds_alternative<int64_t>(float_loc_[reg.id].addr));
     if (std::get<int64_t>(float_loc_[reg.id].addr) ==
         MemoryLocation::kUnAllocated) {
       float_loc_[reg.id].addr = -sp_offset_ - 8;
@@ -388,6 +394,7 @@ void InsrGen::PushStack(IRInsr::Register reg, uint8_t rg) {
     }
     PushInsr(INSR_FSD, rg, rv64::kFp, IRInsr::kConst,
              std::get<int64_t>(float_loc_[reg.id].addr));
+    assert(std::holds_alternative<int64_t>(float_loc_[reg.id].addr));
   }
 }
 
@@ -777,16 +784,16 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       uint8_t rd = GetRealReg<int>(ir.rd, false);
       uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      PushStack<int>(ir.rd, rd);
       ReleaseRegs();
+      PushStack<int>(ir.rd, rd);
       break;
     }
     case PINSR_FMV_S: {
       uint8_t rd = GetRealReg<float>(ir.rd, false);
       uint8_t rs1 = GetRealReg<float>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      PushStack<float>(ir.rd, rd);
       ReleaseRegs();
+      PushStack<float>(ir.rd, rd);
       break;
     }
   }
@@ -813,43 +820,59 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v) {
   }
 }
 
-void InsrGen::RegAlloc(size_t ireg, size_t freg, const FuncRegInfo &info) {
+void InsrGen::RegAlloc(size_t ireg, size_t freg, const FuncRegInfo &info,
+                       const FreqInfo &freq) {
+  std::vector<size_t> int_order(ireg), float_order(freg);
+  std::iota(int_order.begin(), int_order.end(), 0);
+  std::iota(float_order.begin(), float_order.end(), 0);
+  std::sort(int_order.begin(), int_order.end(), [&freq](size_t i, size_t j) {
+    return freq.int_freq[i] > freq.int_freq[j];
+  });
+  std::sort(float_order.begin(), float_order.end(),
+            [&freq](size_t i, size_t j) {
+              return freq.float_freq[i] > freq.float_freq[j];
+            });
   if (opt_.register_alloc) {
     for (size_t i = 0, temp = 3, saved = 0; i < ireg; ++i) {
-      if (info.int_caller[i] && temp < rv64::kNumIntTempRegs) {
-        int_loc_[i].in_register = true;
-        int_loc_[i].addr = RegLocation(false, temp++);
+      size_t rg = int_order[i];
+      if (info.int_caller[rg] && temp < rv64::kNumIntTempRegs) {
+        int_loc_[rg].in_register = true;
+        int_loc_[rg].addr = RegLocation(false, temp++);
       } else if (saved < rv64::kNumIntSavedRegs) {
-        int_loc_[i].in_register = true;
-        int_loc_[i].addr = RegLocation(true, saved++);
+        int_loc_[rg].in_register = true;
+        int_loc_[rg].addr = RegLocation(true, saved++);
       }
     }
     for (size_t i = 0, temp = 3, saved = 0; i < freg; ++i) {
-      if (info.float_caller[i] && temp < rv64::kNumFloatTempRegs) {
-        float_loc_[i].in_register = true;
-        float_loc_[i].addr = RegLocation(false, temp++);
+      size_t rg = float_order[i];
+      if (info.float_caller[rg] && temp < rv64::kNumFloatTempRegs) {
+        float_loc_[rg].in_register = true;
+        float_loc_[rg].addr = RegLocation(false, temp++);
       } else if (saved < rv64::kNumFloatSavedRegs) {
-        float_loc_[i].in_register = true;
-        float_loc_[i].addr = RegLocation(true, saved++);
+        float_loc_[rg].in_register = true;
+        float_loc_[rg].addr = RegLocation(true, saved++);
       }
     }
   } else {
     for (size_t i = 0, saved = 0; i < ireg; ++i) {
+      size_t rg = int_order[i];
       if (saved < rv64::kNumIntSavedRegs) {
-        int_loc_[i].in_register = true;
-        int_loc_[i].addr = RegLocation(true, saved++);
+        int_loc_[rg].in_register = true;
+        int_loc_[rg].addr = RegLocation(true, saved++);
       }
     }
     for (size_t i = 0, saved = 0; i < freg; ++i) {
+      size_t rg = float_order[i];
       if (saved < rv64::kNumFloatSavedRegs) {
-        float_loc_[i].in_register = true;
-        float_loc_[i].addr = RegLocation(true, saved++);
+        float_loc_[rg].in_register = true;
+        float_loc_[rg].addr = RegLocation(true, saved++);
       }
     }
   }
 }
 
-void InsrGen::InitRegs(size_t ireg, size_t freg, const FuncRegInfo &info) {
+void InsrGen::InitRegs(size_t ireg, size_t freg, const FuncRegInfo &info,
+                       const FreqInfo &freq) {
   buf_.clear();
   std::fill(int_used_.begin(), int_used_.end(), false);
   std::fill(float_used_.begin(), float_used_.end(), false);
@@ -857,13 +880,34 @@ void InsrGen::InitRegs(size_t ireg, size_t freg, const FuncRegInfo &info) {
   int_used_[rv64::kRa] = true;
   int_loc_.assign(ireg, MemoryLocation());
   float_loc_.assign(freg, MemoryLocation());
+  for (size_t i = 0; i < ireg; ++i) {
+    assert(!int_loc_[i].in_register &&
+           std::holds_alternative<int64_t>(int_loc_[i].addr) &&
+           std::get<int64_t>(int_loc_[i].addr) == MemoryLocation::kUnAllocated);
+  }
+  for (size_t i = 0; i < freg; ++i) {
+    assert(!float_loc_[i].in_register &&
+           std::holds_alternative<int64_t>(float_loc_[i].addr) &&
+           std::get<int64_t>(float_loc_[i].addr) ==
+               MemoryLocation::kUnAllocated);
+  }
   sp_offset_ = 0;
-  RegAlloc(ireg, freg, info);
+  RegAlloc(ireg, freg, info, freq);
 }
 
 void InsrGen::ReleaseRegs() {
   int_tmp_ = 0;
   float_tmp_ = 0;
+}
+
+FreqInfo InsrGen::CountFreq(size_t ireg, size_t freg, size_t ed) const {
+  FreqInfo freq(ireg, freg);
+  for (size_t i = ir_pos_; i < ed; ++i) {
+    const IRInsr &v = ir_insr_[i];
+    if (v.op == PINSR_PUSH_SP) continue;
+    switch (kRV64InsrFormat[v.op]) {}
+  }
+  return freq;
 }
 
 void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
@@ -872,13 +916,15 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
   std::vector<std::pair<size_t, size_t>> lab;
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
-  InitRegs(ireg, freg, info);
+  auto freq = CountFreq(ireg, freg, ed);
+  InitRegs(ireg, freg, info, freq);
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
+    // std::cerr << "instr = " << kRV64InsrCode[v.op] << "\n";
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
@@ -982,7 +1028,7 @@ void InsrGen::GenerateData(std::vector<CodeData> &&data) {
 void InsrGen::Flush() {
   str_cache_.clear();
   for (size_t i = 0; i < data_.size(); ++i) {
-    if (data_[i].index() == 1) {
+    if (std::holds_alternative<std::string>(data_[i])) {
       // .string, can be optimized
       std::string &str = std::get<std::string>(data_[i]);
       if (str_cache_.find(str) != str_cache_.end()) continue;

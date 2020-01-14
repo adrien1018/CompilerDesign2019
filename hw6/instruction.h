@@ -607,6 +607,13 @@ struct FuncRegInfo {
   std::vector<uint8_t> int_caller, float_caller;
 };
 
+struct FreqInfo {
+  std::vector<size_t> int_freq, float_freq;
+
+  FreqInfo() = default;
+  FreqInfo(size_t ireg, size_t freg) : int_freq(ireg), float_freq(freg) {}
+};
+
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
 
 using CodeGenInfo = std::tuple<std::vector<IRInsr>&, std::vector<Label>&,
@@ -696,8 +703,9 @@ class InsrGen {
   std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
 
-  void InitRegs(size_t ireg, size_t freg, const FuncRegInfo& info);
-  void RegAlloc(size_t ireg, size_t freg, const FuncRegInfo& info);
+  void InitRegs(size_t ireg, size_t freg, const FuncRegInfo& info, const FreqInfo &freq);
+  void RegAlloc(size_t ireg, size_t freg, const FuncRegInfo& info, const FreqInfo &freq);
+  FreqInfo CountFreq(size_t ireg, size_t freg, size_t ed) const;
 
   void PushInsr(const RV64Insr& v);
   template <class... Args>
