@@ -1039,25 +1039,49 @@ class LifeTimeCalc {
   const std::vector<BasicBlock>& bb_rw_;
   std::vector<LifeTime>& lifetimes_;
   std::vector<uint8_t> ans_;
+  std::vector<std::pair<size_t, size_t>> low_;
+  std::vector<size_t> stk_;
+  size_t dfsid_;
 
-  static constexpr uint8_t kReadVis = 1;
+  static constexpr uint8_t kReadStack = 1;
   static constexpr uint8_t kReadAns = 2;
   static constexpr uint8_t kWriteAns = 4;
   static constexpr uint8_t kOK = kReadAns | kWriteAns;
   bool OK(size_t x) {
     return (ans_[x] & (kReadAns | kWriteAns)) == (kReadAns | kWriteAns);
   }
+  // Tarjan's algorithm
   void DFSRead(size_t x, size_t reg) {
-    ans_[x] |= kReadVis;
+    dfsid_++;
+    low_[x] = {dfsid_, dfsid_};
+    stk_.push_back(x);
+    ans_[x] |= kReadStack;
     auto it = bb_rw_[x].rw.find(reg);
     if (it != bb_rw_[x].rw.end() && it->second.read_first) ans_[x] |= kReadAns;
     if (it == bb_rw_[x].rw.end() || !it->second.write) {
       for (size_t i = 0; i < 2 && bb_edge_[x][i] != kEmpty; i++) {
-        if (!(ans_[bb_edge_[x][i]] & kReadVis)) {
-          DFSRead(bb_edge_[x][i], reg);
+        size_t w = bb_edge_[x][i];
+        if (!low_[w].first) {
+          DFSRead(w, reg);
+          low_[x].second = std::min(low_[x].second, low_[w].second);
+        } else if (ans_[w] & kReadStack) {
+          low_[x].second = std::min(low_[x].second, low_[w].first);
         }
-        ans_[x] |= kReadAns & ans_[bb_edge_[x][i]];
+        ans_[x] |= kReadAns & ans_[w];
+        if (ans_[w] & kReadAns) std::cerr << x << ' ';
       }
+    }
+    if (low_[x].first == low_[x].second) {
+      size_t i = stk_.size(), flag = 0;
+      do {
+        i--;
+        flag |= kReadAns & ans_[stk_[i]];
+        ans_[stk_[i]] &= ~kReadStack;
+      } while (stk_[i] != x);
+      if (flag) {
+        for (size_t j = i; j < stk_.size(); j++) ans_[stk_[j]] |= kReadAns;
+      }
+      stk_.resize(i);
     }
   }
   void DFSWrite(size_t x, size_t reg, bool root = true) {
@@ -1075,15 +1099,14 @@ class LifeTimeCalc {
                const std::vector<std::array<size_t, 2>>& bb_edge,
                const std::vector<BasicBlock>& bb_rw,
                std::vector<LifeTime>& lifetimes)
-      : bb_boundary_(bb_boundary),
-        bb_edge_(bb_edge),
-        bb_rw_(bb_rw),
-        lifetimes_(lifetimes),
-        ans_(bb_edge.size()) {}
+      : bb_boundary_(bb_boundary), bb_edge_(bb_edge), bb_rw_(bb_rw),
+        lifetimes_(lifetimes), ans_(bb_edge.size()), low_(bb_edge.size()) {}
   void operator()(size_t reg) {
     std::fill(ans_.begin(), ans_.end(), 0);
+    std::fill(low_.begin(), low_.end(), std::make_pair((size_t)0, (size_t)0));
+    dfsid_ = 0;
     for (size_t i = 0; i < bb_edge_.size(); i++) {
-      if (ans_[i] & kReadVis) continue;
+      if (low_[i].first) continue;
       DFSRead(i, reg);
     }
     for (size_t i = 0; i < bb_edge_.size(); i++) {
@@ -1100,14 +1123,14 @@ class LifeTimeCalc {
       if (OK(last)) break;
     }
     auto it = bb_rw_[first].rw.find(reg);
-    lifetimes_[reg].l = it == bb_rw_[first].rw.end() || it->second.read_first
-                            ? bb_boundary_[first]
-                            : it->second.write_pos;
-    lifetimes_[reg].r =
+    lifetimes_[reg].UpdateL(
+        it == bb_rw_[first].rw.end() || it->second.read_first
+            ? bb_boundary_[first] : it->second.write_pos);
+    lifetimes_[reg].UpdateR(
         (bb_edge_[last][0] != kEmpty && OK(bb_edge_[last][0])) ||
-                (bb_edge_[last][1] != kEmpty && OK(bb_edge_[last][1]))
+        (bb_edge_[last][1] != kEmpty && OK(bb_edge_[last][1]))
             ? bb_boundary_[last + 1]
-            : bb_rw_[last].rw.find(reg)->second.last_read_pos;
+            : bb_rw_[last].rw.find(reg)->second.last_read_pos);
   }
 };
 
