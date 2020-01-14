@@ -5,8 +5,8 @@ parser.cc
 parser.hh
 scanner.cc
 location.hh
-calc++/
 testing/
+output.txt
 *.gv
 *.png
 *.gcov

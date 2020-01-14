@@ -22,11 +22,11 @@ RES2="$(mktemp)"
 EXE="$(mktemp)"
 
 echo 'Compiling...'
-make -j8 -C .. > /dev/null
+make -j8 -C ../src > /dev/null
 if [ "$3" == '1' ]; then
-  ../parser -o "$ASM" -O "$IN"
+  ../src/parser -o "$ASM" -O "$IN"
 else
-  ../parser -o "$ASM" -O "$IN" > /dev/null 2> /dev/null
+  ../src/parser -o "$ASM" -O "$IN" > /dev/null 2> /dev/null
 fi
 echo -n 'Ours: '
 riscv64-linux-gnu-gcc -static -O0 -o "$EXE" main.S "$ASM"

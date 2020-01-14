@@ -1,4 +1,0 @@
-B06902021 吳聖福
-
-Note that the implemented constant folding ignores the overflow issue,
-    since there's no specification about AC's numerical range.
