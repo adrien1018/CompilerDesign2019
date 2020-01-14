@@ -108,7 +108,7 @@ void InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
   switch (insr.op) {
     case PINSR_J: {
       if (insr.imm_type == IRInsr::kConst) {
-        ofs << kRV64InsrCode.at(insr.op) << ' ' << IMM(insr);
+        ofs << kRV64InsrCode[insr.op] << ' ' << IMM(insr);
         break;
       }
       PrintJal(ofs, p, pos, insr.imm);
@@ -118,24 +118,24 @@ void InsrGen::PrintPseudoInsr(std::ofstream &ofs, const RV64Insr &insr,
     case PINSR_CALL:
     case PINSR_TAIL:
       if (insr.imm_type == IRInsr::kConst) {
-        ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << IMM(insr);
+        ofs << "\t" << kRV64InsrCode[insr.op] << " " << IMM(insr);
       } else {
         assert(insr.imm_type == IRInsr::kLabel);
-        ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << GetLabel(insr);
+        ofs << "\t" << kRV64InsrCode[insr.op] << " " << GetLabel(insr);
       }
       break;
     case PINSR_LA:
       assert(insr.imm_type == IRInsr::kData);
-      ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << RD(insr) << ", "
+      ofs << "\t" << kRV64InsrCode[insr.op] << " " << RD(insr) << ", "
           << GetData(insr);
       break;
     case PINSR_MV:
     case PINSR_FMV_S:
-      ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << RD(insr) << ", "
+      ofs << "\t" << kRV64InsrCode[insr.op] << " " << RD(insr) << ", "
           << RS1(insr);
       break;
     case PINSR_LI: {
-      ofs << "\t" << kRV64InsrCode.at(insr.op) << " " << RD(insr) << ", "
+      ofs << "\t" << kRV64InsrCode[insr.op] << " " << RD(insr) << ", "
           << IMM(insr);
       break;
     }
@@ -189,7 +189,7 @@ void InsrGen::PrintBranchInsr(std::ofstream &ofs, const RV64Insr &insr,
   static constexpr size_t kExpandThresh = 1 << 10;
   int64_t dist = int64_t(p) - int64_t(pos[insr.imm]);
   if (((size_t)std::abs(dist) << 2) < kExpandThresh) {
-    ofs << "\t" << kRV64InsrCode.at(insr.op) << ' ' << RS1(insr) << ", "
+    ofs << "\t" << kRV64InsrCode[insr.op] << ' ' << RS1(insr) << ", "
         << RS2(insr) << ", " << GetLabel(insr);
     return;
   }
@@ -205,13 +205,13 @@ void InsrGen::PrintInsr(std::ofstream &ofs, const RV64Insr &insr, size_t p,
     PrintPseudoInsr(ofs, insr, p, pos);
     return;
   }
-  if (kRV64InsrFormat.at(insr.op) == B_TYPE) {
+  if (kRV64InsrFormat[insr.op] == B_TYPE) {
     PrintBranchInsr(ofs, insr, p, pos);
     return;
   }
   ofs << "\t";
-  ofs << kRV64InsrCode.at(insr.op) << '\t';
-  switch (kRV64InsrFormat.at(insr.op)) {
+  ofs << kRV64InsrCode[insr.op] << '\t';
+  switch (kRV64InsrFormat[insr.op]) {
     case R_TYPE:
       ofs << RD(insr) << ", " << RS1(insr) << ", " << RS2(insr);
       break;
@@ -407,7 +407,7 @@ void InsrGen::PushInsr(Opcode op, Args &&... args) {
     return;
   }
   std::vector<int64_t> param{args...};
-  switch (kRV64InsrFormat.at(op)) {
+  switch (kRV64InsrFormat[op]) {
     case R_TYPE: {
       uint8_t rd = static_cast<uint8_t>(param[0]);
       uint8_t rs1 = static_cast<uint8_t>(param[1]);
@@ -801,7 +801,7 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
 }
 
 void InsrGen::GenerateInsrImpl(const IRInsr &v) {
-  switch (kRV64InsrFormat.at(v.op)) {
+  switch (kRV64InsrFormat[v.op]) {
     case R_TYPE:
       return GenerateRTypeInsr(v);
     case I_TYPE:
@@ -884,8 +884,7 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
   GenerateEpilogue(local, callee_saved);
 
   auto Push = [this](const RV64Insr &v) {
-    auto it = kRV64InsrFormat.find(v.op);
-    if (it != kRV64InsrFormat.end() && it->second == I_TYPE &&
+    if (kRV64InsrFormat[v.op] == I_TYPE &&
         v.imm_type == IRInsr::kConst && std::abs(v.imm) >= (1 << 11)) {
       auto e = ExpandImm(v, v.rd, v.rs1);
       insr_.insert(insr_.end(), e.begin(), e.end());
