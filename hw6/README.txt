@@ -9,9 +9,15 @@ Compile:
   (There are `riscv64-linux-gnu-*` cross-compiler on workstations now.)
 
 Usage:
-  $ ./parser -o [output=output.s] [file]
+  $ ./parser -o [output=output.s] [file] [-O]
+* Use `-O` to turn on optimization
+
+Notes:
+* We use an external library `argparse` (https://github.com/p-ranav/argparse) to parse the command line arguments.
 
 New features:
 * Fix operator precedence
 * Allow expression lists in `if`, `while`, `return`
 * Allow long distance jumps in branch instructions (GCC and Clang both fail on this case)
+* Register lifetime analysis
+* Register frequency analysis: pseudo registers that appear more frequently have higher priority to be placed in the real registers.
