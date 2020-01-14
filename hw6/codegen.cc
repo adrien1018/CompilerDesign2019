@@ -398,7 +398,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, size_t dest = kNoDest) {
     if (type == CONST_STRING_TYPE || type == INT_TYPE || type == INT_PTR_TYPE ||
         type == FLOAT_PTR_TYPE || type == BOOLEAN_TYPE) {
       size_t reg = (dest != kNoDest && return_type == INT_TYPE)
-                       ? dest : AllocRegister(INT_TYPE);
+                       ? dest
+                       : AllocRegister(INT_TYPE);
       VisitRelopExpr(*it, reg);
       if (ival >= 8) {
         stk_store.push_back(ir_.size());
@@ -410,7 +411,8 @@ void CodeGen::VisitFunctionCall(AstNode* expr, size_t dest = kNoDest) {
       ival++;
     } else if (type == FLOAT_TYPE) {
       size_t reg = (dest != kNoDest && return_type == FLOAT_TYPE)
-                       ? dest : AllocRegister(FLOAT_TYPE);
+                       ? dest
+                       : AllocRegister(FLOAT_TYPE);
       VisitRelopExpr(*it, reg);
       if (fval >= 8) {
         stk_store.push_back(ir_.size());
@@ -923,9 +925,16 @@ class LifeTime {
   size_t l, r;
   bool freg;
   LifeTime() : l(0), r(0), freg(false) { l--; }
-  void UpdateL(size_t x) { if (l > x) l = x; }
-  void UpdateR(size_t x) { if (r < x) r = x; }
-  void Reset() { l = r = 0; l--; }
+  void UpdateL(size_t x) {
+    if (l > x) l = x;
+  }
+  void UpdateR(size_t x) {
+    if (r < x) r = x;
+  }
+  void Reset() {
+    l = r = 0;
+    l--;
+  }
 };
 
 class BasicBlock {
@@ -998,7 +1007,7 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
     }
     if (kWriteRegTable[ir[i].op] && !ir[i].rd.is_real) {
       size_t reg = MapReg(ir[i], 0, ireg_map, freg_map);
-      if (bb.Write(reg, i)) { // the previous write is BB-local
+      if (bb.Write(reg, i)) {  // the previous write is BB-local
         auto& mp = lifetime[reg].freg ? freg_map : ireg_map;
         size_t new_reg = lifetime.size();
         size_t new_reg_t = mp.size();
@@ -1068,7 +1077,7 @@ class LifeTimeCalc {
           low_[x].second = std::min(low_[x].second, low_[w].first);
         }
         ans_[x] |= kReadAns & ans_[w];
-        if (ans_[w] & kReadAns) std::cerr << x << ' ';
+        // if (ans_[w] & kReadAns) std::cerr << x << ' ';
       }
     }
     if (low_[x].first == low_[x].second) {
@@ -1094,13 +1103,18 @@ class LifeTimeCalc {
       }
     }
   }
+
  public:
   LifeTimeCalc(const std::vector<size_t>& bb_boundary,
                const std::vector<std::array<size_t, 2>>& bb_edge,
                const std::vector<BasicBlock>& bb_rw,
                std::vector<LifeTime>& lifetimes)
-      : bb_boundary_(bb_boundary), bb_edge_(bb_edge), bb_rw_(bb_rw),
-        lifetimes_(lifetimes), ans_(bb_edge.size()), low_(bb_edge.size()) {}
+      : bb_boundary_(bb_boundary),
+        bb_edge_(bb_edge),
+        bb_rw_(bb_rw),
+        lifetimes_(lifetimes),
+        ans_(bb_edge.size()),
+        low_(bb_edge.size()) {}
   void operator()(size_t reg) {
     std::fill(ans_.begin(), ans_.end(), 0);
     std::fill(low_.begin(), low_.end(), std::make_pair((size_t)0, (size_t)0));
@@ -1123,12 +1137,13 @@ class LifeTimeCalc {
       if (OK(last)) break;
     }
     auto it = bb_rw_[first].rw.find(reg);
-    lifetimes_[reg].UpdateL(
-        it == bb_rw_[first].rw.end() || it->second.read_first
-            ? bb_boundary_[first] : it->second.write_pos);
+    lifetimes_[reg].UpdateL(it == bb_rw_[first].rw.end() ||
+                                    it->second.read_first
+                                ? bb_boundary_[first]
+                                : it->second.write_pos);
     lifetimes_[reg].UpdateR(
         (bb_edge_[last][0] != kEmpty && OK(bb_edge_[last][0])) ||
-        (bb_edge_[last][1] != kEmpty && OK(bb_edge_[last][1]))
+                (bb_edge_[last][1] != kEmpty && OK(bb_edge_[last][1]))
             ? bb_boundary_[last + 1]
             : bb_rw_[last].rw.find(reg)->second.last_read_pos);
   }
@@ -1136,9 +1151,7 @@ class LifeTimeCalc {
 
 struct LifeTimeReg {
   size_t id, l, r;
-  bool operator<(const LifeTimeReg& x) const {
-    return r < x.r;
-  }
+  bool operator<(const LifeTimeReg& x) const { return r < x.r; }
 };
 
 struct Node {
@@ -1184,7 +1197,7 @@ size_t AssignRegister(size_t offset, std::vector<LifeTimeReg>& vec,
   return pq.size();
 }
 
-} // namespace
+}  // namespace
 
 void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   size_t first = labels_[attr.label].ir_pos, last = ir_.size();
@@ -1256,24 +1269,24 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   }
   bb_edge.push_back({kEmpty, kEmpty});
 
-  { // calculate lifetime of each register
+  {  // calculate lifetime of each register
     LifeTimeCalc calc(bb_boundary, bb_edge, bb_rw, lifetimes);
     for (size_t i = 0; i < orig_reg; i++) calc(i);
 #if CODEGEN_DEBUG
-  for (size_t i = 0; i < bb_rw.size(); i++) {
-    std::cerr << i << "->" << (int)bb_edge[i][0] << ',' << (int)bb_edge[i][1]
-              << ':';
-    for (auto& j : bb_rw[i].rw) {
-      std::cerr << '(' << j.first << ',' << j.second.read_first << ','
-                << j.second.write << ')';
+    for (size_t i = 0; i < bb_rw.size(); i++) {
+      std::cerr << i << "->" << (int)bb_edge[i][0] << ',' << (int)bb_edge[i][1]
+                << ':';
+      for (auto& j : bb_rw[i].rw) {
+        std::cerr << '(' << j.first << ',' << j.second.read_first << ','
+                  << j.second.write << ')';
+      }
+      std::cerr << '\n';
     }
-    std::cerr << '\n';
-  }
-  for (size_t i = 0; i < lifetimes.size(); i++) {
-    std::cerr << i << '(' << lifetimes[i].freg << "):" << lifetimes[i].l << '-'
-              << lifetimes[i].r << '\n';
-  }
-  std::cerr << std::flush;
+    for (size_t i = 0; i < lifetimes.size(); i++) {
+      std::cerr << i << '(' << lifetimes[i].freg << "):" << lifetimes[i].l
+                << '-' << lifetimes[i].r << '\n';
+    }
+    std::cerr << std::flush;
 #endif
   }
 
@@ -1299,7 +1312,8 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   }
   size_t ireg_t = AssignRegister(0, 5, int_reg, reg_map);
   size_t freg_t = AssignRegister(0, 10, float_reg, reg_map);
-  int_reg.clear(); float_reg.clear();
+  int_reg.clear();
+  float_reg.clear();
   for (size_t i = 0; i < lifetimes.size(); i++) {
     if (reg_map[i] != kEmpty) continue;
     if (lifetimes[i].freg) {
@@ -1320,7 +1334,7 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
       ir_[i].rd.id = reg_map[reg];
     }
     switch (kReadRegTable[ir_[i].op]) {
-      //case 3:
+      // case 3:
       //  if (!ir_[i].rs3.is_real) {
       //    size_t reg = MapReg(ir_[i], 3, ireg_map, freg_map);
       //    ir_[i].rs3.id = reg_map[reg];
@@ -1335,8 +1349,10 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
           size_t reg = MapReg(ir_[i], 1, ireg_map, freg_map);
           ir_[i].rs1.id = reg_map[reg];
         }
-      case 0: break;
-      default: assert(false);
+      case 0:
+        break;
+      default:
+        assert(false);
     }
   }
   attr.tot_preg.ireg = std::max((size_t)1, ireg_t + ireg_s);

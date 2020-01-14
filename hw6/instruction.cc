@@ -882,17 +882,6 @@ void InsrGen::InitRegs(size_t ireg, size_t freg, const FuncRegInfo &info,
   int_used_[rv64::kRa] = true;
   int_loc_.assign(ireg, MemoryLocation());
   float_loc_.assign(freg, MemoryLocation());
-  for (size_t i = 0; i < ireg; ++i) {
-    assert(!int_loc_[i].in_register &&
-           std::holds_alternative<int64_t>(int_loc_[i].addr) &&
-           std::get<int64_t>(int_loc_[i].addr) == MemoryLocation::kUnAllocated);
-  }
-  for (size_t i = 0; i < freg; ++i) {
-    assert(!float_loc_[i].in_register &&
-           std::holds_alternative<int64_t>(float_loc_[i].addr) &&
-           std::get<int64_t>(float_loc_[i].addr) ==
-               MemoryLocation::kUnAllocated);
-  }
   sp_offset_ = 0;
   RegAlloc(ireg, freg, info, freq);
 }
@@ -904,7 +893,6 @@ void InsrGen::ReleaseRegs() {
 
 FreqInfo InsrGen::CountFreq(size_t ireg, size_t freg, size_t ed) const {
   FreqInfo freq(ireg, freg);
-  std::cerr << "ireg = " << ireg << " freg = " << freg << "\n";
   for (size_t i = ir_pos_; i < ed; ++i) {
     const IRInsr &ir = ir_insr_[i];
     if (ir.op == PINSR_PUSH_SP) continue;
@@ -920,8 +908,6 @@ FreqInfo InsrGen::CountFreq(size_t ireg, size_t freg, size_t ed) const {
           break;
         }
         case PINSR_FMV_S: {
-          assert(ir.rd.id < freg);
-          assert(ir.rs1.id < freg);
           if (!ir.rd.is_real) freq.float_freq[ir.rd.id]++;
           if (!ir.rs1.is_real) freq.float_freq[ir.rs1.id]++;
           break;
@@ -1016,7 +1002,6 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
       lab.emplace_back(buf_.size(), label_pos_);
       label_pos_++;
     }
-    std::cerr << "instr = " << kRV64InsrCode[v.op] << "\n";
     if (v.op == PINSR_PUSH_SP) {
       PushInsr(INSR_ADDI, rv64::kSp, rv64::kSp, IRInsr::kConst, kNegSpOffset);
       PushInsr(INSR_ADDI, rv64::kFp, rv64::kSp, IRInsr::kConst, kPosSpOffset);
