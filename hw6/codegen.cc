@@ -863,32 +863,46 @@ struct InsrFloatOpr_ {
   bool arr[kPseudoInsr][4];
   constexpr InsrFloatOpr_() : arr{} {
     constexpr std::pair<Opcode, uint8_t> table[] = {
-#define X3(x) {x, 0}, {x, 1}, {x, 2}, {x, 3}
-#define X2(x) {x, 0}, {x, 1}, {x, 2}
+#define X3(x) \
+  {x, 0}, {x, 1}, {x, 2}, { x, 3 }
+#define X2(x) \
+  {x, 0}, {x, 1}, { x, 2 }
 #define X1(x) {x, 0}, {x, 1}
-        {INSR_FLW, 0},       {INSR_FLD, 0},       {INSR_FSW, 2},
-        {INSR_FSD, 2},       X3(INSR_FMADD_S),    X3(INSR_FMSUB_S),
-        X3(INSR_FNMADD_S),   X3(INSR_FNMSUB_S),   X3(INSR_FMADD_D),
-        X3(INSR_FMSUB_D),    X3(INSR_FNMADD_D),   X3(INSR_FNMSUB_D),
-        X2(INSR_FADD_S),     X2(INSR_FSUB_S),     X2(INSR_FMUL_S),
-        X2(INSR_FDIV_S),     X1(INSR_FSQRT_S),    X2(INSR_FSGNJ_S),
-        X2(INSR_FSGNJN_S),   X2(INSR_FSGNJX_S),   X2(INSR_FMIN_S),
-        X2(INSR_FMAX_S),     X2(INSR_FADD_D),     X2(INSR_FSUB_D),
-        X2(INSR_FMUL_D),     X2(INSR_FDIV_D),     X1(INSR_FSQRT_D),
-        X2(INSR_FSGNJ_D),    X2(INSR_FSGNJN_D),   X2(INSR_FSGNJX_D),
-        X2(INSR_FMIN_D),     X2(INSR_FMAX_D),     {INSR_FCVT_W_S, 1},
-        {INSR_FCVT_WU_S, 1}, {INSR_FCVT_L_S, 1},  {INSR_FCVT_LU_S, 1},
-        {INSR_FCVT_W_D, 1},  {INSR_FCVT_WU_D, 1}, {INSR_FCVT_L_D, 1},
-        {INSR_FCVT_LU_D, 1}, {INSR_FCVT_S_W, 0},  {INSR_FCVT_S_WU, 0},
-        {INSR_FCVT_S_L, 0},  {INSR_FCVT_S_LU, 0}, {INSR_FCVT_D_W, 0},
-        {INSR_FCVT_D_WU, 0}, {INSR_FCVT_D_L, 0},  {INSR_FCVT_D_LU, 0},
-        X1(INSR_FCVT_S_D),   X1(INSR_FCVT_D_S),   {INSR_FMV_X_W, 1},
-        {INSR_FMV_X_D, 1},   {INSR_FMV_W_X, 0},   {INSR_FMV_D_X, 0},
-        {INSR_FEQ_S, 1},     {INSR_FEQ_S, 2},     {INSR_FLT_S, 1},
-        {INSR_FLT_S, 2},     {INSR_FLE_S, 1},     {INSR_FLE_S, 2},
-        {INSR_FEQ_D, 1},     {INSR_FEQ_D, 2},     {INSR_FLT_D, 1},
-        {INSR_FLT_D, 2},     {INSR_FLE_D, 1},     {INSR_FLE_D, 2},
-        {INSR_FCLASS_S, 1},  {INSR_FCLASS_D, 1},  X1(PINSR_FMV_S)
+        {INSR_FLW, 0},      {INSR_FLD, 0},
+        {INSR_FSW, 2},      {INSR_FSD, 2},
+        X3(INSR_FMADD_S),   X3(INSR_FMSUB_S),
+        X3(INSR_FNMADD_S),  X3(INSR_FNMSUB_S),
+        X3(INSR_FMADD_D),   X3(INSR_FMSUB_D),
+        X3(INSR_FNMADD_D),  X3(INSR_FNMSUB_D),
+        X2(INSR_FADD_S),    X2(INSR_FSUB_S),
+        X2(INSR_FMUL_S),    X2(INSR_FDIV_S),
+        X1(INSR_FSQRT_S),   X2(INSR_FSGNJ_S),
+        X2(INSR_FSGNJN_S),  X2(INSR_FSGNJX_S),
+        X2(INSR_FMIN_S),    X2(INSR_FMAX_S),
+        X2(INSR_FADD_D),    X2(INSR_FSUB_D),
+        X2(INSR_FMUL_D),    X2(INSR_FDIV_D),
+        X1(INSR_FSQRT_D),   X2(INSR_FSGNJ_D),
+        X2(INSR_FSGNJN_D),  X2(INSR_FSGNJX_D),
+        X2(INSR_FMIN_D),    X2(INSR_FMAX_D),
+        {INSR_FCVT_W_S, 1}, {INSR_FCVT_WU_S, 1},
+        {INSR_FCVT_L_S, 1}, {INSR_FCVT_LU_S, 1},
+        {INSR_FCVT_W_D, 1}, {INSR_FCVT_WU_D, 1},
+        {INSR_FCVT_L_D, 1}, {INSR_FCVT_LU_D, 1},
+        {INSR_FCVT_S_W, 0}, {INSR_FCVT_S_WU, 0},
+        {INSR_FCVT_S_L, 0}, {INSR_FCVT_S_LU, 0},
+        {INSR_FCVT_D_W, 0}, {INSR_FCVT_D_WU, 0},
+        {INSR_FCVT_D_L, 0}, {INSR_FCVT_D_LU, 0},
+        X1(INSR_FCVT_S_D),  X1(INSR_FCVT_D_S),
+        {INSR_FMV_X_W, 1},  {INSR_FMV_X_D, 1},
+        {INSR_FMV_W_X, 0},  {INSR_FMV_D_X, 0},
+        {INSR_FEQ_S, 1},    {INSR_FEQ_S, 2},
+        {INSR_FLT_S, 1},    {INSR_FLT_S, 2},
+        {INSR_FLE_S, 1},    {INSR_FLE_S, 2},
+        {INSR_FEQ_D, 1},    {INSR_FEQ_D, 2},
+        {INSR_FLT_D, 1},    {INSR_FLT_D, 2},
+        {INSR_FLE_D, 1},    {INSR_FLE_D, 2},
+        {INSR_FCLASS_S, 1}, {INSR_FCLASS_D, 1},
+        X1(PINSR_FMV_S)
 #undef X1
 #undef X2
 #undef X3
@@ -907,8 +921,12 @@ class LifeTime {
   bool freg;
   LifeTime() : l(size_t(0) - 1), r(0), freg(false) {}
   bool operator<(const LifeTime& x) const { return l < x.l; }
-  void UpdateL(size_t x) { if (l > x) l = x; }
-  void UpdateR(size_t x) { if (r < x) r = x; }
+  void UpdateL(size_t x) {
+    if (l > x) l = x;
+  }
+  void UpdateR(size_t x) {
+    if (r < x) r = x;
+  }
 };
 
 class BasicBlock {
@@ -933,13 +951,18 @@ class BasicBlock {
 inline size_t MapReg(const IRInsr& insr, int x,
                      const std::vector<size_t>& ireg_map,
                      const std::vector<size_t>& freg_map) {
-  const std::vector<size_t>& map = kFloatOprTable[insr.op][x] ? freg_map : ireg_map;
+  const std::vector<size_t>& map =
+      kFloatOprTable[insr.op][x] ? freg_map : ireg_map;
   switch (x) {
-    case 0: return map[insr.rd.id];
-    case 1: return map[insr.rs1.id];
-    case 2: return map[insr.rs2.id];
+    case 0:
+      return map[insr.rd.id];
+    case 1:
+      return map[insr.rs1.id];
+    case 2:
+      return map[insr.rs2.id];
     // case 3: return map[insr.rs3.id];
-    default: assert(false);
+    default:
+      assert(false);
   }
   __builtin_unreachable();
 }
@@ -959,15 +982,19 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
       preg_insr[reg].emplace_back(i, x);
     };
     switch (kReadRegTable[ir[i].op]) {
-      //case 3: if (!ir[i].rs3.is_real) UpdateRead(3);
-      case 2: if (!ir[i].rs2.is_real) UpdateRead(2);
-      case 1: if (!ir[i].rs1.is_real) UpdateRead(1);
-      case 0: break;
-      default: assert(false);
+      // case 3: if (!ir[i].rs3.is_real) UpdateRead(3);
+      case 2:
+        if (!ir[i].rs2.is_real) UpdateRead(2);
+      case 1:
+        if (!ir[i].rs1.is_real) UpdateRead(1);
+      case 0:
+        break;
+      default:
+        assert(false);
     }
     if (kWriteRegTable[ir[i].op] && !ir[i].rd.is_real) {
       size_t reg = MapReg(ir[i], 0, ireg_map, freg_map);
-      if (bb.Write(reg)) { // the previous write is BB-local
+      if (bb.Write(reg)) {  // the previous write is BB-local
         auto& mp = lifetime[reg].freg ? freg_map : ireg_map;
         size_t new_reg = lifetime.size();
         size_t new_reg_t = mp.size();
@@ -978,11 +1005,18 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
         // rename the register
         for (auto& x : preg_insr[reg]) {
           switch (x.second) {
-            case 0: ir[x.first].rd.id = new_reg_t; break;
-            case 1: ir[x.first].rs1.id = new_reg_t; break;
-            case 2: ir[x.first].rs2.id = new_reg_t; break;
-            //case 3: ir[x.first].rs3.id = new_reg_t; break;
-            default: assert(false);
+            case 0:
+              ir[x.first].rd.id = new_reg_t;
+              break;
+            case 1:
+              ir[x.first].rs1.id = new_reg_t;
+              break;
+            case 2:
+              ir[x.first].rs2.id = new_reg_t;
+              break;
+            // case 3: ir[x.first].rs3.id = new_reg_t; break;
+            default:
+              assert(false);
           }
         }
       }
@@ -994,14 +1028,14 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
   return bb;
 }
 
-} // namespace
+}  // namespace
 
 void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   constexpr size_t kEmpty = -(size_t)1;
   size_t first = labels_[attr.label].ir_pos, last = ir_.size();
   std::vector<size_t> bb_boundary, label_bb;
   std::vector<std::array<size_t, 2>> bb_edge;
-  { // identify basic blocks
+  {  // identify basic blocks
     bb_boundary.push_back(first);
     for (size_t i = attr.label; i < labels_.size(); i++) {
       bb_boundary.push_back(labels_[i].ir_pos);
@@ -1010,9 +1044,8 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     size_t mid = bb_boundary.size();
     for (size_t i = first; i < last; i++) {
       if (kRV64InsrFormat[ir_[i].op] == B_TYPE ||
-          kRV64InsrFormat[ir_[i].op] == J_TYPE ||
-          ir_[i].op == INSR_JALR || ir_[i].op == PINSR_J ||
-          ir_[i].op == PINSR_RET) {
+          kRV64InsrFormat[ir_[i].op] == J_TYPE || ir_[i].op == INSR_JALR ||
+          ir_[i].op == PINSR_J || ir_[i].op == PINSR_RET) {
         bb_boundary.push_back(i + 1);
       }
     }
@@ -1020,7 +1053,7 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
                        bb_boundary.end());
     assert(std::is_sorted(bb_boundary.begin(), bb_boundary.end()));
     bb_boundary.resize(std::unique(bb_boundary.begin(), bb_boundary.end()) -
-                      bb_boundary.begin());
+                       bb_boundary.begin());
     // basic block ID for each label
     for (size_t i = attr.label, j = 0; i < labels_.size(); i++) {
       while (j + 1 < bb_boundary.size() &&
@@ -1039,8 +1072,8 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     lifetimes[i + attr.tot_preg.ireg].freg = true;
   }
   for (size_t i = 0; i + 1 < bb_boundary.size(); i++) {
-    AnalyzeBasicBlock(ir_, bb_boundary[i], bb_boundary[i + 1],
-                      lifetimes, ireg_map, freg_map);
+    AnalyzeBasicBlock(ir_, bb_boundary[i], bb_boundary[i + 1], lifetimes,
+                      ireg_map, freg_map);
   }
   attr.tot_preg.ireg = ireg_map.size();
   attr.tot_preg.freg = freg_map.size();
@@ -1092,9 +1125,8 @@ void CodeGen::PrintIR() {
       j++;
     }
     fprintf(stderr, "%s, RD:%s, RS1:%s, RS2:%s, ",
-            kRV64InsrCode[ir_[i].op].c_str(),
-            RegString(ir_[i].rd).c_str(), RegString(ir_[i].rs1).c_str(),
-            RegString(ir_[i].rs2).c_str());
+            kRV64InsrCode[ir_[i].op].c_str(), RegString(ir_[i].rd).c_str(),
+            RegString(ir_[i].rs1).c_str(), RegString(ir_[i].rs2).c_str());
     switch (ir_[i].imm_type) {
       case IRInsr::kConst:
         fprintf(stderr, "%ld\n", ir_[i].imm);

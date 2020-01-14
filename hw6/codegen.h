@@ -8,10 +8,6 @@
 #include "entry.h"
 #include "instruction.h"
 
-struct CodeGenOptions {
-  bool register_alloc;
-};
-
 class CodeGen {
  public:
   CodeGen() = default;
@@ -21,10 +17,13 @@ class CodeGen {
     opt_ = opt;
     VisitProgram(prog);
   }
-  CodeGenInfo MoveInfo() { return std::tie(ir_, labels_, data_, tab_, func_); }
+  CodeGenInfo MoveInfo() {
+    return std::tie(ir_, labels_, data_, tab_, func_, opt_, func_reg_info_);
+  }
 
  private:
   CodeGenOptions opt_;
+  std::vector<FuncRegInfo> func_reg_info_;
   std::vector<TableEntry> tab_;  // symbol table
   std::ofstream ofs_;            // output stream
   enum {

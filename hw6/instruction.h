@@ -358,7 +358,8 @@ struct RV64InsrCodeTable {
   std::string arr[kPseudoInsr];
   RV64InsrCodeTable() {
     for (std::pair<Opcode, std::string> i : {
-#define INSR_PAIR(x) (std::pair<Opcode, std::string>){INSR_##x, ToInsr(CString(#x))}
+#define INSR_PAIR(x) \
+  (std::pair<Opcode, std::string>){INSR_##x, ToInsr(CString(#x))}
              INSR_PAIR(LUI),         INSR_PAIR(AUIPC),
              INSR_PAIR(JAL),         INSR_PAIR(JALR),
              INSR_PAIR(BEQ),         INSR_PAIR(BNE),
@@ -572,11 +573,18 @@ struct RV64Insr {
         imm(imm) {}
 };
 
+struct RegLocation {
+  bool callee_saved;
+  uint8_t loc;
+
+  RegLocation() = default;
+  RegLocation(bool c, uint8_t l) : callee_saved(c), loc(l) {}
+};
+
 struct MemoryLocation {
   static constexpr int64_t kUnAllocated = LLONG_MAX;
   bool in_register;
-  uint8_t reg;
-  int64_t addr;
+  std::variant<int64_t, RegLocation> addr;
   MemoryLocation() : in_register(false), addr(kUnAllocated) {}
 };
 
@@ -590,117 +598,21 @@ struct Label {
 
 // num (or initialized array, not used in this project),
 //   string constant or uninitialized array
+
+struct CodeGenOptions {
+  bool register_alloc;
+};
+
+struct FuncRegInfo {
+  std::vector<uint8_t> int_caller, float_caller;
+};
+
 using CodeData = std::variant<std::vector<uint8_t>, std::string, size_t>;
+
 using CodeGenInfo = std::tuple<std::vector<IRInsr>&, std::vector<Label>&,
                                std::vector<CodeData>&, std::vector<TableEntry>&,
-                               std::vector<Identifier>&>;
-
-template <class T>
-class RegCtrl {
- public:
-  explicit RegCtrl() { Clear(); }
-
-  void Clear() {
-    std::fill(regs_.begin(), regs_.end(), kReserved);
-    std::fill(locked_.begin(), locked_.end(), false);
-    if constexpr (std::is_same_v<T, int>) {
-      for (uint8_t p : rv64::kIntSavedRegs) regs_[p] = kEmpty;
-      for (uint8_t p : rv64::kIntTempRegs) regs_[p] = kEmpty;
-    } else {
-      static_assert(std::is_same_v<T, float>);
-      for (uint8_t p : rv64::kFloatSavedRegs) regs_[p ^ 128] = kEmpty;
-      for (uint8_t p : rv64::kFloatTempRegs) regs_[p ^ 128] = kEmpty;
-    }
-    lock_que_.clear();
-    ptr_ = 0;
-    tptr_ = 0;
-  }
-
-  uint8_t GetSavedReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
-    if constexpr (std::is_same_v<T, int>) {
-      return GetReg(rv64::kIntSavedRegs, replaced, dirty);
-    } else {
-      return GetReg(rv64::kFloatSavedRegs, replaced, dirty);
-    }
-  }
-  uint8_t GetTempReg(size_t& replaced, const std::vector<uint8_t>& dirty) {
-    if constexpr (std::is_same_v<T, int>) {
-      return GetReg(rv64::kIntTempRegs, replaced, dirty);
-    } else {
-      return GetReg(rv64::kFloatTempRegs, replaced, dirty);
-    }
-  }
-
-  size_t GetPseudoReg(uint8_t pos) const {
-    if constexpr (std::is_same_v<T, int>) return regs_[pos];
-    return regs_[pos ^ 128];
-  }
-  void SetPseudoReg(uint8_t pos, size_t id) {
-    if constexpr (std::is_same_v<T, int>) {
-      regs_[pos] = id;
-    } else {
-      regs_[pos ^ 128] = id;
-    }
-  }
-
-  void Lock(uint8_t v) {
-    locked_[v] = true;
-    lock_que_.push_back(v);
-  }
-  void Unlock() {
-    for (uint8_t v : lock_que_) locked_[v] = false;
-    lock_que_.clear();
-  }
-
- private:
-  static constexpr size_t kEmpty = (size_t)-1;
-  static constexpr size_t kReserved = (size_t)-2;
-  static constexpr size_t kQueueSize = 4;
-
-  std::array<size_t, rv64::kRegisters> regs_{};
-  std::array<size_t, rv64::kRegisters> last_push_{};
-  std::array<bool, rv64::kRegisters> locked_{};
-  std::vector<uint8_t> lock_que_{};
-  size_t ptr_{}, tptr_{};
-
-  // Get available register. If no registers are available, check whether
-  // there is a clean register. Try to avoid returning dirty register (an
-  // extra store required).
-  template <size_t N>
-  uint8_t GetReg(const std::array<uint8_t, N>& pool, size_t& replaced,
-                 const std::vector<uint8_t>& dirty) {
-    constexpr auto Convert = [](size_t p) {
-      if constexpr (std::is_same_v<T, int>) return p;
-      return p ^ 128;
-    };
-    bool found = false, found_clean = false;
-    size_t fptr = 0;
-    uint8_t rg = 0;
-    for (size_t i = 0; i < N && !found_clean; ++i) {
-      // TODO: this is incorrect.
-      assert(ptr_ < pool.size());
-      uint8_t p = pool[ptr_];
-      if (++ptr_ >= N) ptr_ = 0;
-      size_t idx = Convert(p);
-      assert(idx < 32);
-      if (locked_[idx]) continue;
-      if (regs_[idx] == kEmpty) return p;
-      if (regs_[idx] != kReserved) {
-        if (!found || !dirty[regs_[idx]]) {
-          if (!dirty[regs_[idx]]) found_clean = true;
-          found = true;
-          rg = p;
-          fptr = ptr_;
-        }
-      }
-    }
-    assert(found);
-    uint8_t c = Convert(rg);
-    ptr_ = fptr;
-    replaced = regs_[c];
-    return rg;
-  }
-};
+                               std::vector<Identifier>&, CodeGenOptions&,
+                               std::vector<FuncRegInfo>&>;
 
 /**
  * RV64 Instruction Generator
@@ -718,7 +630,7 @@ class InsrGen {
   explicit InsrGen(const std::string& file, std::vector<CodeData>&& data,
                    std::vector<Label>&& label, std::vector<TableEntry>&& tab,
                    std::vector<Identifier>&& func);
-  explicit InsrGen(const std::string& file, CodeGenInfo code_gen);
+  explicit InsrGen(const std::string& file, CodeGenInfo&& code_gen);
 
   // The instructions will be flushed upon destruction.
   ~InsrGen() {}
@@ -753,7 +665,7 @@ class InsrGen {
    * optional since the caller saved registers are only used for optimization).
    */
   void GenerateAR(size_t local, size_t ireg, size_t freg, size_t next_func,
-                  bool is_main = false);
+                  bool is_main, const FuncRegInfo& info);
 
   /**
    * Generate a list of global variables (`.data` section in the RV64 assembly).
@@ -772,11 +684,11 @@ class InsrGen {
   std::vector<Identifier> func_;
   std::vector<IRInsr> ir_insr_;
   std::vector<TableEntry> tab_;
+  CodeGenOptions opt_;
+  std::vector<FuncRegInfo> func_reg_info_;
   std::vector<std::string> label_func_, func_name_;
   size_t ir_pos_ = 0, label_pos_ = 0, tot_label_, num_branch_expand_ = 0;
   uint8_t int_tmp_ = 0, float_tmp_ = 0;
-  RegCtrl<int> int_reg_;
-  RegCtrl<float> float_reg_;
   std::array<bool, rv64::kRegisters> int_used_{};
   std::array<bool, rv64::kRegisters> float_used_{};
   std::unordered_map<std::string, size_t> str_cache_;
@@ -784,7 +696,8 @@ class InsrGen {
   std::vector<MemoryLocation> int_loc_, float_loc_;
   int64_t sp_offset_;
 
-  void Initialize(size_t ireg, size_t freg);
+  void InitRegs(size_t ireg, size_t freg, const FuncRegInfo& info);
+  void RegAlloc(size_t ireg, size_t freg, const FuncRegInfo& info);
 
   void PushInsr(const RV64Insr& v);
   template <class... Args>
@@ -830,12 +743,10 @@ class InsrGen {
                 int64_t imm) const;
 
   template <class T>
-  uint8_t GetRealReg(const IRInsr::Register& reg, bool load,
-                     std::vector<MemoryLocation>& loc);
+  uint8_t GetRealReg(const IRInsr::Register& reg, bool load);
   template <class T>
-  void PushStack(IRInsr::Register reg, uint8_t rg,
-                 std::vector<MemoryLocation>& loc);
-  void UnlockRegs();
+  void PushStack(IRInsr::Register reg, uint8_t rg);
+  void ReleaseRegs();
 
   static constexpr int64_t kPosSpOffset = LLONG_MAX;
   static constexpr int64_t kNegSpOffset = LLONG_MIN;

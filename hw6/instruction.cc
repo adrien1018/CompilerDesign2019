@@ -305,18 +305,19 @@ InsrGen::InsrGen(const std::string &file, std::vector<CodeData> &&data,
       tab_(std::move(tab)),
       tot_label_(label_.size()) {}
 
-InsrGen::InsrGen(const std::string &file, CodeGenInfo code_gen)
+InsrGen::InsrGen(const std::string &file, CodeGenInfo &&code_gen)
     : ofs_(file),
       data_(std::move(std::get<2>(code_gen))),
       label_(std::move(std::get<1>(code_gen))),
       func_(std::move(std::get<4>(code_gen))),
       ir_insr_(std::move(std::get<0>(code_gen))),
       tab_(std::move(std::get<3>(code_gen))),
+      opt_(std::move(std::get<5>(code_gen))),
+      func_reg_info_(std::move(std::get<6>(code_gen))),
       tot_label_(label_.size()) {}
 
 template <class T>
-uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load,
-                            std::vector<MemoryLocation> &loc) {
+uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load) {
   if (reg.is_real) {
     if constexpr (std::is_same_v<T, int>) {
       int_used_[reg.id] = true;
@@ -326,39 +327,67 @@ uint8_t InsrGen::GetRealReg(const IRInsr::Register &reg, bool load,
     return reg.id;
   }
   if constexpr (std::is_same_v<T, int>) {
-    if (reg.id < rv64::kNumIntSavedRegs) {
-      int_used_[rv64::kIntSavedRegs[reg.id]] = true;
-      return rv64::kIntSavedRegs[reg.id];
+    const MemoryLocation &mem = int_loc_[reg.id];
+    if (mem.in_register) {
+      const auto &rp = std::get<RegLocation>(mem.addr);
+      uint8_t p = rp.loc;
+      if (rp.callee_saved) {
+        int_used_[rv64::kIntSavedRegs[p]] = true;
+        return rv64::kIntSavedRegs[p];
+      } else {
+        return rv64::kIntTempRegs[p];
+      }
+    } else {
+      uint8_t rg = rv64::kIntTempRegs[int_tmp_++];
+      if (load && std::get<int64_t>(mem.addr) != MemoryLocation::kUnAllocated) {
+        PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst,
+                 std::get<int64_t>(mem.addr));
+      }
+      return rg;
     }
-    uint8_t rg = rv64::kIntTempRegs[int_tmp_++];
-    if (load && loc[reg.id].addr != MemoryLocation::kUnAllocated) {
-      PushInsr(INSR_LD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
-    }
-    return rg;
   } else {
-    if (reg.id < rv64::kNumFloatSavedRegs) {
-      float_used_[rv64::kFloatSavedRegs[reg.id] ^ 128] = true;
-      return rv64::kFloatSavedRegs[reg.id];
+    const MemoryLocation &mem = float_loc_[reg.id];
+    if (mem.in_register) {
+      const auto &rp = std::get<RegLocation>(mem.addr);
+      uint8_t p = rp.loc;
+      if (rp.callee_saved) {
+        int_used_[rv64::kFloatSavedRegs[p] ^ 128] = true;
+        return rv64::kFloatSavedRegs[p];
+      } else {
+        return rv64::kFloatTempRegs[p];
+      }
+    } else {
+      uint8_t rg = rv64::kFloatTempRegs[float_tmp_++];
+      if (load && std::get<int64_t>(mem.addr) != MemoryLocation::kUnAllocated) {
+        PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst,
+                 std::get<int64_t>(mem.addr));
+      }
+      return rg;
     }
-    uint8_t rg = rv64::kFloatTempRegs[float_tmp_++];
-    if (load && loc[reg.id].addr != MemoryLocation::kUnAllocated) {
-      PushInsr(INSR_FLD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
-    }
-    return rg;
   }
 }
 
 template <class T>
-void InsrGen::PushStack(IRInsr::Register reg, uint8_t rg,
-                        std::vector<MemoryLocation> &loc) {
-  if (loc[reg.id].addr == MemoryLocation::kUnAllocated) {
-    loc[reg.id].addr = -sp_offset_ - 8;
-    sp_offset_ += 8;
-  }
+void InsrGen::PushStack(IRInsr::Register reg, uint8_t rg) {
+  if (reg.is_real) return;
   if constexpr (std::is_same_v<T, int>) {
-    PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
+    if (int_loc_[reg.id].in_register) return;
+    if (std::get<int64_t>(int_loc_[reg.id].addr) ==
+        MemoryLocation::kUnAllocated) {
+      int_loc_[reg.id].addr = -sp_offset_ - 8;
+      sp_offset_ += 8;
+    }
+    PushInsr(INSR_SD, rg, rv64::kFp, IRInsr::kConst,
+             std::get<int64_t>(int_loc_[reg.id].addr));
   } else {
-    PushInsr(INSR_FSD, rg, rv64::kFp, IRInsr::kConst, loc[reg.id].addr);
+    if (int_loc_[reg.id].in_register) return;
+    if (std::get<int64_t>(float_loc_[reg.id].addr) ==
+        MemoryLocation::kUnAllocated) {
+      float_loc_[reg.id].addr = -sp_offset_ - 8;
+      sp_offset_ += 8;
+    }
+    PushInsr(INSR_FSD, rg, rv64::kFp, IRInsr::kConst,
+             std::get<int64_t>(float_loc_[reg.id].addr));
   }
 }
 
@@ -524,33 +553,27 @@ void InsrGen::GenerateEpilogue(size_t local,
 
 void InsrGen::GenerateRTypeInsr(const IRInsr &ir) {
   if (IsIntOp(ir.op)) {
-    uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
-    uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
-    uint8_t rs2 = GetRealReg<int>(ir.rs2, true, int_loc_);
+    uint8_t rd = GetRealReg<int>(ir.rd, false);
+    uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
+    uint8_t rs2 = GetRealReg<int>(ir.rs2, true);
     PushInsr(ir.op, rd, rs1, rs2);
-    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-      PushStack<int>(ir.rd, rd, int_loc_);
-    }
+    PushStack<int>(ir.rd, rd);
   } else {
     if (IsLogicIFFOp(ir.op)) {
-      uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
-      uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
-      uint8_t rs2 = GetRealReg<float>(ir.rs2, true, float_loc_);
+      uint8_t rd = GetRealReg<int>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<float>(ir.rs1, true);
+      uint8_t rs2 = GetRealReg<float>(ir.rs2, true);
       PushInsr(ir.op, rd, rs1, rs2);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-        PushStack<int>(ir.rd, rd, int_loc_);
-      }
+      PushStack<int>(ir.rd, rd);
     } else {
-      uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
-      uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
-      uint8_t rs2 = GetRealReg<float>(ir.rs2, true, float_loc_);
+      uint8_t rd = GetRealReg<float>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<float>(ir.rs1, true);
+      uint8_t rs2 = GetRealReg<float>(ir.rs2, true);
       PushInsr(ir.op, rd, rs1, rs2);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-        PushStack<float>(ir.rd, rd, float_loc_);
-      }
+      PushStack<float>(ir.rd, rd);
     }
   }
-  UnlockRegs();
+  ReleaseRegs();
 }
 
 namespace {
@@ -618,47 +641,34 @@ void InsrGen::GenerateITypeInsr(const IRInsr &ir) {
   if (IsLoadOp(ir.op) && ir.imm_type == IRInsr::kData) {
     PushInsr(PINSR_LA, rv64::kT0, IRInsr::kData, ir.imm);
     if (IsIntOp(ir.op)) {
-      uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
+      uint8_t rd = GetRealReg<int>(ir.rd, false);
       PushInsr(ir.op, rd, rv64::kT0, IRInsr::kConst, 0);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-        PushStack<int>(ir.rd, rd, int_loc_);
-      }
+      PushStack<int>(ir.rd, rd);
     } else {
-      uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
+      uint8_t rd = GetRealReg<float>(ir.rd, false);
       PushInsr(ir.op, rd, rv64::kT0, IRInsr::kConst, 0);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-        PushStack<float>(ir.rd, rd, float_loc_);
-      }
+      PushStack<float>(ir.rd, rd);
     }
-    UnlockRegs();
+    ReleaseRegs();
     return;
   }
   if (IsIntOp(ir.op)) {
-    uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
-    uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
+    uint8_t rd = GetRealReg<int>(ir.rd, false);
+    uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
     PushInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
-    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-      PushStack<int>(ir.rd, rd, int_loc_);
-    }
+    PushStack<int>(ir.rd, rd);
   } else {
-    uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
+    uint8_t rd = GetRealReg<float>(ir.rd, false);
     uint8_t rs1;
     if (!IsLoadOp(ir.op)) {
-      rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
+      rs1 = GetRealReg<float>(ir.rs1, true);
     } else {
-      rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
+      rs1 = GetRealReg<int>(ir.rs1, true);
     }
     PushInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
-    if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-      PushStack<float>(ir.rd, rd, float_loc_);
-    }
+    PushStack<float>(ir.rd, rd);
   }
-  UnlockRegs();
-  // if (std::abs(ir.imm) >= (1 << 11)) {
-  //   for (auto &v : ExpandImm(ir, rd, rs1)) PushInsr(v);
-  // } else {
-  //   PushInsr(ir.op, rd, rs1, ir.imm_type, ir.imm);
-  // }
+  ReleaseRegs();
 }
 
 void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
@@ -666,90 +676,78 @@ void InsrGen::GenerateSTypeInsr(const IRInsr &ir) {
     PushInsr(PINSR_LA, rv64::kT0, IRInsr::kData, ir.imm);
     uint8_t rs2;
     if (IsIntOp(ir.op)) {
-      rs2 = GetRealReg<int>(ir.rs2, true, int_loc_);
+      rs2 = GetRealReg<int>(ir.rs2, true);
     } else {
-      rs2 = GetRealReg<float>(ir.rs2, true, float_loc_);
+      rs2 = GetRealReg<float>(ir.rs2, true);
     }
     PushInsr(ir.op, rs2, rv64::kT0, IRInsr::kConst, 0);
-    UnlockRegs();
+    ReleaseRegs();
     return;
   }
   uint8_t rs1, rs2;
   if (IsIntOp(ir.op)) {
-    rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
-    rs2 = GetRealReg<int>(ir.rs2, true, int_loc_);
+    rs1 = GetRealReg<int>(ir.rs1, true);
+    rs2 = GetRealReg<int>(ir.rs2, true);
   } else {
-    rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
-    rs2 = GetRealReg<float>(ir.rs2, true, float_loc_);
+    rs1 = GetRealReg<int>(ir.rs1, true);
+    rs2 = GetRealReg<float>(ir.rs2, true);
   }
   PushInsr(ir.op, rs2, rs1, ir.imm_type, ir.imm);
-  UnlockRegs();
+  ReleaseRegs();
 }
 
 void InsrGen::GenerateUTypeInsr(const IRInsr &ir) {
-  uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
+  uint8_t rd = GetRealReg<int>(ir.rd, false);
   PushInsr(ir.op, rd, ir.imm_type, ir.imm);
-  if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-    PushStack<int>(ir.rd, rd, int_loc_);
-  }
-  UnlockRegs();
+  PushStack<int>(ir.rd, rd);
+  ReleaseRegs();
 }
 
 void InsrGen::GenerateBTypeInsr(const IRInsr &ir) {
-  uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
-  uint8_t rs2 = GetRealReg<int>(ir.rs2, true, int_loc_);
+  uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
+  uint8_t rs2 = GetRealReg<int>(ir.rs2, true);
   PushInsr(ir.op, rs1, rs2, ir.imm_type, ir.imm);
-  UnlockRegs();
+  ReleaseRegs();
 }
 
 void InsrGen::GenerateJTypeInsr(const IRInsr &ir) {
-  uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
+  uint8_t rd = GetRealReg<int>(ir.rd, false);
   PushInsr(ir.op, rd, ir.imm_type, ir.imm);
   if (ir.op == INSR_JAL) {
-    if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-      PushStack<int>(ir.rd, rd, int_loc_);
-    }
+    PushStack<int>(ir.rd, rd);
   }
-  UnlockRegs();
+  ReleaseRegs();
 }
 
 void InsrGen::GenerateR0TypeInsr(const IRInsr &ir) {
   if (IsCvtOp(ir.op)) {
     assert(!IsCvtFFOp(ir.op));  // double is not supported
     if (IsCvtIFOp(ir.op)) {
-      uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
-      uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
+      uint8_t rd = GetRealReg<int>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<float>(ir.rs1, true);
       assert(ir.imm_type == IRInsr::kRoundingMode);
       PushInsr(ir.op, rd, rs1, ir.imm);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-        PushStack<int>(ir.rd, rd, int_loc_);
-      }
+      PushStack<int>(ir.rd, rd);
     } else {
-      uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
-      uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
+      uint8_t rd = GetRealReg<float>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-        PushStack<float>(ir.rd, rd, float_loc_);
-      }
+      PushStack<float>(ir.rd, rd);
     }
-    UnlockRegs();
+    ReleaseRegs();
   } else {
     if (ir.op == INSR_FMV_X_W) {
-      uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
-      uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
+      uint8_t rd = GetRealReg<int>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<float>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-        PushStack<int>(ir.rd, rd, int_loc_);
-      }
+      PushStack<int>(ir.rd, rd);
     } else {
-      uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
-      uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
+      uint8_t rd = GetRealReg<float>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-        PushStack<float>(ir.rd, rd, float_loc_);
-      }
+      PushStack<float>(ir.rd, rd);
     }
-    UnlockRegs();
+    ReleaseRegs();
   }
 }
 
@@ -763,12 +761,10 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       break;
     }
     case PINSR_LA: {
-      uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
+      uint8_t rd = GetRealReg<int>(ir.rd, false);
       PushInsr(ir.op, rd, ir.imm_type, ir.imm);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-        PushStack<int>(ir.rd, rd, int_loc_);
-      }
-      UnlockRegs();
+      PushStack<int>(ir.rd, rd);
+      ReleaseRegs();
       break;
     }
     case PINSR_CALL:
@@ -778,23 +774,19 @@ void InsrGen::GeneratePseudoInsr(const IRInsr &ir, int64_t offset) {
       PushInsr(PINSR_J, IRInsr::kLabel, int64_t(tot_label_));
       break;
     case PINSR_MV: {
-      uint8_t rd = GetRealReg<int>(ir.rd, false, int_loc_);
-      uint8_t rs1 = GetRealReg<int>(ir.rs1, true, int_loc_);
+      uint8_t rd = GetRealReg<int>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<int>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<int>(rd)) {
-        PushStack<int>(ir.rd, rd, int_loc_);
-      }
-      UnlockRegs();
+      PushStack<int>(ir.rd, rd);
+      ReleaseRegs();
       break;
     }
     case PINSR_FMV_S: {
-      uint8_t rd = GetRealReg<float>(ir.rd, false, float_loc_);
-      uint8_t rs1 = GetRealReg<float>(ir.rs1, true, float_loc_);
+      uint8_t rd = GetRealReg<float>(ir.rd, false);
+      uint8_t rs1 = GetRealReg<float>(ir.rs1, true);
       PushInsr(ir.op, rd, rs1);
-      if (!ir.rd.is_real && !rv64::IsSavedReg<float>(rd)) {
-        PushStack<float>(ir.rd, rd, float_loc_);
-      }
-      UnlockRegs();
+      PushStack<float>(ir.rd, rd);
+      ReleaseRegs();
       break;
     }
   }
@@ -821,7 +813,43 @@ void InsrGen::GenerateInsrImpl(const IRInsr &v) {
   }
 }
 
-void InsrGen::Initialize(size_t ireg, size_t freg) {
+void InsrGen::RegAlloc(size_t ireg, size_t freg, const FuncRegInfo &info) {
+  if (opt_.register_alloc) {
+    for (size_t i = 0, temp = 3, saved = 0; i < ireg; ++i) {
+      if (info.int_caller[i] && temp < rv64::kNumIntTempRegs) {
+        int_loc_[i].in_register = true;
+        int_loc_[i].addr = RegLocation(false, temp++);
+      } else if (saved < rv64::kNumIntSavedRegs) {
+        int_loc_[i].in_register = true;
+        int_loc_[i].addr = RegLocation(true, saved++);
+      }
+    }
+    for (size_t i = 0, temp = 3, saved = 0; i < freg; ++i) {
+      if (info.float_caller[i] && temp < rv64::kNumFloatTempRegs) {
+        float_loc_[i].in_register = true;
+        float_loc_[i].addr = RegLocation(false, temp++);
+      } else if (saved < rv64::kNumFloatSavedRegs) {
+        float_loc_[i].in_register = true;
+        float_loc_[i].addr = RegLocation(true, saved++);
+      }
+    }
+  } else {
+    for (size_t i = 0, saved = 0; i < ireg; ++i) {
+      if (saved < rv64::kNumIntSavedRegs) {
+        int_loc_[i].in_register = true;
+        int_loc_[i].addr = RegLocation(true, saved++);
+      }
+    }
+    for (size_t i = 0, saved = 0; i < freg; ++i) {
+      if (saved < rv64::kNumFloatSavedRegs) {
+        float_loc_[i].in_register = true;
+        float_loc_[i].addr = RegLocation(true, saved++);
+      }
+    }
+  }
+}
+
+void InsrGen::InitRegs(size_t ireg, size_t freg, const FuncRegInfo &info) {
   buf_.clear();
   std::fill(int_used_.begin(), int_used_.end(), false);
   std::fill(float_used_.begin(), float_used_.end(), false);
@@ -830,19 +858,21 @@ void InsrGen::Initialize(size_t ireg, size_t freg) {
   int_loc_.assign(ireg, MemoryLocation());
   float_loc_.assign(freg, MemoryLocation());
   sp_offset_ = 0;
+  RegAlloc(ireg, freg, info);
 }
 
-void InsrGen::UnlockRegs() {
+void InsrGen::ReleaseRegs() {
   int_tmp_ = 0;
   float_tmp_ = 0;
 }
 
 void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
-                         size_t next_func, bool is_main) {
-  Initialize(ireg, freg);
+                         size_t next_func, bool is_main,
+                         const FuncRegInfo &info) {
   std::vector<std::pair<size_t, size_t>> lab;
   size_t ed =
       next_func < label_.size() ? label_[next_func].ir_pos : ir_insr_.size();
+  InitRegs(ireg, freg, info);
   while (ir_pos_ < ed) {
     const IRInsr &v = ir_insr_[ir_pos_];
     while (label_pos_ < next_func && label_[label_pos_].ir_pos == ir_pos_) {
@@ -884,8 +914,8 @@ void InsrGen::GenerateAR(size_t local, size_t ireg, size_t freg,
   GenerateEpilogue(local, callee_saved);
 
   auto Push = [this](const RV64Insr &v) {
-    if (kRV64InsrFormat[v.op] == I_TYPE &&
-        v.imm_type == IRInsr::kConst && std::abs(v.imm) >= (1 << 11)) {
+    if (kRV64InsrFormat[v.op] == I_TYPE && v.imm_type == IRInsr::kConst &&
+        std::abs(v.imm) >= (1 << 11)) {
       auto e = ExpandImm(v, v.rd, v.rs1);
       insr_.insert(insr_.end(), e.begin(), e.end());
     } else if (IsStoreOp(v.op) && std::abs(v.imm) >= (1 << 11)) {
@@ -1004,12 +1034,12 @@ void InsrGen::InitLabel() {
 void InsrGen::GenerateRV64() {
   InitLabel();
   assert(label_.empty() || label_[0].is_func);
-  for (size_t i = 0; i < func_.size(); ++i) {
+  for (size_t i = 0, j = 0; i < func_.size(); ++i) {
     const auto &attr = tab_[func_[i].first].GetValue<FunctionAttr>();
     size_t next_pos = label_pos_ + 1;
     while (next_pos < label_.size() && !label_[next_pos].is_func) ++next_pos;
     GenerateAR(attr.sp_offset, attr.tot_preg.ireg, attr.tot_preg.freg, next_pos,
-               std::string(func_[i].second) == "main");
+               std::string(func_[i].second) == "main", func_reg_info_[j++]);
   }
   Flush();
 }
