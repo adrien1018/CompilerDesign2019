@@ -958,7 +958,7 @@ inline size_t MapReg(const IRInsr& insr, int x,
     case 0:
       return map[insr.rd.id];
     case 1:
-      if (insr.rs1.id == kNoDest) return 0;
+      if (insr.rs1.id == kNoDest) return kNoDest;
       return map[insr.rs1.id];
     case 2:
       return map[insr.rs2.id];
@@ -1207,7 +1207,6 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     bb_rw.emplace_back(AnalyzeBasicBlock(ir_, bb_boundary[i],
                                          bb_boundary[i + 1], lifetimes,
                                          ireg_map, freg_map));
-    PrintIR();
   }
   bb_rw.emplace_back();
   attr.tot_preg.ireg = ireg_map.size();
@@ -1291,24 +1290,23 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   }
 
   for (size_t i = first; i < last; i++) {
-    uint8_t read = kReadRegTable[ir_[i].op];
     if (kWriteRegTable[ir_[i].op] && !ir_[i].rd.is_real) {
       size_t reg = MapReg(ir_[i], 0, ireg_map, freg_map);
       ir_[i].rd.id = reg_map[reg];
     }
-    switch (read) {
+    switch (kReadRegTable[ir_[i].op]) {
       //case 3:
-      //  if (kWriteRegTable[ir_[i].op] && !ir_[i].rs3.is_real) {
+      //  if (!ir_[i].rs3.is_real) {
       //    size_t reg = MapReg(ir_[i], 3, ireg_map, freg_map);
       //    ir_[i].rs3.id = reg_map[reg];
       //  }
       case 2:
-        if (kWriteRegTable[ir_[i].op] && !ir_[i].rs2.is_real) {
+        if (!ir_[i].rs2.is_real) {
           size_t reg = MapReg(ir_[i], 2, ireg_map, freg_map);
           ir_[i].rs2.id = reg_map[reg];
         }
       case 1:
-        if (kWriteRegTable[ir_[i].op] && !ir_[i].rs1.is_real) {
+        if (!ir_[i].rs1.is_real) {
           size_t reg = MapReg(ir_[i], 1, ireg_map, freg_map);
           ir_[i].rs1.id = reg_map[reg];
         }
