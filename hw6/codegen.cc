@@ -958,6 +958,7 @@ inline size_t MapReg(const IRInsr& insr, int x,
     case 0:
       return map[insr.rd.id];
     case 1:
+      if (insr.rs1.id == kNoDest) return 0;
       return map[insr.rs1.id];
     case 2:
       return map[insr.rs2.id];
@@ -1206,6 +1207,7 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     bb_rw.emplace_back(AnalyzeBasicBlock(ir_, bb_boundary[i],
                                          bb_boundary[i + 1], lifetimes,
                                          ireg_map, freg_map));
+    PrintIR();
   }
   bb_rw.emplace_back();
   attr.tot_preg.ireg = ireg_map.size();
@@ -1319,8 +1321,10 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   FuncRegInfo info;
   for (size_t i = 0; i < ireg_t; i++) info.int_caller.push_back(1);
   for (size_t i = 0; i < ireg_s; i++) info.int_caller.push_back(0);
+  if (info.int_caller.empty()) info.int_caller.emplace_back(0);
   for (size_t i = 0; i < freg_t; i++) info.float_caller.push_back(1);
   for (size_t i = 0; i < freg_s; i++) info.float_caller.push_back(0);
+  if (info.float_caller.empty()) info.float_caller.emplace_back(0);
   func_reg_info_.emplace_back(std::move(info));
 }
 
