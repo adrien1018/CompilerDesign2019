@@ -903,9 +903,96 @@ void InsrGen::ReleaseRegs() {
 FreqInfo InsrGen::CountFreq(size_t ireg, size_t freg, size_t ed) const {
   FreqInfo freq(ireg, freg);
   for (size_t i = ir_pos_; i < ed; ++i) {
-    const IRInsr &v = ir_insr_[i];
-    if (v.op == PINSR_PUSH_SP) continue;
-    switch (kRV64InsrFormat[v.op]) {}
+    const IRInsr &ir = ir_insr_[i];
+    if (ir.op == PINSR_PUSH_SP) continue;
+    if (IsPseudoOp(ir.op)) {
+      switch (ir.op) {
+        case PINSR_LA: {
+          if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+          break;
+        }
+        case PINSR_MV: {
+          if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+          if (!ir.rs1.is_real) freq.int_freq[ir.rs1.id]++;
+          break;
+        }
+        case PINSR_FMV_S: {
+          if (!ir.rd.is_real) freq.float_freq[ir.rd.id]++;
+          if (!ir.rs1.is_real) freq.float_freq[ir.rs1.id]++;
+          break;
+        }
+      }
+    } else {
+      switch (kRV64InsrFormat[ir.op]) {
+        case R_TYPE: {
+          if (IsIntOp(ir.op)) {
+            if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+            if (!ir.rs1.is_real) freq.int_freq[ir.rs1.id]++;
+            if (!ir.rs2.is_real) freq.int_freq[ir.rs2.id]++;
+          } else {
+            if (IsLogicIFFOp(ir.op)) {
+              if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+              if (!ir.rs1.is_real) freq.float_freq[ir.rs1.id]++;
+              if (!ir.rs2.is_real) freq.float_freq[ir.rs2.id]++;
+            } else {
+              if (!ir.rd.is_real) freq.float_freq[ir.rd.id]++;
+              if (!ir.rs1.is_real) freq.float_freq[ir.rs1.id]++;
+              if (!ir.rs2.is_real) freq.float_freq[ir.rs2.id]++;
+            }
+          }
+          break;
+        }
+        case I_TYPE: {
+          if (IsLoadOp(ir.op) && ir.imm_type == IRInsr::kData) {
+            if (IsIntOp(ir.op)) {
+              if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+            } else {
+              if (!ir.rd.is_real) freq.float_freq[ir.rd.id]++;
+            }
+          } else {
+            if (IsIntOp(ir.op)) {
+              if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+              if (!ir.rs1.is_real) freq.int_freq[ir.rs1.id]++;
+            } else {
+              if (!ir.rd.is_real) freq.float_freq[ir.rd.id]++;
+              if (!IsLoadOp(ir.op)) {
+                if (!ir.rs1.is_real) freq.float_freq[ir.rd.id]++;
+              } else {
+                if (!ir.rs1.is_real) freq.int_freq[ir.rd.id]++;
+              }
+            }
+          }
+          break;
+        }
+        case S_TYPE: {
+          if (ir.imm_type == IRInsr::kData) {
+            if (IsIntOp(ir.op)) {
+              if (!ir.rs2.is_real) freq.int_freq[ir.rs2.id]++;
+            } else {
+              if (!ir.rs2.is_real) freq.float_freq[ir.rs2.id]++;
+            }
+          } else {
+            if (!ir.rs1.is_real) freq.int_freq[ir.rs1.id]++;
+            if (IsIntOp(ir.op)) {
+              if (!ir.rs2.is_real) freq.int_freq[ir.rs2.id]++;
+            } else {
+              if (!ir.rs2.is_real) freq.float_freq[ir.rs2.id]++;
+            }
+          }
+          break;
+        }
+        case B_TYPE: {
+          if (!ir.rs1.is_real) freq.int_freq[ir.rs1.id]++;
+          if (!ir.rs2.is_real) freq.int_freq[ir.rs2.id]++;
+          break;
+        }
+        case U_TYPE:
+        case J_TYPE: {
+          if (!ir.rd.is_real) freq.int_freq[ir.rd.id]++;
+          break;
+        }
+      }
+    }
   }
   return freq;
 }
