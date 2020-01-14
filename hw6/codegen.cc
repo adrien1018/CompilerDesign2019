@@ -931,18 +931,23 @@ class LifeTime {
 
 class BasicBlock {
  public:
-  static constexpr uint8_t kReadFirst = 1;
-  static constexpr uint8_t kWrite = 2;
-  std::unordered_map<size_t, uint8_t> rw;
-  void Read(size_t reg) {
-    rw.emplace(reg, kReadFirst);
-    // if exists, either it is read or have been written
+  struct RW {
+    bool read_first, write;
+    size_t last_read_pos, write_pos;
+    RW(bool r, bool w, size_t rp, size_t wp)
+        : read_first(r), write(w), last_read_pos(rp), write_pos(wp) {}
+  };
+  std::unordered_map<size_t, RW> rw;
+  void Read(size_t reg, size_t pos) {
+    auto it = rw.emplace(reg, RW(true, false, pos, 0));
+    if (!it.second) it.first->second.last_read_pos = pos;
   }
-  bool Write(size_t reg) {
-    auto it = rw.emplace(reg, kWrite);
+  bool Write(size_t reg, size_t pos) {
+    auto it = rw.emplace(reg, RW(false, true, 0, pos));
     if (!it.second) {
-      if (it.first->second & kWrite) return true;
-      it.first->second |= kWrite;
+      it.first->second.write_pos = pos;
+      if (it.first->second.write) return true;
+      it.first->second.write = true;
     }
     return false;
   }
@@ -977,7 +982,7 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
   for (size_t i = l; i < r; i++) {
     auto UpdateRead = [&](int x) {
       size_t reg = MapReg(ir[i], x, ireg_map, freg_map);
-      bb.Read(reg);
+      bb.Read(reg, i);
       lifetime[reg].UpdateR(i);
       preg_insr[reg].emplace_back(i, x);
     };
@@ -994,7 +999,7 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
     }
     if (kWriteRegTable[ir[i].op] && !ir[i].rd.is_real) {
       size_t reg = MapReg(ir[i], 0, ireg_map, freg_map);
-      if (bb.Write(reg)) {  // the previous write is BB-local
+      if (bb.Write(reg, i)) { // the previous write is BB-local
         auto& mp = lifetime[reg].freg ? freg_map : ireg_map;
         size_t new_reg = lifetime.size();
         size_t new_reg_t = mp.size();
@@ -1028,10 +1033,88 @@ BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
   return bb;
 }
 
-}  // namespace
+constexpr size_t kEmpty = -(size_t)1;
+class LifeTimeCalc {
+  const std::vector<size_t>& bb_boundary_;
+  const std::vector<std::array<size_t, 2>>& bb_edge_;
+  const std::vector<BasicBlock>& bb_rw_;
+  std::vector<LifeTime>& lifetimes_;
+  std::vector<uint8_t> ans_;
+
+  static constexpr uint8_t kReadVis = 1;
+  static constexpr uint8_t kReadAns = 2;
+  static constexpr uint8_t kWriteAns = 4;
+  static constexpr uint8_t kOK = kReadAns | kWriteAns;
+  bool OK(size_t x) {
+    return (ans_[x] & (kReadAns | kWriteAns)) == (kReadAns | kWriteAns);
+  }
+  void DFSRead(size_t x, size_t reg) {
+    ans_[x] |= kReadVis;
+    auto it = bb_rw_[x].rw.find(reg);
+    if (it != bb_rw_[x].rw.end() && it->second.read_first) ans_[x] |= kReadAns;
+    if (it == bb_rw_[x].rw.end() || !it->second.write) {
+      for (size_t i = 0; i < 2 && bb_edge_[x][i] != kEmpty; i++) {
+        if (!(ans_[bb_edge_[x][i]] & kReadVis)) {
+          DFSRead(bb_edge_[x][i], reg);
+        }
+        ans_[x] |= kReadAns & ans_[bb_edge_[x][i]];
+      }
+    }
+  }
+  void DFSWrite(size_t x, size_t reg, bool root = true) {
+    ans_[x] |= kWriteAns;
+    auto it = bb_rw_[x].rw.find(reg);
+    if (root || it == bb_rw_[x].rw.end() || !it->second.write) {
+      for (size_t i = 0; i < 2 && bb_edge_[x][i] != kEmpty; i++) {
+        if (ans_[bb_edge_[x][i]] & kWriteAns) continue;
+        DFSWrite(bb_edge_[x][i], reg, false);
+      }
+    }
+  }
+ public:
+  LifeTimeCalc(const std::vector<size_t>& bb_boundary,
+               const std::vector<std::array<size_t, 2>>& bb_edge,
+               const std::vector<BasicBlock>& bb_rw,
+               std::vector<LifeTime>& lifetimes)
+      : bb_boundary_(bb_boundary),
+        bb_edge_(bb_edge),
+        bb_rw_(bb_rw),
+        lifetimes_(lifetimes),
+        ans_(bb_edge.size()) {}
+  void operator()(size_t reg) {
+    std::fill(ans_.begin(), ans_.end(), 0);
+    for (size_t i = 0; i < bb_edge_.size(); i++) {
+      if (ans_[i] & kReadVis) continue;
+      DFSRead(i, reg);
+    }
+    for (size_t i = 0; i < bb_edge_.size(); i++) {
+      auto it = bb_rw_[i].rw.find(reg);
+      if (it == bb_rw_[i].rw.end() || !it->second.write) continue;
+      DFSWrite(i, reg);
+    }
+    size_t first, last;
+    for (first = 0; first < bb_edge_.size(); first++) {
+      if (OK(first)) break;
+    }
+    if (first == bb_edge_.size()) return;
+    for (last = bb_edge_.size() - 1;; last--) {
+      if (OK(last)) break;
+    }
+    auto it = bb_rw_[first].rw.find(reg);
+    lifetimes_[reg].l = it == bb_rw_[first].rw.end() || it->second.read_first
+                            ? bb_boundary_[first]
+                            : it->second.write_pos;
+    lifetimes_[reg].r =
+        (bb_edge_[last][0] != kEmpty && OK(bb_edge_[last][0])) ||
+                (bb_edge_[last][1] != kEmpty && OK(bb_edge_[last][1]))
+            ? bb_boundary_[last + 1]
+            : bb_rw_[last].rw.find(reg)->second.last_read_pos;
+  }
+};
+
+} // namespace
 
 void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
-  constexpr size_t kEmpty = -(size_t)1;
   size_t first = labels_[attr.label].ir_pos, last = ir_.size();
   std::vector<size_t> bb_boundary, label_bb;
   std::vector<std::array<size_t, 2>> bb_edge;
@@ -1064,17 +1147,21 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     }
   }
   // summary of each basic block
-  std::vector<LifeTime> lifetimes(attr.tot_preg.ireg + attr.tot_preg.freg);
+  size_t orig_reg = attr.tot_preg.ireg + attr.tot_preg.freg;
+  std::vector<LifeTime> lifetimes(orig_reg);
   std::vector<size_t> ireg_map, freg_map;
   for (size_t i = 0; i < attr.tot_preg.ireg; i++) ireg_map.push_back(i);
   for (size_t i = 0; i < attr.tot_preg.freg; i++) {
     freg_map.push_back(i + attr.tot_preg.ireg);
     lifetimes[i + attr.tot_preg.ireg].freg = true;
   }
+  std::vector<BasicBlock> bb_rw;
   for (size_t i = 0; i + 1 < bb_boundary.size(); i++) {
-    AnalyzeBasicBlock(ir_, bb_boundary[i], bb_boundary[i + 1], lifetimes,
-                      ireg_map, freg_map);
+    bb_rw.emplace_back(AnalyzeBasicBlock(ir_, bb_boundary[i],
+                                         bb_boundary[i + 1], lifetimes,
+                                         ireg_map, freg_map));
   }
+  bb_rw.emplace_back();
   attr.tot_preg.ireg = ireg_map.size();
   attr.tot_preg.freg = freg_map.size();
 
@@ -1096,6 +1183,34 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     }
   }
   bb_edge.push_back({kEmpty, kEmpty});
+
+  { // calculate lifetime of each register
+    LifeTimeCalc calc(bb_boundary, bb_edge, bb_rw, lifetimes);
+    for (size_t i = 0; i < orig_reg; i++) calc(i);
+#if CODEGEN_DEBUG
+  for (size_t i = 0; i < bb_rw.size(); i++) {
+    std::cerr << i << "->" << (int)bb_edge[i][0] << ',' << (int)bb_edge[i][1]
+              << ':';
+    for (auto& j : bb_rw[i].rw) {
+      std::cerr << '(' << j.first << ',' << j.second.read_first << ','
+                << j.second.write << ')';
+    }
+    std::cerr << '\n';
+  }
+  for (size_t i = 0; i < lifetimes.size(); i++) {
+    std::cerr << i << '(' << lifetimes[i].freg << "):" << lifetimes[i].l << '-'
+              << lifetimes[i].r << '\n';
+  }
+  std::cerr << std::flush;
+#endif
+  }
+
+  std::vector<size_t> call_prefix(last - first + 1);
+  for (size_t i = first; i < last; i++) {
+    call_prefix[i + 1 - first] =
+        call_prefix[i - first] + (ir_[i].op == PINSR_CALL);
+  }
+
 }
 
 #if CODEGEN_DEBUG
