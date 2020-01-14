@@ -44,12 +44,12 @@ class Driver : public yyFlexLexer {
   bool stream_create_;
   std::vector<TableEntry> tab_;
   SymbolMap<std::string::value_type> mp_;
+  AstNode* prog_ = nullptr;
 
   void DeleteAst_();
 
  public:
   Location location;
-  AstNode* prog = nullptr;
 
   Driver() : yyFlexLexer(), file_(&std::cin, "<stdin>"), stream_create_(false) {
     SetColor_();
@@ -73,11 +73,12 @@ class Driver : public yyFlexLexer {
   }
 
   int Parse(bool debug = false);
+  void SetAST(AstNode* ast) { prog_ = ast; }
 
   void PrintError(const Location& l, const std::string& m);
 
   bool SemanticAnalysis();
-  void CodeGeneration(const std::string& outfile);
+  void CodeGeneration(const std::string& outfile, const CodeGenOptions& opt);
 
   yy::parser::symbol_type yylex_a();
 };

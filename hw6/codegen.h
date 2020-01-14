@@ -8,15 +8,23 @@
 #include "entry.h"
 #include "instruction.h"
 
+struct CodeGenOptions {
+  bool register_alloc;
+};
+
 class CodeGen {
  public:
   CodeGen() = default;
   CodeGen(std::vector<TableEntry>&& tab) : tab_(tab) {}
 
-  void CodeGeneration(AstNode* prog) { VisitProgram(prog); }
+  void CodeGeneration(AstNode* prog, const CodeGenOptions& opt) {
+    opt_ = opt;
+    VisitProgram(prog);
+  }
   CodeGenInfo MoveInfo() { return std::tie(ir_, labels_, data_, tab_, func_); }
 
  private:
+  CodeGenOptions opt_;
   std::vector<TableEntry> tab_;  // symbol table
   std::ofstream ofs_;            // output stream
   enum {

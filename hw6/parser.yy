@@ -373,11 +373,11 @@ program:
   global_decl_list {
     $$ = new AstNode(PROGRAM_NODE, @$);
     MakeChild($$, $1);
-    drv.prog = $$;
+    drv.SetAST($$);
   } |
   /* null */ {
     $$ = new AstNode(PROGRAM_NODE, @$);
-    drv.prog = $$;
+    drv.SetAST($$);
   };
 
 global_decl_list:
