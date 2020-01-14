@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <queue>
 
 #include "analysis.h"
 #include "ast.h"
@@ -920,13 +921,8 @@ class LifeTime {
   size_t l, r;
   bool freg;
   LifeTime() : l(size_t(0) - 1), r(0), freg(false) {}
-  bool operator<(const LifeTime& x) const { return l < x.l; }
-  void UpdateL(size_t x) {
-    if (l > x) l = x;
-  }
-  void UpdateR(size_t x) {
-    if (r < x) r = x;
-  }
+  void UpdateL(size_t x) { if (l > x) l = x; }
+  void UpdateR(size_t x) { if (r < x) r = x; }
 };
 
 class BasicBlock {
@@ -1112,6 +1108,56 @@ class LifeTimeCalc {
   }
 };
 
+struct LifeTimeReg {
+  size_t id, l, r;
+  bool operator<(const LifeTimeReg& x) const {
+    return r < x.r;
+  }
+};
+
+struct Node {
+  size_t id, r;
+  bool operator<(const Node& x) const { return r > x.r; }
+};
+
+// at most K registers
+size_t AssignRegister(size_t offset, size_t K, std::vector<LifeTimeReg>& vec,
+                      std::vector<size_t>& ret) {
+  std::sort(vec.begin(), vec.end());
+  std::priority_queue<Node> pq;
+  for (auto& i : vec) {
+    if (pq.size() && pq.top().r <= i.l) {
+      size_t id = pq.top().id;
+      pq.pop();
+      ret[i.id] = offset + id;
+      pq.push({id, i.r});
+    } else if (pq.size() < K) {
+      ret[i.id] = offset + pq.size();
+      pq.push({pq.size(), i.r});
+    }
+  }
+  return pq.size();
+}
+
+// without limit; minimize registers used
+size_t AssignRegister(size_t offset, std::vector<LifeTimeReg>& vec,
+                      std::vector<size_t>& ret) {
+  std::sort(vec.begin(), vec.end(), [](auto a, auto b) { return a.l < b.l; });
+  std::priority_queue<Node> pq;
+  for (auto& i : vec) {
+    if (pq.size() && pq.top().r <= i.l) {
+      size_t id = pq.top().id;
+      pq.pop();
+      ret[i.id] = offset + id;
+      pq.push({id, i.r});
+    } else {
+      ret[i.id] = offset + pq.size();
+      pq.push({pq.size(), i.r});
+    }
+  }
+  return pq.size();
+}
+
 } // namespace
 
 void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
@@ -1210,7 +1256,63 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
     call_prefix[i + 1 - first] =
         call_prefix[i - first] + (ir_[i].op == PINSR_CALL);
   }
+  std::vector<size_t> reg_map(lifetimes.size(), kEmpty);
+  std::vector<LifeTimeReg> int_reg, float_reg;
+  for (size_t i = 0; i < lifetimes.size(); i++) {
+    if (lifetimes[i].l >= lifetimes[i].r) {
+      reg_map[i] = 0;
+    } else if (call_prefix[lifetimes[i].r - first] ==
+               call_prefix[lifetimes[i].l - first]) {
+      // no function call between
+      if (lifetimes[i].freg) {
+        float_reg.push_back({i, lifetimes[i].l, lifetimes[i].r});
+      } else {
+        int_reg.push_back({i, lifetimes[i].l, lifetimes[i].r});
+      }
+    }
+  }
+  size_t ireg_t = AssignRegister(0, 5, int_reg, reg_map);
+  size_t freg_t = AssignRegister(0, 10, float_reg, reg_map);
+  int_reg.clear(); float_reg.clear();
+  for (size_t i = 0; i < lifetimes.size(); i++) {
+    if (reg_map[i] != kEmpty) continue;
+    if (lifetimes[i].freg) {
+      float_reg.push_back({i, lifetimes[i].l, lifetimes[i].r});
+    } else {
+      int_reg.push_back({i, lifetimes[i].l, lifetimes[i].r});
+    }
+  }
+  size_t ireg_s = AssignRegister(ireg_t, int_reg, reg_map);
+  size_t freg_s = AssignRegister(freg_t, float_reg, reg_map);
 
+  for (size_t i = first; i < last; i++) {
+    uint8_t read = kReadRegTable[ir_[i].op];
+    if (kWriteRegTable[ir_[i].op] && !ir_[i].rd.is_real) {
+      size_t reg = MapReg(ir_[i], 0, ireg_map, freg_map);
+      ir_[i].rd.id = reg_map[reg];
+    }
+    switch (read) {
+      //case 3:
+      //  if (kWriteRegTable[ir_[i].op] && !ir_[i].rs3.is_real) {
+      //    size_t reg = MapReg(ir_[i], 3, ireg_map, freg_map);
+      //    ir_[i].rs3.id = reg_map[reg];
+      //  }
+      case 2:
+        if (kWriteRegTable[ir_[i].op] && !ir_[i].rs2.is_real) {
+          size_t reg = MapReg(ir_[i], 2, ireg_map, freg_map);
+          ir_[i].rs2.id = reg_map[reg];
+        }
+      case 1:
+        if (kWriteRegTable[ir_[i].op] && !ir_[i].rs1.is_real) {
+          size_t reg = MapReg(ir_[i], 1, ireg_map, freg_map);
+          ir_[i].rs1.id = reg_map[reg];
+        }
+      case 0: break;
+      default: assert(false);
+    }
+  }
+  attr.tot_preg.ireg = ireg_t + ireg_s;
+  attr.tot_preg.freg = freg_t + freg_s;
 }
 
 #if CODEGEN_DEBUG
