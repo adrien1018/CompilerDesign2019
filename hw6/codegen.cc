@@ -1284,6 +1284,9 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
   }
   size_t ireg_s = AssignRegister(ireg_t, int_reg, reg_map);
   size_t freg_s = AssignRegister(freg_t, float_reg, reg_map);
+  for (auto& i : reg_map) {
+    if (i == kEmpty) i = 0;
+  }
 
   for (size_t i = first; i < last; i++) {
     uint8_t read = kReadRegTable[ir_[i].op];
@@ -1311,8 +1314,14 @@ void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
       default: assert(false);
     }
   }
-  attr.tot_preg.ireg = ireg_t + ireg_s;
-  attr.tot_preg.freg = freg_t + freg_s;
+  attr.tot_preg.ireg = std::max((size_t)1, ireg_t + ireg_s);
+  attr.tot_preg.freg = std::max((size_t)1, freg_t + freg_s);
+  FuncRegInfo info;
+  for (size_t i = 0; i < ireg_t; i++) info.int_caller.push_back(1);
+  for (size_t i = 0; i < ireg_s; i++) info.int_caller.push_back(0);
+  for (size_t i = 0; i < freg_t; i++) info.float_caller.push_back(1);
+  for (size_t i = 0; i < freg_s; i++) info.float_caller.push_back(0);
+  func_reg_info_.emplace_back(std::move(info));
 }
 
 #if CODEGEN_DEBUG
