@@ -742,6 +742,7 @@ void CodeGen::VisitFunctionDecl(AstNode* decl) {
   }
   attr.sp_offset = max_.stk;
   attr.tot_preg = max_.reg;
+  if (opt_.register_alloc) OptFunctionRegAlloc(attr);
   Debug_(max_.stk, ' ', max_.reg.ireg, ' ', max_.reg.freg, '\n');
 }
 
@@ -770,6 +771,300 @@ void CodeGen::VisitProgram(AstNode* prog) {
 #endif
 }
 
+// ------ Optimization ------
+
+namespace {
+
+struct InsrWriteReg_ {
+  bool arr[kPseudoInsr];
+  constexpr InsrWriteReg_() : arr{} {
+    for (Opcode i :
+         {INSR_LUI,      INSR_AUIPC,     INSR_JAL,      INSR_JALR,
+          INSR_LB,       INSR_LH,        INSR_LW,       INSR_LD,
+          INSR_LBU,      INSR_LHU,       INSR_LWU,      INSR_ADDI,
+          INSR_SLTI,     INSR_SLTIU,     INSR_XORI,     INSR_ORI,
+          INSR_ANDI,     INSR_SLLI,      INSR_SRLI,     INSR_SRAI,
+          INSR_ADDIW,    INSR_SLLIW,     INSR_SRLIW,    INSR_SRAIW,
+          INSR_ADD,      INSR_SUB,       INSR_SLL,      INSR_SLT,
+          INSR_SLTU,     INSR_XOR,       INSR_SRL,      INSR_SRA,
+          INSR_OR,       INSR_AND,       INSR_ADDW,     INSR_SUBW,
+          INSR_SLLW,     INSR_SRLW,      INSR_SRAW,     INSR_MUL,
+          INSR_MULH,     INSR_MULHSU,    INSR_MULHU,    INSR_DIV,
+          INSR_DIVU,     INSR_REM,       INSR_REMU,     INSR_MULW,
+          INSR_DIVW,     INSR_DIVUW,     INSR_REMW,     INSR_REMUW,
+          INSR_FLW,      INSR_FLD,       INSR_FMADD_S,  INSR_FMSUB_S,
+          INSR_FNMADD_S, INSR_FNMSUB_S,  INSR_FMADD_D,  INSR_FMSUB_D,
+          INSR_FNMADD_D, INSR_FNMSUB_D,  INSR_FADD_S,   INSR_FSUB_S,
+          INSR_FMUL_S,   INSR_FDIV_S,    INSR_FSQRT_S,  INSR_FSGNJ_S,
+          INSR_FSGNJN_S, INSR_FSGNJX_S,  INSR_FMIN_S,   INSR_FMAX_S,
+          INSR_FADD_D,   INSR_FSUB_D,    INSR_FMUL_D,   INSR_FDIV_D,
+          INSR_FSQRT_D,  INSR_FSGNJ_D,   INSR_FSGNJN_D, INSR_FSGNJX_D,
+          INSR_FMIN_D,   INSR_FMAX_D,    INSR_FCVT_W_S, INSR_FCVT_WU_S,
+          INSR_FCVT_L_S, INSR_FCVT_LU_S, INSR_FCVT_W_D, INSR_FCVT_WU_D,
+          INSR_FCVT_L_D, INSR_FCVT_LU_D, INSR_FCVT_S_W, INSR_FCVT_S_WU,
+          INSR_FCVT_S_L, INSR_FCVT_S_LU, INSR_FCVT_D_W, INSR_FCVT_D_WU,
+          INSR_FCVT_D_L, INSR_FCVT_D_LU, INSR_FCVT_S_D, INSR_FCVT_D_S,
+          INSR_FMV_X_W,  INSR_FMV_X_D,   INSR_FMV_W_X,  INSR_FMV_D_X,
+          INSR_FEQ_S,    INSR_FLT_S,     INSR_FLE_S,    INSR_FEQ_D,
+          INSR_FLT_D,    INSR_FLE_D,     INSR_FCLASS_S, INSR_FCLASS_D,
+          PINSR_LA,      PINSR_MV,       PINSR_FMV_S,   PINSR_LI}) {
+      arr[i] = true;
+    }
+  }
+  bool operator[](Opcode i) const { return arr[i]; }
+};
+struct InsrReadReg_ {
+  uint8_t arr[kPseudoInsr];
+  constexpr InsrReadReg_() : arr{} {
+    for (Opcode i :
+         {INSR_JALR,     INSR_LB,        INSR_LH,       INSR_LW,
+          INSR_LD,       INSR_LBU,       INSR_LHU,      INSR_LWU,
+          INSR_ADDI,     INSR_SLTI,      INSR_SLTIU,    INSR_XORI,
+          INSR_ORI,      INSR_ANDI,      INSR_SLLI,     INSR_SRLI,
+          INSR_SRAI,     INSR_ADDIW,     INSR_SLLIW,    INSR_SRLIW,
+          INSR_SRAIW,    INSR_FLW,       INSR_FLD,      INSR_FSQRT_S,
+          INSR_FCVT_W_S, INSR_FCVT_WU_S, INSR_FCVT_L_S, INSR_FCVT_LU_S,
+          INSR_FCVT_W_D, INSR_FCVT_WU_D, INSR_FCVT_L_D, INSR_FCVT_LU_D,
+          INSR_FCVT_S_W, INSR_FCVT_S_WU, INSR_FCVT_S_L, INSR_FCVT_S_LU,
+          INSR_FCVT_D_W, INSR_FCVT_D_WU, INSR_FCVT_D_L, INSR_FCVT_D_LU,
+          INSR_FCVT_S_D, INSR_FCVT_D_S,  INSR_FMV_X_W,  INSR_FMV_X_D,
+          INSR_FMV_W_X,  INSR_FMV_D_X,   INSR_FCLASS_S, INSR_FCLASS_D,
+          PINSR_MV,      PINSR_FMV_S}) {
+      arr[i] = 1;
+    }
+    for (Opcode i : {INSR_BEQ,      INSR_BNE,      INSR_BLT,      INSR_BGE,
+                     INSR_BLTU,     INSR_BGEU,     INSR_SB,       INSR_SH,
+                     INSR_SW,       INSR_SD,       INSR_ADD,      INSR_SUB,
+                     INSR_SLL,      INSR_SLT,      INSR_SLTU,     INSR_XOR,
+                     INSR_SRL,      INSR_SRA,      INSR_OR,       INSR_AND,
+                     INSR_ADDW,     INSR_SUBW,     INSR_SLLW,     INSR_SRLW,
+                     INSR_SRAW,     INSR_MUL,      INSR_MULH,     INSR_MULHSU,
+                     INSR_MULHU,    INSR_DIV,      INSR_DIVU,     INSR_REM,
+                     INSR_REMU,     INSR_MULW,     INSR_DIVW,     INSR_DIVUW,
+                     INSR_REMW,     INSR_REMUW,    INSR_FSW,      INSR_FSD,
+                     INSR_FADD_S,   INSR_FSUB_S,   INSR_FMUL_S,   INSR_FDIV_S,
+                     INSR_FSGNJ_S,  INSR_FSGNJN_S, INSR_FSGNJX_S, INSR_FMIN_S,
+                     INSR_FMAX_S,   INSR_FADD_D,   INSR_FSUB_D,   INSR_FMUL_D,
+                     INSR_FDIV_D,   INSR_FSQRT_D,  INSR_FSGNJ_D,  INSR_FSGNJN_D,
+                     INSR_FSGNJX_D, INSR_FMIN_D,   INSR_FMAX_D,   INSR_FEQ_S,
+                     INSR_FLT_S,    INSR_FLE_S,    INSR_FEQ_D,    INSR_FLT_D,
+                     INSR_FLE_D}) {
+      arr[i] = 2;
+    }
+    for (Opcode i :
+         {INSR_FMADD_S, INSR_FMSUB_S, INSR_FNMADD_S, INSR_FNMSUB_S,
+          INSR_FMADD_D, INSR_FMSUB_D, INSR_FNMADD_D, INSR_FNMSUB_D}) {
+      arr[i] = 3;
+    }
+  }
+  uint8_t operator[](Opcode i) const { return arr[i]; }
+};
+struct InsrFloatOpr_ {
+  bool arr[kPseudoInsr][4];
+  constexpr InsrFloatOpr_() : arr{} {
+    constexpr std::pair<Opcode, uint8_t> table[] = {
+#define X3(x) {x, 0}, {x, 1}, {x, 2}, {x, 3}
+#define X2(x) {x, 0}, {x, 1}, {x, 2}
+#define X1(x) {x, 0}, {x, 1}
+        {INSR_FLW, 0},       {INSR_FLD, 0},       {INSR_FSW, 2},
+        {INSR_FSD, 2},       X3(INSR_FMADD_S),    X3(INSR_FMSUB_S),
+        X3(INSR_FNMADD_S),   X3(INSR_FNMSUB_S),   X3(INSR_FMADD_D),
+        X3(INSR_FMSUB_D),    X3(INSR_FNMADD_D),   X3(INSR_FNMSUB_D),
+        X2(INSR_FADD_S),     X2(INSR_FSUB_S),     X2(INSR_FMUL_S),
+        X2(INSR_FDIV_S),     X1(INSR_FSQRT_S),    X2(INSR_FSGNJ_S),
+        X2(INSR_FSGNJN_S),   X2(INSR_FSGNJX_S),   X2(INSR_FMIN_S),
+        X2(INSR_FMAX_S),     X2(INSR_FADD_D),     X2(INSR_FSUB_D),
+        X2(INSR_FMUL_D),     X2(INSR_FDIV_D),     X1(INSR_FSQRT_D),
+        X2(INSR_FSGNJ_D),    X2(INSR_FSGNJN_D),   X2(INSR_FSGNJX_D),
+        X2(INSR_FMIN_D),     X2(INSR_FMAX_D),     {INSR_FCVT_W_S, 1},
+        {INSR_FCVT_WU_S, 1}, {INSR_FCVT_L_S, 1},  {INSR_FCVT_LU_S, 1},
+        {INSR_FCVT_W_D, 1},  {INSR_FCVT_WU_D, 1}, {INSR_FCVT_L_D, 1},
+        {INSR_FCVT_LU_D, 1}, {INSR_FCVT_S_W, 0},  {INSR_FCVT_S_WU, 0},
+        {INSR_FCVT_S_L, 0},  {INSR_FCVT_S_LU, 0}, {INSR_FCVT_D_W, 0},
+        {INSR_FCVT_D_WU, 0}, {INSR_FCVT_D_L, 0},  {INSR_FCVT_D_LU, 0},
+        X1(INSR_FCVT_S_D),   X1(INSR_FCVT_D_S),   {INSR_FMV_X_W, 1},
+        {INSR_FMV_X_D, 1},   {INSR_FMV_W_X, 0},   {INSR_FMV_D_X, 0},
+        {INSR_FEQ_S, 1},     {INSR_FEQ_S, 2},     {INSR_FLT_S, 1},
+        {INSR_FLT_S, 2},     {INSR_FLE_S, 1},     {INSR_FLE_S, 2},
+        {INSR_FEQ_D, 1},     {INSR_FEQ_D, 2},     {INSR_FLT_D, 1},
+        {INSR_FLT_D, 2},     {INSR_FLE_D, 1},     {INSR_FLE_D, 2},
+        {INSR_FCLASS_S, 1},  {INSR_FCLASS_D, 1},  X1(PINSR_FMV_S)
+#undef X1
+#undef X2
+#undef X3
+    };
+    for (auto i : table) arr[i.first][i.second] = true;
+  }
+  const bool* operator[](Opcode i) const { return arr[i]; }
+};
+const InsrWriteReg_ kWriteRegTable;
+const InsrReadReg_ kReadRegTable;
+const InsrFloatOpr_ kFloatOprTable;
+
+class LifeTime {
+ public:
+  size_t l, r;
+  bool freg;
+  LifeTime() : l(size_t(0) - 1), r(0), freg(false) {}
+  bool operator<(const LifeTime& x) const { return l < x.l; }
+  void UpdateL(size_t x) { if (l > x) l = x; }
+  void UpdateR(size_t x) { if (r < x) r = x; }
+};
+
+class BasicBlock {
+ public:
+  static constexpr uint8_t kReadFirst = 1;
+  static constexpr uint8_t kWrite = 2;
+  std::unordered_map<size_t, uint8_t> rw;
+  void Read(size_t reg) {
+    rw.emplace(reg, kReadFirst);
+    // if exists, either it is read or have been written
+  }
+  bool Write(size_t reg) {
+    auto it = rw.emplace(reg, kWrite);
+    if (!it.second) {
+      if (it.first->second & kWrite) return true;
+      it.first->second |= kWrite;
+    }
+    return false;
+  }
+};
+
+inline size_t MapReg(const IRInsr& insr, int x,
+                     const std::vector<size_t>& ireg_map,
+                     const std::vector<size_t>& freg_map) {
+  const std::vector<size_t>& map = kFloatOprTable[insr.op][x] ? freg_map : ireg_map;
+  switch (x) {
+    case 0: return map[insr.rd.id];
+    case 1: return map[insr.rs1.id];
+    case 2: return map[insr.rs2.id];
+    // case 3: return map[insr.rs3.id];
+    default: assert(false);
+  }
+  __builtin_unreachable();
+}
+
+BasicBlock AnalyzeBasicBlock(std::vector<IRInsr>& ir, size_t l, size_t r,
+                             std::vector<LifeTime>& lifetime,
+                             std::vector<size_t>& ireg_map,
+                             std::vector<size_t>& freg_map) {
+  // vector of (insr_id, rd=0/rs1=1/rs2=2/rs3=3)
+  std::unordered_map<size_t, std::vector<std::pair<size_t, uint8_t>>> preg_insr;
+  BasicBlock bb;
+  for (size_t i = l; i < r; i++) {
+    auto UpdateRead = [&](int x) {
+      size_t reg = MapReg(ir[i], x, ireg_map, freg_map);
+      bb.Read(reg);
+      lifetime[reg].UpdateR(i);
+      preg_insr[reg].emplace_back(i, x);
+    };
+    switch (kReadRegTable[ir[i].op]) {
+      //case 3: if (!ir[i].rs3.is_real) UpdateRead(3);
+      case 2: if (!ir[i].rs2.is_real) UpdateRead(2);
+      case 1: if (!ir[i].rs1.is_real) UpdateRead(1);
+      case 0: break;
+      default: assert(false);
+    }
+    if (kWriteRegTable[ir[i].op] && !ir[i].rd.is_real) {
+      size_t reg = MapReg(ir[i], 0, ireg_map, freg_map);
+      if (bb.Write(reg)) { // the previous write is BB-local
+        auto& mp = lifetime[reg].freg ? freg_map : ireg_map;
+        size_t new_reg = lifetime.size();
+        size_t new_reg_t = mp.size();
+        // add a register for the previous write
+        mp.push_back(new_reg);
+        lifetime.emplace_back(lifetime[reg]);
+        lifetime[reg] = LifeTime();
+        // rename the register
+        for (auto& x : preg_insr[reg]) {
+          switch (x.second) {
+            case 0: ir[x.first].rd.id = new_reg_t; break;
+            case 1: ir[x.first].rs1.id = new_reg_t; break;
+            case 2: ir[x.first].rs2.id = new_reg_t; break;
+            //case 3: ir[x.first].rs3.id = new_reg_t; break;
+            default: assert(false);
+          }
+        }
+      }
+      lifetime[reg].UpdateL(i);
+      preg_insr[reg].clear();
+      preg_insr[reg].emplace_back(i, 0);
+    }
+  }
+  return bb;
+}
+
+} // namespace
+
+void CodeGen::OptFunctionRegAlloc(FunctionAttr& attr) {
+  constexpr size_t kEmpty = -(size_t)1;
+  size_t first = labels_[attr.label].ir_pos, last = ir_.size();
+  std::vector<size_t> bb_boundary, label_bb;
+  std::vector<std::array<size_t, 2>> bb_edge;
+  { // identify basic blocks
+    bb_boundary.push_back(first);
+    for (size_t i = attr.label; i < labels_.size(); i++) {
+      bb_boundary.push_back(labels_[i].ir_pos);
+    }
+    bb_boundary.push_back(last);
+    size_t mid = bb_boundary.size();
+    for (size_t i = first; i < last; i++) {
+      if (kRV64InsrFormat[ir_[i].op] == B_TYPE ||
+          kRV64InsrFormat[ir_[i].op] == J_TYPE ||
+          ir_[i].op == INSR_JALR || ir_[i].op == PINSR_J ||
+          ir_[i].op == PINSR_RET) {
+        bb_boundary.push_back(i + 1);
+      }
+    }
+    std::inplace_merge(bb_boundary.begin(), bb_boundary.begin() + mid,
+                       bb_boundary.end());
+    assert(std::is_sorted(bb_boundary.begin(), bb_boundary.end()));
+    bb_boundary.resize(std::unique(bb_boundary.begin(), bb_boundary.end()) -
+                      bb_boundary.begin());
+    // basic block ID for each label
+    for (size_t i = attr.label, j = 0; i < labels_.size(); i++) {
+      while (j + 1 < bb_boundary.size() &&
+             bb_boundary[j + 1] <= labels_[i].ir_pos) {
+        j++;
+      }
+      label_bb.push_back(j);
+    }
+  }
+  // summary of each basic block
+  std::vector<LifeTime> lifetimes(attr.tot_preg.ireg + attr.tot_preg.freg);
+  std::vector<size_t> ireg_map, freg_map;
+  for (size_t i = 0; i < attr.tot_preg.ireg; i++) ireg_map.push_back(i);
+  for (size_t i = 0; i < attr.tot_preg.freg; i++) {
+    freg_map.push_back(i + attr.tot_preg.ireg);
+    lifetimes[i + attr.tot_preg.ireg].freg = true;
+  }
+  for (size_t i = 0; i + 1 < bb_boundary.size(); i++) {
+    AnalyzeBasicBlock(ir_, bb_boundary[i], bb_boundary[i + 1],
+                      lifetimes, ireg_map, freg_map);
+  }
+  attr.tot_preg.ireg = ireg_map.size();
+  attr.tot_preg.freg = freg_map.size();
+
+  // construct graph of basic blocks
+  for (size_t i = 1; i < bb_boundary.size(); i++) {
+    auto& insr = ir_[bb_boundary[i] - 1];
+    if (kRV64InsrFormat[insr.op] == B_TYPE) {
+      assert(insr.imm_type == IRInsr::kLabel);
+      bb_edge.push_back({i, label_bb[insr.imm - attr.label]});
+    } else if (kRV64InsrFormat[insr.op] == J_TYPE || insr.op == INSR_JALR) {
+      assert(false);
+    } else if (insr.op == PINSR_J) {
+      assert(insr.imm_type == IRInsr::kLabel);
+      bb_edge.push_back({label_bb[insr.imm - attr.label], kEmpty});
+    } else if (insr.op == PINSR_RET) {
+      bb_edge.push_back({bb_boundary.size() - 1, kEmpty});
+    } else {
+      bb_edge.push_back({i, kEmpty});
+    }
+  }
+  bb_edge.push_back({kEmpty, kEmpty});
+}
+
 #if CODEGEN_DEBUG
 namespace {
 
@@ -784,13 +1079,20 @@ std::string RegString(const IRInsr::Register& reg) {
 }  // namespace
 
 void CodeGen::PrintIR() {
-  for (size_t i = 0, j = 0; i < ir_.size(); i++) {
+  for (size_t i = 0, j = 0, k = 0; i < ir_.size(); i++) {
     while (j < labels_.size() && labels_[j].ir_pos == i) {
-      fprintf(stderr, ".%c%03zu: ", "LF"[labels_[j].is_func], j);
+      if (labels_[j].is_func) {
+        auto& attr = tab_[func_[k].first].GetValue<FunctionAttr>();
+        fprintf(stderr, "%s (%zu %zu): ", std::string(func_[k].second).c_str(),
+                attr.tot_preg.ireg, attr.tot_preg.freg);
+        k++;
+      } else {
+        fprintf(stderr, ".L%03zu: ", j);
+      }
       j++;
     }
     fprintf(stderr, "%s, RD:%s, RS1:%s, RS2:%s, ",
-            kRV64InsrCode.find(ir_[i].op)->second.c_str(),
+            kRV64InsrCode[ir_[i].op].c_str(),
             RegString(ir_[i].rd).c_str(), RegString(ir_[i].rs1).c_str(),
             RegString(ir_[i].rs2).c_str());
     switch (ir_[i].imm_type) {

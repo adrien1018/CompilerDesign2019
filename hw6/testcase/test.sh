@@ -24,9 +24,9 @@ EXE="$(mktemp)"
 echo 'Compiling...'
 make -j8 -C .. > /dev/null
 if [ "$3" == '1' ]; then
-  ../parser -o "$ASM" "$IN"
+  ../parser -o "$ASM" -O "$IN"
 else
-  ../parser -o "$ASM" "$IN" > /dev/null 2> /dev/null
+  ../parser -o "$ASM" -O "$IN" > /dev/null 2> /dev/null
 fi
 echo -n 'Ours: '
 riscv64-linux-gnu-gcc -static -O0 -o "$EXE" main.S "$ASM"

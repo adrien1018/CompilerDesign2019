@@ -64,6 +64,8 @@ class CodeGen {
   void VisitAssignmentList(AstNode*);
   bool VisitArray(AstNode*, size_t dest);
   void VisitFunctionCall(AstNode*, size_t dest);
+
+  void OptFunctionRegAlloc(FunctionAttr&);
 #if CODEGEN_DEBUG
   void PrintIR();
 #endif
