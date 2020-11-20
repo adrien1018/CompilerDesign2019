@@ -527,7 +527,14 @@ void CodeGen::VisitAssignment(AstNode* expr) {
 void CodeGen::VisitAssignmentList(AstNode* stmt_list) {
   Debug_((int)stmt_list->node_type, "\n");
   assert(stmt_list->node_type == ASSIGN_EXPR_LIST_NODE);
-  for (AstNode* stmt : stmt_list->child) VisitAssignment(stmt);
+  for (AstNode *stmt : stmt_list->child) {
+    if (stmt->node_type == STMT_NODE &&
+        std::get<StmtSemanticValue>(stmt->semantic_value).kind == ASSIGN_STMT) {
+      VisitAssignment(stmt);
+    } else {
+      VisitRelopExpr(stmt, kNoDest);
+    }
+  }
 }
 
 void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
