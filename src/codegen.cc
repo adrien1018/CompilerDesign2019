@@ -614,9 +614,11 @@ void CodeGen::VisitStatement(AstNode* stmt, FunctionAttr& attr) {
         FuncSpace start_space = cur_;
         size_t reg = AllocRegister(attr.return_type);
         VisitRelopExprList(*it, reg);
-        size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
-        ir_.emplace_back(attr.return_type == INT_TYPE ? PINSR_MV : PINSR_FMV_S,
-                         Reg(retreg), reg);
+        if (attr.return_type != VOID_TYPE) {
+          size_t retreg = attr.return_type == INT_TYPE ? rv64::kA0 : rv64::kFa0;
+          ir_.emplace_back(attr.return_type == INT_TYPE ? PINSR_MV : PINSR_FMV_S,
+                           Reg(retreg), reg);
+        }
         // fprintf(stderr, "meow %d %d %d\n", attr.return_type,
         // (int)attr.params.size(), (int)reg);
         if (!opt_.register_alloc) cur_ = start_space;
