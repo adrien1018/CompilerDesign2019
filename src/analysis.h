@@ -40,7 +40,7 @@ class Analyzer {
   void BuildProgram(AstNode* prog);
   void BuildGlobalDecl(AstNode* decl) noexcept;
   void BuildFunctionDecl(AstNode* func_decl);
-  void BuildBlock(AstNode* block) noexcept;
+  void BuildBlock(AstNode* block, bool push_scope = true) noexcept;
   void BuildDeclList(AstNode* decl_list) noexcept;
   void BuildStmtList(AstNode* stmt_list) noexcept;
   void BuildStatement(AstNode* stmt) noexcept;

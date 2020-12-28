@@ -135,6 +135,10 @@ void PrintMsg(const FileInfor& f, const Location& l, MsgType err) {
             std::cerr << "initializer element is not constant";
             break;
           }
+          case ERR_INVALID_USE_OF_VOID: {
+            std::cerr << "invalid use of void expression";
+            break;
+          }
           case WARN_VOID_RETURN: {
             StartEmph(f.color_output);
             std::cerr << "‘return’";

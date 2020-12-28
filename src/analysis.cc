@@ -446,10 +446,10 @@ void Analyzer::BuildDeclList(AstNode* decl_list) noexcept {
   }
 }
 
-void Analyzer::BuildBlock(AstNode* block) noexcept {
+void Analyzer::BuildBlock(AstNode* block, bool push_scope) noexcept {
   Debug_("BuildBlock", '\n');
   Debug_("PushScope:block\n");
-  mp_.PushScope();
+  if (push_scope) mp_.PushScope();
   for (AstNode* node : block->child) {
     switch (node->node_type) {
       case STMT_LIST_NODE:
@@ -461,7 +461,7 @@ void Analyzer::BuildBlock(AstNode* block) noexcept {
     }
   }
   Debug_("PopScope:block\n");
-  mp_.PopScope();
+  if (push_scope) mp_.PopScope();
 }
 
 size_t Analyzer::InsertParam(AstNode* param, TableEntry&& entry) {
@@ -504,7 +504,7 @@ void Analyzer::BuildFunctionDecl(AstNode* func_decl) {
       size_t pos = InsertParam(param, std::move(et));
       tab_[f].GetValue<FunctionAttr>().params.push_back(pos);
     }
-    BuildBlock(*it);
+    BuildBlock(*it, false);
   } catch (StopExpression&) {
   }
   if (flag) mp_.PopScope();  // pop scope
@@ -609,6 +609,9 @@ inline MsgType CheckConvertibility(const VariableAttr& proto,
   if (args.data_type == CONST_STRING_TYPE) {
     return ERR_STRING_TO_SCALAR;
   }
+  if (args.data_type == VOID_TYPE) {
+    return ERR_INVALID_USE_OF_VOID;
+  }
   if (proto.IsArray() && !args.IsArray()) {
     return ERR_SCALAR_TO_ARR;
   }
@@ -687,6 +690,8 @@ void Analyzer::AnalyzeFunctionCall(AstNode* node) {
         if (x == ERR_STRING_TO_SCALAR) {
           PrintMsg(file_, nd->loc, x, entry.GetNode()->loc, i, args.data_type,
                    GetIdentifier(entry.GetNode()).second);
+        } else if (x == ERR_INVALID_USE_OF_VOID) {
+          PrintMsg(file_, nd->loc, x);
         } else {
           PrintMsg(file_, nd->loc, x, entry.GetNode()->loc, i,
                    GetIdentifier(entry.GetNode()).second);
